@@ -40,3 +40,13 @@ Continue through checkpoints and batches unless an immutable-artifact validation
   import `booktrans`, stop and report `PROJECT_VENV_UNAVAILABLE`. Do not
   repair, recreate, activate an alternate environment, or fall back to
   Conda/global Python without explicit owner approval.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This is a single-context repository. See `docs/agents/domain.md`.
