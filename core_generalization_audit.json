@@ -1,0 +1,23 @@
+{
+  "schema": "booktrans-core-generalization-audit-v1",
+  "scope": ["src", "scripts", "tests", "config", "CLI"],
+  "summary": {"GENERIC_VALID": 5, "HISTORICAL_ONLY": 5, "BOOK_SPECIFIC_REMOVE": 2, "BOOK_SPECIFIC_PARAMETERIZE": 0, "REVIEW": 0},
+  "entries": [
+    {"path": "src/booktrans/ooxml/extractor.py, translation_view.py, tagged_projection.py, package.py", "classification": "GENERIC_VALID", "actual_callers": "core CLI and unit tests; no current-book path, run ID, unit ID, or source hash matches in audit scan", "action": "retained", "reason": "Reusable DOCX extraction, prepared-authority construction, reconstruction, and package handling."},
+    {"path": "src/booktrans/harness/identity_roundtrip.py and tagged_roundtrip.py", "classification": "GENERIC_VALID", "actual_callers": "unit tests and generic smoke test", "action": "retained", "reason": "Generic source-immutability, package-preservation, and re-extraction checks."},
+    {"path": "src/booktrans/ooxml/story_spanning_scope.py", "classification": "GENERIC_VALID", "actual_callers": "tests/unit/test_story_spanning_scope.py", "action": "retained", "reason": "Evidence-led story scope logic has no book title, path, run ID, or fixed unit coupling."},
+    {"path": "src/booktrans/cli.py and src/booktrans/config.py", "classification": "GENERIC_VALID", "actual_callers": "booktrans console entry point", "action": "retained", "reason": "Input and project-root are caller-supplied; config paths are project-relative."},
+    {"path": "config/next_book.example.json", "classification": "GENERIC_VALID", "actual_callers": "next-book intake documentation", "action": "added", "reason": "Defines book_id, source_docx, optional source_pdf, output_root, source_language, and target_language without current-book values."},
+    {"path": "src/booktrans/production_worker/worker.py and production_checkpoint.py", "classification": "HISTORICAL_ONLY", "actual_callers": "frozen full-book checkpoint worker, production regression tests, and historical supervisor scripts", "action": "retained and excluded from next-book intake", "reason": "Contains exact current run/source/hash bindings required to replay the completed campaign; it is not the reusable next-book entry point."},
+    {"path": "scripts/production/run_full_book_batch*_checkpoint.py, reconcile_*, recover_*, write_full_book_*", "classification": "HISTORICAL_ONLY", "actual_callers": "manual historical campaign operations only; no core CLI import found", "action": "retained", "reason": "These scripts encode immutable completed-run evidence and checkpoint recovery details."},
+    {"path": "tests/production/test_b0*.py and selected tests/unit/*qwen*", "classification": "HISTORICAL_ONLY", "actual_callers": "historical production-regression suite", "action": "retained", "reason": "Run names and source paths are fixtures asserting historical contracts, not next-book defaults."},
+    {"path": "scripts/run_m53b_candidate_generation.py and src/booktrans/ooxml/m53b_targeted_visual_repair.py", "classification": "BOOK_SPECIFIC_REMOVE", "actual_callers": "the historical runner was the only production caller; its paired unit test was the only test caller", "action": "removed together with tests/unit/test_m53b_targeted_visual_repair.py", "reason": "Candidate target paragraphs, Chinese strings, and exact M5.3b geometry repair values cannot apply to another book."},
+    {"path": "src/booktrans/ooxml/multi_chapter_pilot.py", "classification": "BOOK_SPECIFIC_REMOVE", "actual_callers": "only tests/unit/test_multi_chapter_pilot.py; no CLI, script, subprocess, documentation, or runbook caller", "action": "removed together with its paired unit test", "reason": "Literal chapter titles and boundaries were an approved pilot for this book, not a generic chapter parser."},
+    {"path": "src/booktrans/domain/composite_translation.py and src/booktrans/harness/composite_contract.py", "classification": "HISTORICAL_ONLY", "actual_callers": "M5.3-era scripts and tests only; no core CLI, extractor, authority, reconstruction, or next-book caller", "action": "retained as historical replay support", "reason": "The records and validation adapter are technically generic-shaped, but no current canonical pipeline requires composite ownership; retaining them avoids changing frozen historical replay."}
+  ],
+  "audit_method": [
+    "Searched src, scripts, tests, and config for current title, full-book run ID, unit counts, M5.3 labels, Reader Edition, and Acceptance Sample.",
+    "Traced direct imports/callers for the removed M5.3b repair module and the retained multi-chapter pilot module.",
+    "Did not inspect or modify the protected final Chinese DOCX, source DOCX, source PDF, or existing run artifacts."
+  ]
+}

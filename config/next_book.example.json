@@ -1,0 +1,8 @@
+{
+  "book_id": "example-book-2026",
+  "source_docx": "D:\\books\\example-book.docx",
+  "source_pdf": "D:\\books\\example-book.pdf",
+  "output_root": "D:\\translate\\runs",
+  "source_language": "en",
+  "target_language": "zh-Hans"
+}

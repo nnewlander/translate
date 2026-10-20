@@ -1,0 +1,15 @@
+from enum import StrEnum
+
+
+class Severity(StrEnum):
+    WARNING = "warning"
+    BLOCKER = "blocker"
+
+
+class CoverageClassification(StrEnum):
+    TRANSLATABLE = "TRANSLATABLE"
+    PROTECTED = "PROTECTED"
+    EXCLUDED_BY_POLICY = "EXCLUDED_BY_POLICY"
+    UNCLASSIFIED = "UNCLASSIFIED"
+    UNKNOWN_POTENTIAL_VISIBLE_CONTENT = "UNKNOWN_POTENTIAL_VISIBLE_CONTENT"
+

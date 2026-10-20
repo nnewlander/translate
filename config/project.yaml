@@ -1,0 +1,4 @@
+project_name: booktrans
+stage: M0-M1
+database_path: data/translation.db
+runs_directory: runs
