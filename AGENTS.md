@@ -15,3 +15,28 @@
 ## Stop conditions
 
 Continue through checkpoints and batches unless an immutable-artifact validation failure, unresolved deterministic/systemic failure, `HUMAN_REQUIRED`, artifact corruption, source mutation, or unrecoverable runtime failure occurs. Report such a condition explicitly; do not silently retry or bypass it.
+
+## Python environment contract
+
+- All booktrans Python development, debugging, testing, dependency management,
+  and project-script execution must use the project virtual environment. From
+  the project root, resolve its Windows interpreter as
+  `.venv\Scripts\python.exe` and invoke that resolved path explicitly.
+- Do not rely on terminal activation state, a bare `python`, a bare `pip`,
+  PATH resolution, Conda `base`, a global Python installation, or another
+  project's environment for any booktrans task.
+- Before dependency changes, tests, or production-affecting operations, verify
+  the resolved interpreter and virtual-environment prefix from the project
+  root. First initialize `$python` with
+  `$python = (Resolve-Path '.venv\Scripts\python.exe').Path`, then verify it,
+  for example:
+  `& $python -c "import pathlib, sys; expected = pathlib.Path('.venv').resolve(); actual = pathlib.Path(sys.prefix).resolve(); assert actual == expected, (actual, expected); print(sys.executable); print(sys.prefix)"`.
+- Use the same explicit interpreter for package operations, for example
+  `& $python -m pip ...`, and for Python modules, tests, and project scripts.
+- Preserve the production Supervisor's existing explicit project-interpreter
+  binding; do not replace it with a bare `python` invocation.
+- If the project interpreter is missing, cannot start, has a `sys.prefix`
+  different from the project `.venv`, fails `python -m pip check`, or cannot
+  import `booktrans`, stop and report `PROJECT_VENV_UNAVAILABLE`. Do not
+  repair, recreate, activate an alternate environment, or fall back to
+  Conda/global Python without explicit owner approval.
