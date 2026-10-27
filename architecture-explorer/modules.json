@@ -1,0 +1,54 @@
+{
+  "schema": "architecture-explorer.module-map.v1",
+  "modules": [
+    {
+      "id": "document-understanding",
+      "name": "文档理解与定位",
+      "responsibility": "从不可变 DOCX 建立可定位的文档模型和翻译视图，并守住源完整性与结构定位规则。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    },
+    {
+      "id": "scope-and-request",
+      "name": "工作范围与请求构造",
+      "responsibility": "决定翻译哪些逻辑工作单元，并组装冻结 selection、上下文和精确证据。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    },
+    {
+      "id": "translation-execution",
+      "name": "翻译执行与模型接入",
+      "responsibility": "把已批准请求路由到模型提供方适配层并取得候选译文，也支持从既有 RAW 继续。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    },
+    {
+      "id": "quality-and-repair",
+      "name": "质量判断与受限修复",
+      "responsibility": "执行确定性 QA、语义审核和受合同限制的修复，并保留候选版本血缘。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    },
+    {
+      "id": "production-evidence",
+      "name": "生产证据与 Checkpoint",
+      "responsibility": "保存、校验和封存生产事实与 Checkpoint 证据。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    },
+    {
+      "id": "production-control",
+      "name": "生产调度与控制",
+      "responsibility": "决定继续、恢复、重建、停止或阻断，并守住单写者与批次边界。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    },
+    {
+      "id": "candidate-and-release",
+      "name": "候选文档与发布验证",
+      "responsibility": "把已批准译文安全投影到候选文档，并验证不应改变的包内容与发布边界。",
+      "logical_definition": {"status": "approved", "approved_in": "GitHub Issue #1"},
+      "source_coverage": {"status": "unverified", "evidence": []}
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Architecture Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <p class="eyebrow">TRANSLATE · ARCHITECTURE EXPLORER</p>
+        <h1>顶层架构</h1>
+        <p class="lede">已批准的逻辑职责，与源码覆盖核验分别呈现。</p>
+      </header>
+      <section class="snapshot" aria-labelledby="snapshot-heading">
+        <h2 id="snapshot-heading">源码快照</h2>
+        <dl id="snapshot-metadata"></dl>
+      </section>
+      <section aria-labelledby="modules-heading">
+        <div class="section-heading">
+          <h2 id="modules-heading">七个顶层模块</h2>
+          <span id="module-count" class="count"></span>
+        </div>
+        <div id="module-grid" class="module-grid"></div>
+      </section>
+      <p id="load-error" class="load-error" role="alert" hidden></p>
+    </main>
+    <script src="explorer-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
