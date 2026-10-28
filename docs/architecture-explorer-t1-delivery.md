@@ -5,7 +5,7 @@ evidence for independent review, not an integration or merge claim.
 
 ## Revision and integration status
 
-- Latest application-and-test commit actually exercised: `4be1c19d8d855ab334dc755fa3886935a18fef4a`.
+- Latest application-and-test commit actually exercised: `bc9d405227863abfee573311ddef9419ec80d622`.
 - Branch: `codex/architecture-explorer-t1`.
 - The commit has **not** been authorized for integration and is not described as merged.
 - No authorized T2 integration baseline has been established. T2 must not infer
@@ -38,11 +38,11 @@ T1 behavior suite:
 $python = (Resolve-Path 'D:\translate\.venv\Scripts\python.exe').Path
 $env:PYTHONDONTWRITEBYTECODE = '1'
 & $python -m pytest -q -rs -p no:cacheprovider `
-  --basetemp 'D:\translate\.test-tmp\architecture-explorer-t1-final-precommit' `
+  --basetemp 'D:\translate\.test-tmp\architecture-explorer-t1-bc9d405' `
   tests\architecture_explorer\test_top_level_explorer.py
 ```
 
-Result: `30 passed, 1 skipped in 10.82s`. The skipped case attempts a real
+Result: `30 passed, 1 skipped in 11.20s`. The skipped case attempts a real
 directory symlink and then a Windows junction; the managed sandbox denied both
 creation mechanisms. Absolute paths, `..`, output/input overlap, protected file
 targets, real CLI success, malformed re-signed snapshots, and porcelain status
@@ -86,15 +86,35 @@ produced the same deterministic content SHA-256. The generated site contains
 `index.html`, `styles.css`, `app.js`, `explorer-data.js`, and
 `explorer-data.json`, and reports seven modules.
 
+### Final high-readability page
+
+The restrained high-contrast visual refinement was generated from a clean
+`bc9d4052...` worktree and repeated into a second output directory:
+
+- Local offline page:
+  `output/architecture-explorer/t1-final-bc9d405/site/index.html`
+- Snapshot facts SHA-256:
+  `4805bfb14b2167c92b4af109699515931b6f5a998856eec8e3cc7cac1d978495`
+- Deterministic content SHA-256:
+  `6daf1e5409faa8a895ebe776e02db5775b462616acf0b7a12caea7285425bd06`
+- `explorer-data.json` file SHA-256:
+  `8447f394ee6222696c997e0505938a328cd4e11c466c9c66f5dd93a68e8f7873`
+- Generated `styles.css` file SHA-256:
+  `4c25286e481ff057d6514af8a4d61b273854eeb4d0803ee28101f86fc4dc0170`
+
+Both builds produced the same deterministic content SHA-256 and contained all
+five required offline resources. This generated page is an ignored local
+artifact, not an authorized integration baseline.
+
 ## Known unverified items
 
 - The managed environment could not create a real Windows symlink or junction,
   so that one filesystem-specific rejection case remains skipped here. The path
   validator resolves both the allowed root and final target before containment
   checks; the test will execute where link creation is permitted.
-- The refreshed spring/watercolor CSS and generated resource set were verified
-  statically and through generation tests, but the new visual treatment was not
-  evaluated in a real browser by this delivery run. Human visual acceptance is
-  still required.
+- The final high-contrast spring/watercolor CSS and generated resource set were
+  verified statically and through generation tests, but this last visual
+  refinement was not evaluated in a real browser by the automated delivery run.
+  Human visual acceptance is still required.
 - Full repository execution remains outside T1 and is blocked at collection by
   the existing production fixture absence described above.
