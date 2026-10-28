@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import re
 import shutil
 import subprocess
 from typing import Any
@@ -15,6 +16,9 @@ MAPPING_SCHEMA = "architecture-explorer.module-map.v1"
 EXPLORER_SCHEMA = "architecture-explorer.data.v1"
 COVERAGE_STATUSES = {"unverified", "partial", "verified"}
 APPROVAL_STATUS = "approved"
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+_REVISION_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
+_PORCELAIN_STATUS_CHARS = frozenset(" MADRCU?!m")
 
 
 class ExplorerInputError(ValueError):
@@ -56,7 +60,60 @@ def _git(repository: Path, *args: str) -> str:
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
         raise ExplorerInputError(f"Git metadata unavailable: {detail}")
-    return completed.stdout.strip()
+    return completed.stdout.rstrip("\r\n")
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def validate_cli_output_path(
+    repository: Path,
+    requested_path: Path,
+    *,
+    directory: bool,
+    inputs: tuple[Path, ...] = (),
+    output_files: tuple[str, ...] = (),
+) -> Path:
+    """Resolve one CLI output below the repository's non-escaping output root."""
+
+    repository = repository.resolve()
+    if requested_path.is_absolute():
+        raise ExplorerInputError("CLI output paths must be repository-relative")
+    if not requested_path.parts or ".." in requested_path.parts:
+        raise ExplorerInputError("CLI output paths cannot contain '..'")
+
+    artifact_root = (repository / "output").resolve()
+    if not _is_within(artifact_root, repository):
+        raise ExplorerInputError("Repository output root escapes through a link or junction")
+    candidate = (repository / requested_path).resolve()
+    if not _is_within(candidate, artifact_root):
+        raise ExplorerInputError("CLI output must be inside the repository output directory")
+
+    for input_path in inputs:
+        resolved_input = input_path.resolve()
+        if candidate == resolved_input:
+            raise ExplorerInputError("CLI output overlaps an input path")
+        if directory and (
+            _is_within(resolved_input, candidate) or _is_within(candidate, resolved_input)
+        ):
+            raise ExplorerInputError("CLI output directory overlaps an input path")
+
+    if directory and candidate.exists() and not candidate.is_dir():
+        raise ExplorerInputError("CLI output directory target is an existing file")
+    if not directory and candidate.exists() and not candidate.is_file():
+        raise ExplorerInputError("CLI output file target is an existing directory")
+    for filename in output_files:
+        child = (candidate / filename).resolve()
+        if not _is_within(child, candidate):
+            raise ExplorerInputError("CLI output file escapes through a link or junction")
+        if child.exists() and not child.is_file():
+            raise ExplorerInputError("CLI output file target is an existing directory")
+    return candidate
 
 
 def _explicit_file(repository: Path, relative_path: str) -> Path:
@@ -89,8 +146,13 @@ def scan_snapshot(
         raise ExplorerInputError("Source inputs must be unique")
 
     inputs = []
+    resolved_inputs: set[str] = set()
     for relative_path in normalized:
         source = _explicit_file(repository, relative_path)
+        source_identity = str(source).casefold()
+        if source_identity in resolved_inputs:
+            raise ExplorerInputError("Source inputs must resolve to unique files")
+        resolved_inputs.add(source_identity)
         raw = source.read_bytes()
         inputs.append(
             {
@@ -126,13 +188,98 @@ def scan_snapshot(
 def _validate_snapshot(snapshot: dict[str, Any]) -> None:
     if snapshot.get("schema") != SNAPSHOT_SCHEMA:
         raise ExplorerInputError(f"Unsupported snapshot schema: {snapshot.get('schema')!r}")
-    required = {"revision", "worktree", "scanner_version", "scanned_at", "input_files", "facts_sha256"}
+    required = {
+        "schema",
+        "revision",
+        "worktree",
+        "scanner_version",
+        "scanned_at",
+        "input_files",
+        "facts_sha256",
+    }
     missing = sorted(required - snapshot.keys())
     if missing:
         raise ExplorerInputError(f"Snapshot is missing fields: {', '.join(missing)}")
+    unexpected = sorted(snapshot.keys() - required)
+    if unexpected:
+        raise ExplorerInputError(f"Snapshot has unexpected fields: {', '.join(unexpected)}")
+
+    revision = snapshot["revision"]
+    if not isinstance(revision, str) or _REVISION_PATTERN.fullmatch(revision) is None:
+        raise ExplorerInputError("Snapshot revision must be a full hexadecimal Git object id")
+
+    scanner_version = snapshot["scanner_version"]
+    if scanner_version != SCANNER_VERSION:
+        raise ExplorerInputError(f"Unsupported snapshot scanner version: {scanner_version!r}")
+
+    scanned_at = snapshot["scanned_at"]
+    if not isinstance(scanned_at, str) or "T" not in scanned_at or not scanned_at.endswith("Z"):
+        raise ExplorerInputError("Snapshot scan time must be an ISO-8601 UTC string")
+    try:
+        parsed_scan_time = datetime.fromisoformat(scanned_at[:-1] + "+00:00")
+    except ValueError as error:
+        raise ExplorerInputError("Snapshot scan time must be an ISO-8601 UTC string") from error
+    if parsed_scan_time.utcoffset() != timezone.utc.utcoffset(parsed_scan_time):
+        raise ExplorerInputError("Snapshot scan time must use UTC")
+
+    worktree = snapshot["worktree"]
+    if not isinstance(worktree, dict) or set(worktree) != {"state", "porcelain"}:
+        raise ExplorerInputError("Snapshot worktree must contain only state and porcelain")
+    state = worktree["state"]
+    porcelain = worktree["porcelain"]
+    if state not in {"clean", "dirty"}:
+        raise ExplorerInputError("Snapshot worktree state must be clean or dirty")
+    if not isinstance(porcelain, list) or not all(isinstance(line, str) for line in porcelain):
+        raise ExplorerInputError("Snapshot porcelain must be a list of strings")
+    for line in porcelain:
+        if (
+            len(line) < 4
+            or line[0] not in _PORCELAIN_STATUS_CHARS
+            or line[1] not in _PORCELAIN_STATUS_CHARS
+            or line[2] != " "
+            or "\n" in line
+            or "\r" in line
+        ):
+            raise ExplorerInputError("Snapshot contains an invalid porcelain record")
+    if (state == "clean") != (not porcelain):
+        raise ExplorerInputError("Snapshot worktree state contradicts its porcelain records")
+
+    input_files = snapshot["input_files"]
+    if not isinstance(input_files, list) or not input_files:
+        raise ExplorerInputError("Snapshot input files must be a non-empty list")
+    input_paths: list[str] = []
+    for position, item in enumerate(input_files, start=1):
+        if not isinstance(item, dict) or set(item) != {"path", "sha256", "size_bytes"}:
+            raise ExplorerInputError(f"Snapshot input file {position} has an invalid structure")
+        path = item["path"]
+        if not isinstance(path, str) or not path or "\\" in path:
+            raise ExplorerInputError(f"Snapshot input file {position} has an invalid path")
+        pure_path = PurePosixPath(path)
+        if (
+            pure_path.is_absolute()
+            or bool(PureWindowsPath(path).drive)
+            or any(part in {"", ".", ".."} for part in pure_path.parts)
+            or pure_path.as_posix() != path
+        ):
+            raise ExplorerInputError(f"Snapshot input file {position} must be normalized and relative")
+        sha256 = item["sha256"]
+        if not isinstance(sha256, str) or _SHA256_PATTERN.fullmatch(sha256) is None:
+            raise ExplorerInputError(f"Snapshot input file {position} has an invalid SHA-256")
+        size_bytes = item["size_bytes"]
+        if type(size_bytes) is not int or size_bytes < 0:
+            raise ExplorerInputError(f"Snapshot input file {position} has an invalid size")
+        input_paths.append(path)
+    if len({path.casefold() for path in input_paths}) != len(input_paths):
+        raise ExplorerInputError("Snapshot input file paths must be unique")
+    if input_paths != sorted(input_paths):
+        raise ExplorerInputError("Snapshot input file paths must be sorted")
+
+    facts_sha256 = snapshot["facts_sha256"]
+    if not isinstance(facts_sha256, str) or _SHA256_PATTERN.fullmatch(facts_sha256) is None:
+        raise ExplorerInputError("Snapshot facts hash must be a lowercase SHA-256")
     deterministic_facts = {key: snapshot[key] for key in ("revision", "worktree", "scanner_version", "input_files")}
     expected = _sha256_bytes(_canonical_bytes(deterministic_facts))
-    if snapshot["facts_sha256"] != expected:
+    if facts_sha256 != expected:
         raise ExplorerInputError("Snapshot facts hash does not match its contents")
 
 
