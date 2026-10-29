@@ -18,7 +18,45 @@ COVERAGE_STATUSES = {"unverified", "partial", "verified"}
 APPROVAL_STATUS = "approved"
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 _REVISION_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
-_PORCELAIN_STATUS_CHARS = frozenset(" MADRCU?!m")
+_PORCELAIN_STATUS_COMBINATIONS = frozenset(
+    {
+        " M",
+        " T",
+        " A",
+        " D",
+        " R",
+        " C",
+        "M ",
+        "MM",
+        "MT",
+        "MD",
+        "T ",
+        "TM",
+        "TT",
+        "TD",
+        "A ",
+        "AM",
+        "AT",
+        "AD",
+        "D ",
+        "R ",
+        "RM",
+        "RT",
+        "RD",
+        "C ",
+        "CM",
+        "CT",
+        "CD",
+        "DD",
+        "AU",
+        "UD",
+        "UA",
+        "DU",
+        "AA",
+        "UU",
+        "??",
+    }
+)
 
 
 class ExplorerInputError(ValueError):
@@ -71,6 +109,31 @@ def _is_within(path: Path, root: Path) -> bool:
     return True
 
 
+def _is_reparse_point(path: Path) -> bool:
+    """Return whether an existing Windows path redirects through a reparse point."""
+
+    try:
+        attributes = path.stat(follow_symlinks=False).st_file_attributes
+    except (AttributeError, FileNotFoundError):
+        return False
+    return bool(attributes & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+
+
+def _validate_porcelain_v1_record(line: str) -> None:
+    if len(line) < 4 or line[2] != " " or "\n" in line or "\r" in line:
+        raise ExplorerInputError("Snapshot contains an invalid porcelain record")
+    status = line[:2]
+    if status not in _PORCELAIN_STATUS_COMBINATIONS:
+        raise ExplorerInputError("Snapshot contains an invalid porcelain status combination")
+    payload = line[3:]
+    if not payload:
+        raise ExplorerInputError("Snapshot porcelain record must identify a path")
+    if "R" in status or "C" in status:
+        original, separator, destination = payload.rpartition(" -> ")
+        if not separator or not original or not destination:
+            raise ExplorerInputError("Snapshot rename or copy record must identify both paths")
+
+
 def validate_cli_output_path(
     repository: Path,
     requested_path: Path,
@@ -87,7 +150,14 @@ def validate_cli_output_path(
     if not requested_path.parts or ".." in requested_path.parts:
         raise ExplorerInputError("CLI output paths cannot contain '..'")
 
-    artifact_root = (repository / "output").resolve()
+    artifact_root_path = repository / "output"
+    if (
+        artifact_root_path.is_symlink()
+        or artifact_root_path.is_junction()
+        or _is_reparse_point(artifact_root_path)
+    ):
+        raise ExplorerInputError("Repository output root cannot be a link, junction, or reparse point")
+    artifact_root = artifact_root_path.resolve()
     if not _is_within(artifact_root, repository):
         raise ExplorerInputError("Repository output root escapes through a link or junction")
     candidate = (repository / requested_path).resolve()
@@ -232,15 +302,7 @@ def _validate_snapshot(snapshot: dict[str, Any]) -> None:
     if not isinstance(porcelain, list) or not all(isinstance(line, str) for line in porcelain):
         raise ExplorerInputError("Snapshot porcelain must be a list of strings")
     for line in porcelain:
-        if (
-            len(line) < 4
-            or line[0] not in _PORCELAIN_STATUS_CHARS
-            or line[1] not in _PORCELAIN_STATUS_CHARS
-            or line[2] != " "
-            or "\n" in line
-            or "\r" in line
-        ):
-            raise ExplorerInputError("Snapshot contains an invalid porcelain record")
+        _validate_porcelain_v1_record(line)
     if (state == "clean") != (not porcelain):
         raise ExplorerInputError("Snapshot worktree state contradicts its porcelain records")
 

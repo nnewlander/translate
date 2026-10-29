@@ -52,6 +52,19 @@ def _resign_snapshot(snapshot: dict) -> None:
     snapshot["facts_sha256"] = hashlib.sha256(canonical).hexdigest()
 
 
+def _make_windows_junction_or_skip(link: Path, target: Path) -> None:
+    if sys.platform != "win32":
+        pytest.skip("Windows junction regression requires Windows")
+    junction = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        check=False,
+        capture_output=True,
+    )
+    if junction.returncode != 0:
+        pytest.skip("Windows junction creation is unavailable in this test environment")
+    assert link.is_junction()
+
+
 @pytest.fixture()
 def source_snapshot(tmp_path: Path) -> Path:
     repository = tmp_path / "source-snapshot"
@@ -212,6 +225,18 @@ def test_scanner_reads_only_explicit_files(tmp_path: Path, source_snapshot: Path
         (lambda value: value.update(worktree="dirty"), "worktree"),
         (lambda value: value["worktree"].update(state="unknown"), "worktree state"),
         (lambda value: value["worktree"].update(porcelain=["M malformed"]), "porcelain"),
+        (
+            lambda value: value["worktree"].update(state="dirty", porcelain=["   fake"]),
+            "status combination",
+        ),
+        (
+            lambda value: value["worktree"].update(state="dirty", porcelain=["R  marker.txt"]),
+            "both paths",
+        ),
+        (
+            lambda value: value["worktree"].update(state="dirty", porcelain=["!! ignored.txt"]),
+            "status combination",
+        ),
         (lambda value: value.update(input_files="marker.txt"), "input files"),
         (lambda value: value["input_files"][0].update(path="../marker.txt"), "relative"),
         (lambda value: value["input_files"][0].update(path="C:/marker.txt"), "relative"),
@@ -255,6 +280,49 @@ def test_porcelain_status_columns_are_preserved(
     snapshot = scan_snapshot(source_snapshot, ["marker.txt"], scanned_at="2026-10-27T00:00:00Z")
 
     assert any(line.startswith(expected_prefix) for line in snapshot["worktree"]["porcelain"])
+
+
+def test_real_git_rename_porcelain_is_accepted(
+    tmp_path: Path,
+    source_snapshot: Path,
+) -> None:
+    _git(source_snapshot, "mv", "marker.txt", "renamed.txt")
+    snapshot = scan_snapshot(
+        source_snapshot,
+        ["renamed.txt"],
+        scanned_at="2026-10-27T00:00:00Z",
+    )
+    assert any(line.startswith("R  ") and " -> " in line for line in snapshot["worktree"]["porcelain"])
+    snapshot_path = tmp_path / "rename-snapshot.json"
+    write_json(snapshot_path, snapshot)
+
+    data = build_explorer(snapshot_path, _mapping(tmp_path))
+
+    assert data["snapshot"]["worktree"]["state"] == "dirty"
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        " T marker.txt",
+        "C  original.txt -> marker.txt",
+        "UU marker.txt",
+    ],
+)
+def test_supported_porcelain_v1_records_are_accepted(
+    tmp_path: Path,
+    source_snapshot: Path,
+    record: str,
+) -> None:
+    snapshot = scan_snapshot(source_snapshot, ["marker.txt"], scanned_at="2026-10-27T00:00:00Z")
+    snapshot["worktree"] = {"state": "dirty", "porcelain": [record]}
+    _resign_snapshot(snapshot)
+    snapshot_path = tmp_path / "supported-porcelain-snapshot.json"
+    write_json(snapshot_path, snapshot)
+
+    data = build_explorer(snapshot_path, _mapping(tmp_path))
+
+    assert data["snapshot"]["worktree"]["porcelain"] == [record]
 
 
 def test_real_cli_generates_snapshot_and_offline_site_inside_output(
@@ -446,3 +514,32 @@ def test_real_cli_rejects_link_that_escapes_output_root(
     finally:
         if created_junction:
             link.rmdir()
+
+
+def test_real_scan_cli_rejects_junction_as_output_root(
+    source_snapshot: Path,
+) -> None:
+    protected = source_snapshot / "protected"
+    protected.mkdir()
+    sentinel = protected / "sentinel.txt"
+    sentinel.write_text("must remain unchanged\n", encoding="utf-8")
+    output = source_snapshot / "output"
+    _make_windows_junction_or_skip(output, protected)
+
+    try:
+        result = _run_cli(
+            "scan",
+            "--repository",
+            source_snapshot,
+            "--source-file",
+            "marker.txt",
+            "--output",
+            "output/snapshot.json",
+        )
+
+        assert result.returncode != 0
+        assert "output root cannot be a link, junction, or reparse point" in result.stderr
+        assert not (protected / "snapshot.json").exists()
+        assert sentinel.read_text(encoding="utf-8") == "must remain unchanged\n"
+    finally:
+        output.rmdir()
