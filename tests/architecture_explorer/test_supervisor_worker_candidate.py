@@ -265,6 +265,7 @@ def test_markdown_report_is_rendered_from_same_candidate_record(source_repositor
     assert "NOT_COLLECTED" in report
     assert "授权审核者" in report
     assert "实施 Agent 不得填写批准结论" in report
+    assert "\r" not in report
     for item in candidate["evidence"]:
         assert item["evidence_id"] in report
 

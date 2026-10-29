@@ -652,6 +652,7 @@ def render_candidate_report(candidate: dict[str, Any]) -> str:
     for item in candidate["evidence"]:
         role = "生产事实" if item["source_role"] == "production" else "辅助测试"
         location = item["current_location"]
+        report_snippet = item["snippet"].replace("\r\n", "\n").replace("\r", "\n")
         lines.extend(
             [
                 f"### `{item['evidence_kind']}` — {role}",
@@ -665,7 +666,7 @@ def render_candidate_report(candidate: dict[str, Any]) -> str:
                 f"- 文件 SHA-256：`{item['file_sha256']}`",
                 "",
                 "```text",
-                item["snippet"],
+                report_snippet,
                 "```",
                 "",
             ]
@@ -705,5 +706,5 @@ def write_candidate_outputs(candidate: dict[str, Any], output_directory: Path) -
     machine_path = output_directory / "candidate.json"
     report_path = output_directory / "candidate-review.md"
     machine_path.write_text(json.dumps(candidate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    report_path.write_text(render_candidate_report(candidate), encoding="utf-8")
+    report_path.write_text(render_candidate_report(candidate), encoding="utf-8", newline="\n")
     return machine_path, report_path
