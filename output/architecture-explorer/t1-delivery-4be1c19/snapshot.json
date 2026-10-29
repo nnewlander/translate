@@ -1,0 +1,18 @@
+{
+  "schema": "architecture-explorer.snapshot.v1",
+  "revision": "4be1c19d8d855ab334dc755fa3886935a18fef4a",
+  "worktree": {
+    "state": "clean",
+    "porcelain": []
+  },
+  "scanner_version": "architecture-explorer-t1/1.0",
+  "input_files": [
+    {
+      "path": "pyproject.toml",
+      "sha256": "ab700382f631f285274e8e57b0ac5246c9cfe743c8f6d8db4b8b0e1ad71bf59c",
+      "size_bytes": 717
+    }
+  ],
+  "scanned_at": "2026-10-28T10:21:29Z",
+  "facts_sha256": "03feb49f9a9a8cf8b9b1193e6688a30ef88eee3fced9f78743ca279018db99ee"
+}
