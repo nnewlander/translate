@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from .generator import ExplorerInputError
 
 
-SCANNER_VERSION = "architecture-explorer-t2/1.1"
+SCANNER_VERSION = "architecture-explorer-t2/1.2"
 CANDIDATE_SCHEMA = "architecture-explorer.relationship-candidate.v1"
 PRODUCTION_FILES = (
     "scripts/production/production_campaign_supervisor.ps1",
@@ -282,9 +282,9 @@ def _is_system_exit_call_of(statement: ast.stmt, function_name: str) -> bool:
 
 def _wrapper_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, Any]]:
     tree = ast.parse(text, filename=path)
-    imports: list[tuple[ast.ImportFrom, str]] = [
-        (node, alias.asname or alias.name)
-        for node in tree.body
+    imports: list[tuple[int, ast.ImportFrom, str]] = [
+        (index, node, alias.asname or alias.name)
+        for index, node in enumerate(tree.body)
         if isinstance(node, ast.ImportFrom)
         and node.module == "booktrans.production_worker.worker"
         for alias in node.names
@@ -292,11 +292,16 @@ def _wrapper_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, 
     ]
     guards: list[ast.If] = []
     if len(imports) == 1:
-        imported_name = imports[0][1]
+        import_index, _import_node, imported_name = imports[0]
         guards = [
             node
-            for node in tree.body
+            for guard_index, node in enumerate(tree.body)
             if isinstance(node, ast.If)
+            # The real T2 wrapper has no executable statement between the
+            # import and guard. Requiring adjacency proves that the imported
+            # local name cannot be rebound before this call without building
+            # a general Python name resolver.
+            and guard_index == import_index + 1
             and _is_exact_main_guard(node.test)
             and not node.orelse
             and len(node.body) == 1
@@ -307,7 +312,7 @@ def _wrapper_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, 
             text=text,
             path=path,
             file_sha256=file_sha256,
-            nodes=[node for node, _local_name in imports],
+            nodes=[node for _index, node, _local_name in imports],
             evidence_kind="worker_wrapper_import",
             symbol="module",
             structural_anchor="python:import:booktrans.production_worker.worker.main",
@@ -687,8 +692,8 @@ def _collect_evidence(files: dict[str, tuple[str, str, int]]) -> list[dict[str, 
                 "'--run-path'",
                 "'--worker-id'",
                 "'--handoff-path'",
-                "'--batch-label'",
-                "'--checkpoint'",
+                "'--batch-label', $before.active_batch",
+                "'--checkpoint', $before.next_checkpoint",
                 "'--mode', 'production'",
                 "'--authorize-production-checkpoint-write'",
             ),

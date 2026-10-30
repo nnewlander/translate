@@ -22,11 +22,19 @@ hashes, sizes, and the source-snapshot record. A metadata change during the
 read fails the scan instead of mixing two source states.
 
 The supported Python control-flow shape is intentionally narrow. The wrapper
-must import the exact Worker `main` and call that imported name under an exact
-`__name__ == "__main__"` guard. Worker `main` must parse `args` from
+must import the exact Worker `main`; that import must be immediately followed
+in the module AST by an exact `__name__ == "__main__"` guard that calls the
+imported name. An intervening executable statement is treated as unknown so a
+possible rebinding cannot be mistaken for the Worker entrypoint. Worker `main`
+must parse `args` from
 `build_parser()`, exit its exact canary branch, then apply the worker-id and
 batch/checkpoint guards in order before its top-level production return. Other
 shapes remain incomplete/unknown rather than being guessed.
+
+The Supervisor production argument-vector evidence also requires direct value
+bindings from the rebuilt state: `--batch-label` must be paired with
+`$before.active_batch`, and `--checkpoint` with `$before.next_checkpoint`.
+Finding the option names without those values is incomplete evidence.
 
 Run with the project interpreter from a clean, fixed worktree:
 

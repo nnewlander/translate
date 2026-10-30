@@ -285,6 +285,58 @@ def test_changed_wrapper_import_breaks_import_and_main_identity(source_repositor
     assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
 
 
+@pytest.mark.parametrize(
+    "rebinding",
+    [
+        "from unrelated.module import main",
+        "main = unrelated_main",
+    ],
+)
+def test_wrapper_main_rebinding_breaks_imported_function_identity(
+    source_repository: Path,
+    rebinding: str,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[1]
+    path.write_text(
+        "from booktrans.production_worker.worker import main\n\n"
+        + rebinding
+        + '\n\nif __name__ == "__main__":\n    raise SystemExit(main())\n',
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["worker_wrapper_main_call"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement"),
+    [
+        ("$before.active_batch", "'WRONG_BATCH'"),
+        ("$before.next_checkpoint", "'checkpoint_999'"),
+    ],
+)
+def test_supervisor_state_binding_requires_exact_argument_values(
+    source_repository: Path,
+    original: str,
+    replacement: str,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[0]
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(original, replacement),
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["production_argument_vector"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+    assert not candidate["candidate_relation"]["reachability"]["proven_conditions"]
+
+
 def test_production_call_inside_canary_branch_is_not_non_canary_evidence(
     source_repository: Path,
 ) -> None:
