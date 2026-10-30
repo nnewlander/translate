@@ -10,6 +10,7 @@ import subprocess
 from typing import Any
 
 from .generator import ExplorerInputError, build_explorer
+from .presentation_zh import build_relationship_presentation_zh
 
 
 REVIEW_MAP_SCHEMA = "architecture-explorer.review-map.v1"
@@ -340,10 +341,10 @@ def publish_reviewed_explorer(
         raise ExplorerInputError("Internal T3 review state is invalid")
     relation_candidate = candidate["candidate_relation"]
     evidence_by_id = {item["evidence_id"]: item for item in candidate["evidence"]}
-    evidence_ids = (
-        decision["approved_evidence_ids"] if isinstance(decision, dict)
-        else relation_candidate["production_evidence_ids"]
-    )
+    # The visible evidence chain always comes from the fixed candidate facts.
+    # A malformed decision stays available for diagnostics but cannot select or
+    # suppress the source facts shown by the Explorer.
+    evidence_ids = relation_candidate["production_evidence_ids"]
     relationship = {
         "id": "relationship:production-control:launches:translation-execution",
         "source_module": relation_candidate["source_module"],
@@ -362,6 +363,12 @@ def publish_reviewed_explorer(
         "review_decision": decision,
         "source_continuity": {"status": continuity, "files": file_checks},
     }
+    relationship["supporting_evidence"] = [
+        item for item in candidate["evidence"] if item.get("source_role") == "auxiliary_test"
+    ]
+    relationship["presentation_zh"] = build_relationship_presentation_zh(
+        base["architecture"]["modules"], relationship, candidate["evidence"]
+    )
     base["schema"] = "architecture-explorer.data.v2"
     base["data_contract_version"] = DATA_CONTRACT_VERSION
     base["architecture"]["relationships"] = [relationship]

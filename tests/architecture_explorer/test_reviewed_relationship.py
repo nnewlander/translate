@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -176,3 +177,72 @@ def test_committed_review_map_and_offline_ui_expose_t3_contract() -> None:
     assert "复制定位信息" in app
     assert "workflow-toggle" in page
     assert "relationship-detail" in page
+
+
+def test_chinese_relationship_guide_uses_approved_module_names_and_plain_explanation() -> None:
+    relation = _publish(_json(CANDIDATE_PATH), _json(REVIEW_MAP_PATH))["architecture"]["relationships"][0]
+    guide = relation["presentation_zh"]
+    assert guide["source_module_name"] == "生产调度与控制"
+    assert guide["target_module_name"] == "翻译执行与模型接入"
+    assert guide["relationship_name"] == "进程启动"
+    assert guide["summary"] == "Supervisor 在满足指定条件时，可以启动独立的 Python Worker 进程，并传递生产参数。"
+    assert "当前已审核" in guide["status_explanations"]["current-reviewed"]
+    assert "静态条件可达" in guide["status_explanations"]["STATIC_CONDITIONAL"]
+    assert "真实运行状态未采集" in guide["status_explanations"]["NOT_COLLECTED"]
+    assert any("实际启动成功" in item for item in guide["limits"])
+    assert any("翻译任务已经成功完成" in item for item in guide["limits"])
+
+
+def test_chinese_evidence_chain_has_exact_supervisor_wrapper_worker_groups() -> None:
+    candidate = _json(CANDIDATE_PATH)
+    relation = _publish(candidate, _json(REVIEW_MAP_PATH))["architecture"]["relationships"][0]
+    groups = relation["presentation_zh"]["evidence_groups"]
+    assert [(item["id"], len(item["evidence_ids"])) for item in groups] == [
+        ("supervisor", 4), ("wrapper", 2), ("worker", 7)
+    ]
+    grouped_ids = [evidence_id for group in groups for evidence_id in group["evidence_ids"]]
+    assert grouped_ids == [
+        next(item["evidence_id"] for item in relation["evidence"] if item["evidence_kind"] == kind)
+        for kind in [
+            "worker_script_binding", "production_argument_vector", "process_boundary_definition",
+            "process_boundary_invocation", "worker_wrapper_import", "worker_wrapper_main_call",
+            "worker_mode_contract", "worker_authorization_contract", "worker_argument_parse",
+            "worker_canary_exit_guard", "worker_id_guard", "worker_batch_checkpoint_guard",
+            "worker_production_branch",
+        ]
+    ]
+    for evidence_id in grouped_ids:
+        item = relation["presentation_zh"]["evidence_items"][evidence_id]
+        assert item["name"] and item["explanation"] and item["supports"]
+
+
+def test_auxiliary_evidence_stays_separate_from_approved_production_evidence() -> None:
+    candidate = _json(CANDIDATE_PATH)
+    relation = _publish(candidate, _json(REVIEW_MAP_PATH))["architecture"]["relationships"][0]
+    production_ids = set(relation["evidence_ids"])
+    auxiliary_ids = set(relation["presentation_zh"]["auxiliary_evidence_ids"])
+    assert len(production_ids) == 13
+    assert len(auxiliary_ids) == 3
+    assert production_ids.isdisjoint(auxiliary_ids)
+    assert {item["evidence_id"] for item in relation["supporting_evidence"]} == auxiliary_ids
+    assert all(item["source_role"] == "auxiliary_test" for item in relation["supporting_evidence"])
+
+
+def test_presentation_keeps_authoritative_evidence_and_review_mapping_bytes_unchanged() -> None:
+    candidate = _json(CANDIDATE_PATH)
+    relation = _publish(candidate, _json(REVIEW_MAP_PATH))["architecture"]["relationships"][0]
+    evidence_by_id = {item["evidence_id"]: item for item in candidate["evidence"]}
+    assert relation["evidence"] == [evidence_by_id[item] for item in relation["evidence_ids"]]
+    assert relation["type"] == "process-launch"
+    assert relation["review_status"] == "current-reviewed"
+    assert hashlib.sha256(REVIEW_MAP_PATH.read_bytes()).hexdigest() == "03ad7e0b78c454326dbeab311d6133ed141c4bc1b54de0c6bf537ae9e4c707f1"
+
+
+def test_offline_detail_puts_chinese_guidance_first_and_raw_material_in_expandable_sections() -> None:
+    app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
+    assert app.index("架构关系解读") < app.index("关键证据链") < app.index('text("h3", "静态条件")')
+    assert "展开原始技术证据" in app
+    assert "原始审核与英文技术字段" in app
+    assert "复制定位信息" in app
+    assert "relation.presentation_zh" in app
+    assert "navigator.clipboard.writeText" in app

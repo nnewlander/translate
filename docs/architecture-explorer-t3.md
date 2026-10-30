@@ -58,3 +58,17 @@ $env:PYTHONPATH = (Resolve-Path 'src').Path
 ```
 
 直接打开 `output/architecture-explorer/t3-site/site/index.html`。页面不需要服务器、网络、数据库或 AI 服务。关系线可点击查看统一证据详情；定位复制包含路径、当前行号和 symbol；“高亮最小生产流程”只改变视觉强调，不改变审核状态或点击含义。
+
+## 中文关系解读
+
+关系详情按初学者阅读顺序展示：中文模块关系和通俗摘要、三种状态的含义、关键证据链、静态条件与未知事项，最后才是可展开的英文审核原文和技术字段。
+
+13 条生产证据仍来自固定候选记录，并按 Evidence ID 关联到三组中文阅读提示：
+
+- Supervisor：4 条，覆盖脚本绑定、生产参数、进程边界定义和调用；
+- Python 包装入口：2 条，覆盖 Worker main 的导入与调用；
+- Worker：7 条，覆盖模式、授权参数、参数解析、Canary 分支、守卫和生产入口调用。
+
+3 条辅助测试证据另列在默认折叠的“辅助测试证据”区域，明确标为支持性上下文，不属于 Owner 批准的 13 条生产调用证据。每条中文说明由生成器按原始 Evidence ID 绑定，原始 evidence 对象、review mapping、Evidence ID、源码哈希、关系类型和审核状态不被改写。英文技术种类、完整 Evidence ID、源码位置、symbol、代码片段和 Owner 审核原文仍可展开查看。
+
+页面明确提示：静态条件可达不等于某次 Worker 启动成功，也不等于翻译任务成功；真实运行状态继续保持 `NOT_COLLECTED`。

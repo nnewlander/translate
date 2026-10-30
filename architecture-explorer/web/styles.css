@@ -262,17 +262,42 @@ h2 {
 .relationship-detail form { position: sticky; top: 0; z-index: 2; height: 0; text-align: right; }
 .dialog-close { border: 0; background: transparent; color: #333; font-size: 2rem; cursor: pointer; }
 .detail-title { margin: 12px 42px 22px 0; color: #191919; font-family: Georgia, "Songti SC", serif; font-size: 1.7rem; letter-spacing: 0; text-transform: none; }
+.plain-relation-name { margin: -10px 0 10px; color: #526b49; font-size: 0.88rem; font-weight: 750; letter-spacing: 0.08em; }
+.relationship-summary { max-width: 700px; margin: 0 0 26px; color: #222; font-family: Georgia, "Songti SC", serif; font-size: 1.12rem; line-height: 1.75; }
 .detail-facts { display: grid; grid-template-columns: 120px 1fr; gap: 8px 18px; padding: 20px; border-radius: 16px; background: #f7f9f6; }
 .detail-facts dt { color: #505050; font-weight: 650; }
 .detail-facts dd { margin: 0; font-family: "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
 .relationship-detail h3 { margin: 30px 0 12px; font-family: Georgia, "Songti SC", serif; }
 .relationship-detail li { margin: 7px 0; line-height: 1.55; }
-.evidence-card { margin-top: 16px; padding: 20px; border: 1px solid #e1e6de; border-radius: 17px; }
+.meaning-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0; }
+.meaning-grid article { padding: 17px; border: 1px solid #dce4d8; border-radius: 15px; background: #f9fbf8; }
+.meaning-grid h3 { margin: 0 0 9px; color: #2f4630; font-size: 0.94rem; }
+.meaning-grid p { margin: 0; color: #333; font-size: 0.9rem; line-height: 1.6; }
+.evidence-limits { margin: 24px 0 34px; padding: 20px 22px; border-left: 4px solid #78946b; border-radius: 0 14px 14px 0; background: #f7f9f6; }
+.evidence-limits h3 { margin: 0 0 9px; }
+.evidence-limits ul { margin-bottom: 0; padding-left: 20px; }
+.evidence-group { margin: 18px 0 34px; padding: 23px; border: 1px solid #dce4d8; border-radius: 20px; }
+.evidence-group > h4 { margin: 0 0 8px; color: #283b29; font-family: Georgia, "Songti SC", serif; font-size: 1.14rem; }
+.group-description { margin: 0 0 18px; color: #4a4a4a; line-height: 1.65; }
+.evidence-card { margin-top: 14px; padding: 20px; border: 1px solid #e1e6de; border-radius: 17px; background: #fff; }
 .evidence-role { margin: 0 0 8px; color: #526b49; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; }
 .evidence-card h4 { margin: 0 0 8px; }
-.evidence-id { display: block; overflow-wrap: anywhere; color: #505050; font-size: 0.75rem; }
-.evidence-location { overflow-wrap: anywhere; }
+.evidence-explanation { margin: 0; color: #2f2f2f; line-height: 1.7; }
+.evidence-supports { margin: 12px 0 0; color: #354b35; font-size: 0.92rem; font-weight: 650; line-height: 1.6; }
 .evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
+.technical-details, .evidence-technical, .auxiliary-evidence, .original-review { margin-top: 16px; }
+.technical-details summary, .evidence-technical summary, .auxiliary-evidence summary, .original-review summary {
+  color: #41563e;
+  font-weight: 700;
+  cursor: pointer;
+}
+.evidence-technical[open] summary, .auxiliary-evidence[open] > summary, .original-review[open] > summary { margin-bottom: 16px; }
+.raw-evidence-facts { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 7px 14px; margin: 0; padding: 15px; border-radius: 12px; background: #f7f9f6; }
+.raw-evidence-facts dt { color: #555; font-size: 0.82rem; font-weight: 650; }
+.raw-evidence-facts dd { margin: 0; overflow-wrap: anywhere; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.78rem; }
+.auxiliary-evidence { margin: 12px 0 34px; padding: 20px 22px; border: 1px dashed #b7c8af; border-radius: 17px; background: #fbfcfa; }
+.original-review { margin-top: 34px; padding-top: 20px; border-top: 1px solid #e1e6de; }
+.review-notes { padding: 16px; overflow: auto; border-radius: 12px; background: #f7f9f6; color: #333; font-size: 0.82rem; line-height: 1.55; white-space: pre-wrap; }
 
 @media (min-width: 1180px) {
   .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -298,4 +323,7 @@ h2 {
   .module-card h3 { max-width: 100%; margin-top: 25px; }
   .relationship-detail { padding: 24px; }
   .detail-facts { grid-template-columns: 1fr; }
+  .meaning-grid { grid-template-columns: 1fr; }
+  .evidence-group { padding: 18px; }
+  .raw-evidence-facts { grid-template-columns: 1fr; }
 }
