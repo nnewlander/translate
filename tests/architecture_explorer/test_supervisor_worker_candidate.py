@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -13,9 +14,10 @@ from booktrans.architecture_explorer.candidate_scanner import (
     PRODUCTION_FILES,
     REQUIRED_EVIDENCE_KINDS,
     SCAN_FILES,
-    render_candidate_report,
     scan_supervisor_worker_candidate,
 )
+from booktrans.architecture_explorer.candidate_report import render_candidate_report
+from booktrans.architecture_explorer.generator import ExplorerInputError
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -80,7 +82,10 @@ def main(argv=None):
     )
 '''
 
-LAUNCH_TEST = """$child = Start-DeterministicWorkerProcess $python @('-c', 'pass') $Root $out $err ([ref]$diagnostics)\n'SUPERVISOR_LAUNCH_BOUNDARY_TESTS_PASS'\n"""
+LAUNCH_TEST = """$child = Start-DeterministicWorkerProcess $python @('-c', 'pass') $Root $out $err ([ref]$diagnostics)
+Assert-True ($inheritChild.ExitCode -eq 0 -and $inheritDiagnostics.child_created) 'inherited-environment launch creates child'
+'SUPERVISOR_LAUNCH_BOUNDARY_TESTS_PASS'
+"""
 
 BOOTSTRAP_TEST = '''def test_supervisor_worker_entrypoint_imports_providers_and_reaches_preflight():
     assert True
@@ -237,6 +242,171 @@ def test_unrecognized_static_branch_does_not_get_guessed(source_repository: Path
     assert candidate["required_findings"]["worker_production_branch"]["status"] == "missing"
     assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
     assert not candidate["candidate_relation"]["reachability"]["proven_conditions"]
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        'if __name__ != "__main__":\n    raise SystemExit(main())',
+        'if __name__ == "__main__":\n    raise SystemExit(other.main())',
+    ],
+)
+def test_wrapper_requires_exact_main_guard_and_imported_function_identity(
+    source_repository: Path,
+    replacement: str,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[1]
+    path.write_text(
+        'from booktrans.production_worker.worker import main\n\n' + replacement + '\n',
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["worker_wrapper_main_call"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
+def test_changed_wrapper_import_breaks_import_and_main_identity(source_repository: Path) -> None:
+    path = source_repository / PRODUCTION_FILES[1]
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "from booktrans.production_worker.worker import main",
+            "from booktrans.production_worker.canary import main",
+        ),
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["worker_wrapper_import"]["status"] == "missing"
+    assert candidate["required_findings"]["worker_wrapper_main_call"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+
+
+def test_production_call_inside_canary_branch_is_not_non_canary_evidence(
+    source_repository: Path,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[2]
+    text = path.read_text(encoding="utf-8")
+    start = text.index("def main(argv=None):")
+    path.write_text(
+        text[:start]
+        + '''def main(argv=None):
+    args = build_parser().parse_args(argv)
+    if args.mode == "canary":
+        return run_production_checkpoint(
+            authorize=args.authorize_production_checkpoint_write,
+        )
+    if not args.worker_id:
+        raise SystemExit("WORKER_ID_REQUIRED")
+    if bool(args.batch_label) != bool(args.checkpoint):
+        raise SystemExit("WORKER_LAUNCH_BINDING_INCOMPLETE")
+    return 0
+''',
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["worker_production_branch"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    "guard",
+    [
+        '    if not args.worker_id:\n        raise SystemExit("WORKER_ID_REQUIRED")\n',
+        '    if bool(args.batch_label) != bool(args.checkpoint):\n        raise SystemExit("WORKER_LAUNCH_BINDING_INCOMPLETE")\n',
+    ],
+)
+def test_missing_worker_guard_cannot_prove_production_path(
+    source_repository: Path,
+    guard: str,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[2]
+    path.write_text(path.read_text(encoding="utf-8").replace(guard, ""), encoding="utf-8")
+
+    candidate = _scan(source_repository)
+
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+    assert not candidate["candidate_relation"]["reachability"]["proven_conditions"]
+
+
+def test_marker_without_launch_assertion_is_not_auxiliary_behavior_evidence(
+    source_repository: Path,
+) -> None:
+    path = source_repository / AUXILIARY_TEST_FILES[0]
+    path.write_text("'SUPERVISOR_LAUNCH_BOUNDARY_TESTS_PASS'\n", encoding="utf-8")
+
+    candidate = _scan(source_repository)
+
+    assert not any(
+        item["evidence_kind"] == "auxiliary_launch_boundary_test"
+        for item in candidate["evidence"]
+    )
+
+
+def test_allowlisted_path_is_validated_before_external_junction_is_read(
+    source_repository: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    production = source_repository / "scripts/production"
+    outside = tmp_path / "outside-production"
+    outside.mkdir()
+    for name in ("production_campaign_supervisor.ps1", "run_qwen_deterministic_worker.py"):
+        shutil.copyfile(production / name, outside / name)
+    shutil.rmtree(production)
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(production), str(outside)],
+            check=False,
+            capture_output=True,
+        )
+        assert result.returncode == 0, result.stderr.decode(errors="replace")
+    else:
+        production.symlink_to(outside, target_is_directory=True)
+
+    original = Path.read_bytes
+    outside_was_read = False
+
+    def observed_read(path: Path) -> bytes:
+        nonlocal outside_was_read
+        if path.resolve().is_relative_to(outside.resolve()):
+            outside_was_read = True
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", observed_read)
+
+    with pytest.raises(ExplorerInputError, match="escapes|link|reparse"):
+        _scan(source_repository)
+    assert outside_was_read is False
+
+
+def test_source_change_during_single_read_fails_consistency_check(
+    source_repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = (source_repository / PRODUCTION_FILES[2]).resolve()
+    original = Path.read_bytes
+    changed = False
+
+    def changing_read(path: Path) -> bytes:
+        nonlocal changed
+        raw = original(path)
+        if path.resolve() == target and not changed:
+            changed = True
+            path.write_bytes(raw + b"\n# changed during scan\n")
+        return raw
+
+    monkeypatch.setattr(Path, "read_bytes", changing_read)
+
+    with pytest.raises(ExplorerInputError, match="changed during scan|inconsistent"):
+        _scan(source_repository)
 
 
 def test_auxiliary_tests_are_never_production_evidence(source_repository: Path) -> None:

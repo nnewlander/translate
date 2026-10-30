@@ -6,12 +6,13 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 from typing import Any, Iterable
 
-from .generator import ExplorerInputError, scan_snapshot
+from .generator import ExplorerInputError
 
 
-SCANNER_VERSION = "architecture-explorer-t2/1.0"
+SCANNER_VERSION = "architecture-explorer-t2/1.1"
 CANDIDATE_SCHEMA = "architecture-explorer.relationship-candidate.v1"
 PRODUCTION_FILES = (
     "scripts/production/production_campaign_supervisor.ps1",
@@ -33,6 +34,10 @@ REQUIRED_EVIDENCE_KINDS = (
     "worker_wrapper_main_call",
     "worker_mode_contract",
     "worker_authorization_contract",
+    "worker_argument_parse",
+    "worker_canary_exit_guard",
+    "worker_id_guard",
+    "worker_batch_checkpoint_guard",
     "worker_production_branch",
 )
 
@@ -43,6 +48,33 @@ def _canonical_bytes(value: Any) -> bytes:
 
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _git(repository: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repository), *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise ExplorerInputError(f"Git metadata unavailable: {detail}")
+    return completed.stdout.rstrip("\r\n")
+
+
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        attributes = path.stat(follow_symlinks=False).st_file_attributes
+    except (AttributeError, FileNotFoundError, OSError):
+        return False
+    return bool(attributes & 0x400)
+
+
+def _stat_signature(path: Path) -> tuple[int, int, int, int, int]:
+    stat = path.stat(follow_symlinks=False)
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
 
 def _normalized_snippet(snippet: str) -> str:
@@ -221,31 +253,61 @@ def _python_function(tree: ast.Module, name: str) -> list[ast.FunctionDef | ast.
     ]
 
 
+def _is_exact_main_guard(test: ast.AST) -> bool:
+    return (
+        isinstance(test, ast.Compare)
+        and _is_name(test.left, "__name__")
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value == "__main__"
+    )
+
+
+def _is_system_exit_call_of(statement: ast.stmt, function_name: str) -> bool:
+    if not isinstance(statement, ast.Raise) or not isinstance(statement.exc, ast.Call):
+        return False
+    exit_call = statement.exc
+    if not _is_name(exit_call.func, "SystemExit") or len(exit_call.args) != 1:
+        return False
+    worker_call = exit_call.args[0]
+    return (
+        isinstance(worker_call, ast.Call)
+        and _is_name(worker_call.func, function_name)
+        and not worker_call.args
+        and not worker_call.keywords
+    )
+
+
 def _wrapper_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, Any]]:
     tree = ast.parse(text, filename=path)
-    imports = [
-        node
-        for node in ast.walk(tree)
+    imports: list[tuple[ast.ImportFrom, str]] = [
+        (node, alias.asname or alias.name)
+        for node in tree.body
         if isinstance(node, ast.ImportFrom)
         and node.module == "booktrans.production_worker.worker"
-        and any(alias.name == "main" for alias in node.names)
+        for alias in node.names
+        if alias.name == "main"
     ]
-    guards = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.If):
-            continue
-        calls_main = any(
-            isinstance(child, ast.Call) and _call_name(child) == "main"
-            for child in ast.walk(node)
-        )
-        if calls_main and "__name__" in _node_segment(text, node) and "__main__" in _node_segment(text, node):
-            guards.append(node)
+    guards: list[ast.If] = []
+    if len(imports) == 1:
+        imported_name = imports[0][1]
+        guards = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.If)
+            and _is_exact_main_guard(node.test)
+            and not node.orelse
+            and len(node.body) == 1
+            and _is_system_exit_call_of(node.body[0], imported_name)
+        ]
     return [
         *_python_evidence(
             text=text,
             path=path,
             file_sha256=file_sha256,
-            nodes=imports,
+            nodes=[node for node, _local_name in imports],
             evidence_kind="worker_wrapper_import",
             symbol="module",
             structural_anchor="python:import:booktrans.production_worker.worker.main",
@@ -264,12 +326,115 @@ def _wrapper_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, 
     ]
 
 
+def _is_args_parse_assignment(statement: ast.stmt) -> bool:
+    if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+        return False
+    if not _is_name(statement.targets[0], "args") or not isinstance(statement.value, ast.Call):
+        return False
+    parse_call = statement.value
+    if not isinstance(parse_call.func, ast.Attribute) or parse_call.func.attr != "parse_args":
+        return False
+    parser_call = parse_call.func.value
+    return (
+        isinstance(parser_call, ast.Call)
+        and _is_name(parser_call.func, "build_parser")
+        and not parser_call.args
+        and not parser_call.keywords
+        and len(parse_call.args) == 1
+        and _is_name(parse_call.args[0], "argv")
+    )
+
+
+def _is_canary_exit_guard(statement: ast.stmt) -> bool:
+    if not isinstance(statement, ast.If) or statement.orelse or not statement.body:
+        return False
+    test = statement.test
+    return (
+        isinstance(test, ast.Compare)
+        and _is_args_attribute(test.left, "mode")
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value == "canary"
+        and isinstance(statement.body[-1], ast.Return)
+    )
+
+
+def _is_system_exit_raise(statement: ast.stmt, message: str) -> bool:
+    if not isinstance(statement, ast.Raise) or not isinstance(statement.exc, ast.Call):
+        return False
+    call = statement.exc
+    return (
+        _is_name(call.func, "SystemExit")
+        and len(call.args) == 1
+        and isinstance(call.args[0], ast.Constant)
+        and call.args[0].value == message
+    )
+
+
+def _is_worker_id_guard(statement: ast.stmt) -> bool:
+    return (
+        isinstance(statement, ast.If)
+        and not statement.orelse
+        and isinstance(statement.test, ast.UnaryOp)
+        and isinstance(statement.test.op, ast.Not)
+        and _is_args_attribute(statement.test.operand, "worker_id")
+        and len(statement.body) == 1
+        and _is_system_exit_raise(statement.body[0], "WORKER_ID_REQUIRED")
+    )
+
+
+def _bool_args_attribute(node: ast.AST, attribute: str) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and _is_name(node.func, "bool")
+        and len(node.args) == 1
+        and _is_args_attribute(node.args[0], attribute)
+        and not node.keywords
+    )
+
+
+def _is_batch_checkpoint_guard(statement: ast.stmt) -> bool:
+    if not isinstance(statement, ast.If) or statement.orelse or len(statement.body) != 1:
+        return False
+    test = statement.test
+    return (
+        isinstance(test, ast.Compare)
+        and _bool_args_attribute(test.left, "batch_label")
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.NotEq)
+        and len(test.comparators) == 1
+        and _bool_args_attribute(test.comparators[0], "checkpoint")
+        and _is_system_exit_raise(statement.body[0], "WORKER_LAUNCH_BINDING_INCOMPLETE")
+    )
+
+
+def _is_production_return(statement: ast.stmt) -> bool:
+    if not isinstance(statement, ast.Return) or not isinstance(statement.value, ast.Call):
+        return False
+    call = statement.value
+    if not _is_name(call.func, "run_production_checkpoint"):
+        return False
+    keywords = {keyword.arg: keyword.value for keyword in call.keywords if keyword.arg}
+    return (
+        _is_args_attribute(keywords.get("worker_id"), "worker_id")
+        and _is_args_attribute(keywords.get("authorize"), "authorize_production_checkpoint_write")
+        and _is_args_attribute(keywords.get("batch_label"), "batch_label")
+        and _is_args_attribute(keywords.get("checkpoint"), "checkpoint")
+    )
+
+
 def _worker_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, Any]]:
     tree = ast.parse(text, filename=path)
     parser_functions = _python_function(tree, "build_parser")
     main_functions = _python_function(tree, "main")
     mode_calls: list[ast.Call] = []
     authorization_calls: list[ast.Call] = []
+    argument_parse_nodes: list[ast.AST] = []
+    canary_guard_nodes: list[ast.AST] = []
+    worker_id_guard_nodes: list[ast.AST] = []
+    batch_checkpoint_guard_nodes: list[ast.AST] = []
     production_nodes: list[ast.AST] = []
 
     for function in parser_functions:
@@ -293,20 +458,29 @@ def _worker_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, A
                     authorization_calls.append(node)
 
     for function in main_functions:
-        has_canary_guard = any(
-            isinstance(node, ast.If)
-            and isinstance(node.test, ast.Compare)
-            and _is_args_attribute(node.test.left, "mode")
-            and any(isinstance(item, ast.Constant) and item.value == "canary" for item in node.test.comparators)
-            for node in ast.walk(function)
-        )
-        for node in ast.walk(function):
-            if not isinstance(node, ast.Call) or _call_name(node) != "run_production_checkpoint":
-                continue
-            keywords = {keyword.arg: keyword.value for keyword in node.keywords if keyword.arg}
-            authorize = keywords.get("authorize")
-            if has_canary_guard and authorize is not None and _is_args_attribute(authorize, "authorize_production_checkpoint_write"):
-                production_nodes.append(node)
+        indexed = list(enumerate(function.body))
+        parses = [(index, node) for index, node in indexed if _is_args_parse_assignment(node)]
+        canary_guards = [(index, node) for index, node in indexed if _is_canary_exit_guard(node)]
+        worker_guards = [(index, node) for index, node in indexed if _is_worker_id_guard(node)]
+        binding_guards = [(index, node) for index, node in indexed if _is_batch_checkpoint_guard(node)]
+        production_returns = [(index, node) for index, node in indexed if _is_production_return(node)]
+        argument_parse_nodes.extend(node for _index, node in parses)
+        canary_guard_nodes.extend(node for _index, node in canary_guards)
+        worker_id_guard_nodes.extend(node for _index, node in worker_guards)
+        batch_checkpoint_guard_nodes.extend(node for _index, node in binding_guards)
+        if all(len(items) == 1 for items in (parses, canary_guards, worker_guards, binding_guards, production_returns)):
+            parse_index = parses[0][0]
+            canary_index = canary_guards[0][0]
+            worker_index = worker_guards[0][0]
+            binding_index = binding_guards[0][0]
+            production_index, production_return = production_returns[0]
+            if (
+                parse_index < canary_index
+                and worker_index == canary_index + 1
+                and binding_index == worker_index + 1
+                and production_index == binding_index + 1
+            ):
+                production_nodes.append(production_return.value)
 
     return [
         *_python_evidence(
@@ -328,6 +502,46 @@ def _worker_evidence(text: str, path: str, file_sha256: str) -> list[dict[str, A
             symbol="build_parser",
             structural_anchor="python:function:build_parser/add_argument:--authorize-production-checkpoint-write",
             syntax_position="function:build_parser/call:add_argument:--authorize-production-checkpoint-write",
+        ),
+        *_python_evidence(
+            text=text,
+            path=path,
+            file_sha256=file_sha256,
+            nodes=argument_parse_nodes,
+            evidence_kind="worker_argument_parse",
+            symbol="main",
+            structural_anchor="python:function:main/assignment:args=parse_args",
+            syntax_position="function:main/assignment:args=parse_args",
+        ),
+        *_python_evidence(
+            text=text,
+            path=path,
+            file_sha256=file_sha256,
+            nodes=canary_guard_nodes,
+            evidence_kind="worker_canary_exit_guard",
+            symbol="main",
+            structural_anchor="python:function:main/if:args.mode==canary/exit",
+            syntax_position="function:main/if:args.mode==canary/exit",
+        ),
+        *_python_evidence(
+            text=text,
+            path=path,
+            file_sha256=file_sha256,
+            nodes=worker_id_guard_nodes,
+            evidence_kind="worker_id_guard",
+            symbol="main",
+            structural_anchor="python:function:main/guard:worker-id-required",
+            syntax_position="function:main/guard:worker-id-required",
+        ),
+        *_python_evidence(
+            text=text,
+            path=path,
+            file_sha256=file_sha256,
+            nodes=batch_checkpoint_guard_nodes,
+            evidence_kind="worker_batch_checkpoint_guard",
+            symbol="main",
+            structural_anchor="python:function:main/guard:batch-checkpoint-pair",
+            syntax_position="function:main/guard:batch-checkpoint-pair",
         ),
         *_python_evidence(
             text=text,
@@ -363,25 +577,90 @@ def _auxiliary_python_function_evidence(
     )
 
 
-def _read_allowed_files(repository: Path) -> dict[str, tuple[str, str]]:
-    result = {}
+def _validated_source_path(repository: Path, relative: str) -> Path:
+    relative_path = Path(relative)
+    if relative_path.is_absolute() or not relative_path.parts or ".." in relative_path.parts:
+        raise ExplorerInputError(f"T2 scan input must be repository-relative: {relative}")
+    candidate = repository.joinpath(*relative_path.parts)
+    cursor = repository
+    for part in relative_path.parts:
+        cursor /= part
+        if cursor.is_symlink() or cursor.is_junction() or _is_reparse_point(cursor):
+            raise ExplorerInputError(f"T2 scan input path contains a link or reparse point: {relative}")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except FileNotFoundError as error:
+        raise ExplorerInputError(f"Required T2 scan input is missing: {relative}") from error
+    try:
+        resolved.relative_to(repository)
+    except ValueError as error:
+        raise ExplorerInputError(f"T2 scan input escapes repository: {relative}") from error
+    if not candidate.is_file():
+        raise ExplorerInputError(f"Required T2 scan input is not a file: {relative}")
+    return candidate
+
+
+def _read_allowed_files(repository: Path) -> dict[str, tuple[str, str, int]]:
+    result: dict[str, tuple[str, str, int]] = {}
     for relative in SCAN_FILES:
-        path = repository / relative
+        path = _validated_source_path(repository, relative)
+        before_signature = _stat_signature(path)
+        before_resolved = path.resolve(strict=True)
         try:
             raw = path.read_bytes()
-        except FileNotFoundError as error:
-            raise ExplorerInputError(f"Required T2 scan input is missing: {relative}") from error
+        except OSError as error:
+            raise ExplorerInputError(f"T2 scan input could not be read: {relative}") from error
+        try:
+            after_signature = _stat_signature(path)
+            after_resolved = path.resolve(strict=True)
+        except (FileNotFoundError, OSError) as error:
+            raise ExplorerInputError(f"T2 scan input changed during scan: {relative}") from error
+        if (
+            before_signature != after_signature
+            or before_resolved != after_resolved
+            or len(raw) != after_signature[2]
+        ):
+            raise ExplorerInputError(f"T2 scan input changed during scan: {relative}")
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError as error:
             raise ExplorerInputError(f"T2 scan input is not UTF-8: {relative}") from error
-        result[relative] = (text, _sha256(raw))
+        result[relative] = (text, _sha256(raw), len(raw))
     return result
 
 
-def _collect_evidence(files: dict[str, tuple[str, str]]) -> list[dict[str, Any]]:
+def _snapshot_from_loaded_files(
+    repository: Path,
+    files: dict[str, tuple[str, str, int]],
+    *,
+    scanned_at: str,
+) -> dict[str, Any]:
+    porcelain = _git(repository, "status", "--porcelain=v1", "--untracked-files=normal")
+    worktree = {
+        "state": "dirty" if porcelain else "clean",
+        "porcelain": porcelain.splitlines(),
+    }
+    inputs = [
+        {"path": path, "sha256": files[path][1], "size_bytes": files[path][2]}
+        for path in sorted(files)
+    ]
+    deterministic_facts = {
+        "revision": _git(repository, "rev-parse", "HEAD"),
+        "worktree": worktree,
+        "scanner_version": SCANNER_VERSION,
+        "input_files": inputs,
+    }
+    return {
+        "schema": "architecture-explorer.snapshot.v1",
+        **deterministic_facts,
+        "scanned_at": scanned_at,
+        "facts_sha256": _sha256(_canonical_bytes(deterministic_facts)),
+    }
+
+
+def _collect_evidence(files: dict[str, tuple[str, str, int]]) -> list[dict[str, Any]]:
     supervisor_path = PRODUCTION_FILES[0]
-    supervisor, supervisor_hash = files[supervisor_path]
+    supervisor, supervisor_hash, _supervisor_size = files[supervisor_path]
     evidence = [
         *_regex_evidence(
             text=supervisor,
@@ -439,29 +718,29 @@ def _collect_evidence(files: dict[str, tuple[str, str]]) -> list[dict[str, Any]]
     ]
 
     wrapper_path = PRODUCTION_FILES[1]
-    wrapper, wrapper_hash = files[wrapper_path]
+    wrapper, wrapper_hash, _wrapper_size = files[wrapper_path]
     evidence.extend(_wrapper_evidence(wrapper, wrapper_path, wrapper_hash))
     worker_path = PRODUCTION_FILES[2]
-    worker, worker_hash = files[worker_path]
+    worker, worker_hash, _worker_size = files[worker_path]
     evidence.extend(_worker_evidence(worker, worker_path, worker_hash))
 
     launch_test_path = AUXILIARY_TEST_FILES[0]
-    launch_test, launch_test_hash = files[launch_test_path]
+    launch_test, launch_test_hash, _launch_test_size = files[launch_test_path]
     evidence.extend(
         _regex_evidence(
             text=launch_test,
             path=launch_test_path,
             file_sha256=launch_test_hash,
-            pattern=r"(?m)^\s*'SUPERVISOR_LAUNCH_BOUNDARY_TESTS_PASS'\s*$",
+            pattern=r"(?m)^\s*Assert-True\s+\(\$inheritChild\.ExitCode\s+-eq\s+0\s+-and\s+\$inheritDiagnostics\.child_created\)\s+'inherited-environment launch creates child'\s*$",
             evidence_kind="auxiliary_launch_boundary_test",
-            symbol="script",
-            structural_anchor="powershell:test-success-marker:SUPERVISOR_LAUNCH_BOUNDARY_TESTS_PASS",
-            syntax_position="script/success-marker",
+            symbol="Assert-True",
+            structural_anchor="powershell:test-assertion:inherited-child-created",
+            syntax_position="script/assert:inherited-child-created",
             source_role="auxiliary_test",
         )
     )
     bootstrap_path = AUXILIARY_TEST_FILES[1]
-    bootstrap, bootstrap_hash = files[bootstrap_path]
+    bootstrap, bootstrap_hash, _bootstrap_size = files[bootstrap_path]
     evidence.extend(
         _auxiliary_python_function_evidence(
             bootstrap,
@@ -472,7 +751,7 @@ def _collect_evidence(files: dict[str, tuple[str, str]]) -> list[dict[str, Any]]
         )
     )
     package_test_path = AUXILIARY_TEST_FILES[2]
-    package_test, package_test_hash = files[package_test_path]
+    package_test, package_test_hash, _package_test_size = files[package_test_path]
     evidence.extend(
         _auxiliary_python_function_evidence(
             package_test,
@@ -523,9 +802,12 @@ def scan_supervisor_worker_candidate(
 ) -> dict[str, Any]:
     """Scan the closed T2 input set without executing any production entrypoint."""
 
-    repository = repository.resolve()
+    repository = repository.resolve(strict=True)
+    if not repository.is_dir():
+        raise ExplorerInputError(f"T2 repository is not a directory: {repository}")
+    scan_time = scanned_at or datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     files = _read_allowed_files(repository)
-    snapshot = scan_snapshot(repository, list(SCAN_FILES), scanned_at=scanned_at)
+    snapshot = _snapshot_from_loaded_files(repository, files, scanned_at=scan_time)
     evidence = _collect_evidence(files)
     required_findings, scan_outcome = _findings(evidence)
     production_ids = [
@@ -543,7 +825,10 @@ def scan_supervisor_worker_candidate(
                 "Supervisor argument vector selects --mode production.",
                 "Supervisor argument vector supplies --authorize-production-checkpoint-write.",
                 "Supervisor binds batch and checkpoint from the current rebuilt state.",
-                "Worker main routes non-canary mode to run_production_checkpoint after worker-id and paired batch/checkpoint guards.",
+                "The wrapper imports the exact Worker main and calls it only under __name__ == '__main__'.",
+                "Worker main parses args through build_parser().parse_args(argv).",
+                "Worker main's exact canary guard exits before the production guard sequence.",
+                "Worker main then requires worker-id, then paired batch/checkpoint, before a top-level run_production_checkpoint return.",
             ],
             "retained_unknowns": [
                 "Static scanning does not prove that the Supervisor operational loop reaches this launch on any particular run.",
@@ -563,13 +848,12 @@ def scan_supervisor_worker_candidate(
     candidate = {
         "schema": CANDIDATE_SCHEMA,
         "scanner_version": SCANNER_VERSION,
-        "scanned_at": scanned_at
-        or datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "scanned_at": scan_time,
         "source_snapshot": snapshot,
         "scan_scope": {
             "production_files": list(PRODUCTION_FILES),
             "auxiliary_test_files": list(AUXILIARY_TEST_FILES),
-            "scope_policy": "closed-world explicit file allowlist; no directory traversal",
+            "scope_policy": "closed-world explicit file allowlist; paths validated before one stable content read; no directory traversal",
         },
         "evidence": evidence,
         "required_findings": required_findings,
@@ -591,120 +875,11 @@ def scan_supervisor_worker_candidate(
     return candidate
 
 
-def render_candidate_report(candidate: dict[str, Any]) -> str:
-    relation = candidate["candidate_relation"]
-    snapshot = candidate["source_snapshot"]
-    lines = [
-        "# Architecture Explorer T2：Supervisor → Worker 候选证据报告",
-        "",
-        "> 本报告由确定性扫描器从机器候选记录生成。它是待人工审核的候选材料，不是架构批准。",
-        "",
-        "## 扫描元数据",
-        "",
-        f"- 源码 Commit：`{snapshot['revision']}`",
-        f"- Worktree 状态：`{snapshot['worktree']['state']}`",
-        f"- 扫描器：`{candidate['scanner_version']}`",
-        f"- 扫描时间：`{candidate['scanned_at']}`",
-        f"- 候选报告摘要 SHA-256：`{candidate['candidate_report_sha256']}`",
-        f"- 扫描结果：`{relation['scan_outcome']}`",
-        "",
-        "## 封闭扫描范围",
-        "",
-    ]
-    for path in candidate["scan_scope"]["production_files"]:
-        lines.append(f"- 生产源码：`{path}`")
-    for path in candidate["scan_scope"]["auxiliary_test_files"]:
-        lines.append(f"- 辅助测试：`{path}`（只作辅助证据）")
-    lines.extend(
-        [
-            "",
-            "## 候选关系（未审核）",
-            "",
-            f"- 状态：`{relation['status']}` / `{relation['review_status']}`",
-            f"- 建议方向：`{relation['direction']}`",
-            f"- 建议关系类型：`{relation['proposed_relationship_type']}`",
-            f"- 静态可达状态：`{relation['reachability']['status']}`",
-            f"- 真实运行状态：`{relation['runtime_state']}`",
-            "",
-            "### 静态扫描能够陈述的条件",
-            "",
-        ]
-    )
-    proven = relation["reachability"]["proven_conditions"]
-    lines.extend(f"- {item}" for item in proven)
-    if not proven:
-        lines.append("- 无；必需证据不完整或存在歧义。")
-    lines.extend(["", "### 保留未知事项", ""])
-    lines.extend(f"- {item}" for item in relation["reachability"]["retained_unknowns"])
-    lines.extend(
-        [
-            "",
-            "## 必需证据判定",
-            "",
-            "| 证据种类 | 扫描状态 | 证据 ID |",
-            "|---|---|---|",
-        ]
-    )
-    for kind, finding in candidate["required_findings"].items():
-        ids = "<br>".join(f"`{item}`" for item in finding["evidence_ids"]) or "—"
-        lines.append(f"| `{kind}` | `{finding['status']}` | {ids} |")
-    lines.extend(["", "## 源码证据", ""])
-    for item in candidate["evidence"]:
-        role = "生产事实" if item["source_role"] == "production" else "辅助测试"
-        location = item["current_location"]
-        report_snippet = item["snippet"].replace("\r\n", "\n").replace("\r", "\n")
-        lines.extend(
-            [
-                f"### `{item['evidence_kind']}` — {role}",
-                "",
-                f"- Evidence ID：`{item['evidence_id']}`",
-                f"- 位置：`{item['path']}:{location['line_start']}`",
-                f"- Symbol：`{item['symbol']}`",
-                f"- 结构锚点：`{item['structural_anchor']}`",
-                f"- 语法位置：`{item['syntax_position']}`",
-                f"- 片段 SHA-256：`{item['normalized_snippet_sha256']}`",
-                f"- 文件 SHA-256：`{item['file_sha256']}`",
-                "",
-                "```text",
-                report_snippet,
-                "```",
-                "",
-            ]
-        )
-    lines.extend(
-        [
-            "## 人工审核门禁",
-            "",
-            "以下模板只能由授权审核者在 GitHub Issue #3 中提交。实施 Agent 不得填写批准结论。",
-            "",
-            "```text",
-            "ARCHITECTURE_REVIEW_DECISION",
-            "decision: APPROVED | REJECTED",
-            f"reviewed_source_commit: {snapshot['revision']}",
-            f"reviewed_worktree_state: {snapshot['worktree']['state']}",
-            f"candidate_report_sha256: {candidate['candidate_report_sha256']}",
-            f"scanner_version: {candidate['scanner_version']}",
-            "approved_evidence_ids:",
-            "  - <authorized reviewer selects exact IDs>",
-            "source_module: production-control",
-            "target_module: translation-execution",
-            "direction: production-control -> translation-execution",
-            "relationship_type: process-launch",
-            "approved_reachability: <condition or UNKNOWN>",
-            "runtime_state: NOT_COLLECTED",
-            "retained_unknowns: <explicit list>",
-            "review_notes: <notes>",
-            "```",
-            "",
-        ]
-    )
-    return "\n".join(lines)
-
-
-def write_candidate_outputs(candidate: dict[str, Any], output_directory: Path) -> tuple[Path, Path]:
-    output_directory.mkdir(parents=True, exist_ok=True)
-    machine_path = output_directory / "candidate.json"
-    report_path = output_directory / "candidate-review.md"
-    machine_path.write_text(json.dumps(candidate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    report_path.write_text(render_candidate_report(candidate), encoding="utf-8", newline="\n")
-    return machine_path, report_path
+__all__ = [
+    "AUXILIARY_TEST_FILES",
+    "PRODUCTION_FILES",
+    "REQUIRED_EVIDENCE_KINDS",
+    "SCAN_FILES",
+    "SCANNER_VERSION",
+    "scan_supervisor_worker_candidate",
+]

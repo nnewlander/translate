@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .candidate_scanner import scan_supervisor_worker_candidate, write_candidate_outputs
+from .candidate_report import write_candidate_outputs
+from .candidate_scanner import scan_supervisor_worker_candidate
 from .generator import validate_cli_output_path
 
 

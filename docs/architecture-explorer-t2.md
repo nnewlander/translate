@@ -15,6 +15,19 @@ symbol or structural anchor, repeatable syntax position, and normalized snippet
 hash. Current line numbers are recorded only for human navigation and do not
 participate in the ID.
 
+Before reading any source bytes, the scanner validates every allowlisted path
+against the resolved repository and rejects symlinks, junctions, and reparse
+points. Each file is read once; that same byte snapshot supplies parsing, file
+hashes, sizes, and the source-snapshot record. A metadata change during the
+read fails the scan instead of mixing two source states.
+
+The supported Python control-flow shape is intentionally narrow. The wrapper
+must import the exact Worker `main` and call that imported name under an exact
+`__name__ == "__main__"` guard. Worker `main` must parse `args` from
+`build_parser()`, exit its exact canary branch, then apply the worker-id and
+batch/checkpoint guards in order before its top-level production return. Other
+shapes remain incomplete/unknown rather than being guessed.
+
 Run with the project interpreter from a clean, fixed worktree:
 
 ```powershell
@@ -31,3 +44,7 @@ The relation remains `candidate` with review status
 not a production monitor. Missing or multiply matching required evidence makes
 the scan `incomplete` or `ambiguous` and forces static reachability to
 `UNKNOWN`.
+
+PowerShell test evidence is auxiliary only. T2 recognizes the concrete
+assertion that a child process exited successfully and launch diagnostics mark
+it as created; a success-marker string alone is not behavior evidence.
