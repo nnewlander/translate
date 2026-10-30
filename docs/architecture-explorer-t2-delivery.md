@@ -10,9 +10,9 @@ not an architecture approval, Push, Merge, Issue closure, or T3 authorization.
   `21e922f06da3aa692514413bcd0911f259d11881`.
 - T2 branch: `codex/architecture-explorer-t2`.
 - Candidate source snapshot and scanner revision:
-  `e494c1a25347d72ae9c279dc8ddc875ec87af144`.
+  `76629f821d1d0efbdde0b5ca63b6dc394962a2dc`.
 - Candidate evidence package and final tested code revision:
-  `06ca0f5a0c0e2c81912c53d71dd57c96a999a9a5`.
+  `b2f83ec8988cb6cc2acadc820cb7c4701a2902e0`.
 - The candidate source worktree was clean when scanned.
 - The branch is local only and has not been pushed or merged.
 - No authorized T3 integration baseline exists. T3 must not infer one from this
@@ -20,11 +20,11 @@ not an architecture approval, Push, Merge, Issue closure, or T3 authorization.
 
 The commit containing this delivery record is documentation-only. The code,
 tests, machine candidate, and Markdown report actually exercised by final
-validation are fixed at `06ca0f5a0c0e2c81912c53d71dd57c96a999a9a5`.
+validation are fixed at `b2f83ec8988cb6cc2acadc820cb7c4701a2902e0`.
 
-The earlier `d41b205...` candidate artifacts are retained as immutable history
-but are superseded by the repaired `e494c1a...` candidate and must not be used
-for architecture review.
+The earlier `d41b205...` and `e494c1a...` candidate artifacts are retained as
+immutable history but are superseded by the stricter `76629f8...` candidate and
+must not be used for architecture review.
 
 ## Closed scan scope
 
@@ -49,16 +49,16 @@ size, and source-snapshot metadata.
 ## Candidate artifacts
 
 - Machine record:
-  `output/architecture-explorer/t2-candidate-e494c1a/candidate.json`
+  `output/architecture-explorer/t2-candidate-76629f8/candidate.json`
 - Human review report:
-  `output/architecture-explorer/t2-candidate-e494c1a/candidate-review.md`
-- Scanner version: `architecture-explorer-t2/1.1`
+  `output/architecture-explorer/t2-candidate-76629f8/candidate-review.md`
+- Scanner version: `architecture-explorer-t2/1.2`
 - Candidate report summary SHA-256:
-  `0f0f016de85759c20193b05b342da643fc59738ce376de0443ac4aa4f4debf5c`
+  `2a978a9d7ce4e84745b060cdac0a881f6134c583d49a00a0a509afe10ca754cd`
 - Machine file SHA-256:
-  `ad881fe85948ddf2904028aad037f65404c787dc8d3928afa8643de6f6ab7492`
+  `1d32ff5fb9b6523b3caa45cc5b1ed0fb48b56dc55fd75bb6db955442fba4ec4f`
 - Markdown file SHA-256:
-  `87e35ecc1799089a6435a7a6edfae51786869b257433f2cca80ce0fb442550d4`
+  `ab588183995cbffd42e9ba22973baac92d3c58be151d72448a4f3f2fce73f8db`
 - Scan outcome: `complete`.
 - Relation status: `candidate` / `PENDING_HUMAN_REVIEW`.
 - Runtime state: `NOT_COLLECTED`.
@@ -81,32 +81,32 @@ Formal scan command:
 ```powershell
 $python scripts\architecture_explorer\generate_supervisor_worker_candidate.py `
   --repository . `
-  --output-directory output\architecture-explorer\t2-candidate-e494c1a
+  --output-directory output\architecture-explorer\t2-candidate-76629f8
 ```
 
 Final regression command at
-`06ca0f5a0c0e2c81912c53d71dd57c96a999a9a5`:
+`b2f83ec8988cb6cc2acadc820cb7c4701a2902e0`:
 
 ```powershell
 $python -m pytest -q -rs -p no:cacheprovider `
-  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-repair-final-06ca0f5 `
+  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-repair2-final-b2f83ec `
   tests\architecture_explorer\test_top_level_explorer.py `
   tests\architecture_explorer\test_supervisor_worker_candidate.py
 ```
 
-Result: `57 passed, 0 failed, 0 skipped in 17.82s`.
+Result: `61 passed, 0 failed, 0 skipped in 17.17s`.
 
 The two P1 counterexample families were also rerun explicitly at the same
 commit:
 
 ```powershell
 $python -m pytest -q -p no:cacheprovider `
-  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-p1-final-06ca0f5 `
+  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-repair2-p1-b2f83ec `
   tests\architecture_explorer\test_supervisor_worker_candidate.py `
-  -k 'wrapper_requires_exact_main_guard_and_imported_function_identity or production_call_inside_canary_branch_is_not_non_canary_evidence'
+  -k 'wrapper_main_rebinding_breaks_imported_function_identity or supervisor_state_binding_requires_exact_argument_values'
 ```
 
-Result: `3 passed, 0 failed, 0 skipped in 0.92s`.
+Result: `4 passed, 0 failed, 0 skipped in 1.23s`.
 
 Compilation by the project interpreter passed for all 11 Python files in the
 Architecture Explorer source, script, and test directories. `git diff --check`
@@ -120,11 +120,13 @@ T2 did not create, copy, or modify production data to bypass that condition.
 ## Confirmed automatic facts and retained unknowns
 
 The candidate records unique source evidence for the Supervisor script binding,
-production argument vector, process boundary definition and invocation, the
-exact Python wrapper import and `__name__ == "__main__"` call, Worker mode and
-authorization contracts, `args` parsing, canary exit, worker-id guard,
-batch/checkpoint pairing guard, and the ordered top-level Worker production
-call. These are automatic source facts, not reviewed architecture facts.
+production argument vector with direct `$before.active_batch` and
+`$before.next_checkpoint` value bindings, process boundary definition and
+invocation, the exact Python wrapper import immediately followed by its
+`__name__ == "__main__"` call, Worker mode and authorization contracts, `args`
+parsing, canary exit, worker-id guard, batch/checkpoint pairing guard, and the
+ordered top-level Worker production call. These are automatic source facts,
+not reviewed architecture facts.
 
 Static scanning does not prove:
 
@@ -148,7 +150,7 @@ The minimal fixture intended for downstream T5 invalidation and ambiguity work
 is `tests/architecture_explorer/test_supervisor_worker_candidate.py`. It covers
 the complete chain, missing evidence, duplicate-match ambiguity, unknown static
 branch, incorrect `__main__` conditions, unrelated `.main()` calls, changed
-wrapper imports, production calls nested in canary, missing/reordered guards,
-external links, source changes during read, line-move-stable evidence IDs,
-behavioral auxiliary assertions, auxiliary evidence separation, and
-machine/Markdown parity.
+wrapper imports, imported-name rebinding, incorrect Supervisor state values,
+production calls nested in canary, missing/reordered guards, external links,
+source changes during read, line-move-stable evidence IDs, behavioral auxiliary
+assertions, auxiliary evidence separation, and machine/Markdown parity.
