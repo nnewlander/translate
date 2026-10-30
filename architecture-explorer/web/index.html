@@ -20,12 +20,26 @@
       <section aria-labelledby="modules-heading">
         <div class="section-heading">
           <h2 id="modules-heading">七个顶层模块</h2>
-          <span id="module-count" class="count"></span>
+          <div class="heading-actions">
+            <button id="workflow-toggle" class="workflow-toggle" type="button" aria-pressed="false">高亮最小生产流程</button>
+            <span id="module-count" class="count"></span>
+          </div>
         </div>
         <div id="module-grid" class="module-grid"></div>
       </section>
+      <section class="relationships" aria-labelledby="relationships-heading">
+        <div class="section-heading">
+          <h2 id="relationships-heading">架构关系</h2>
+          <span id="relationship-count" class="count"></span>
+        </div>
+        <div id="relationship-list" class="relationship-list"></div>
+      </section>
       <p id="load-error" class="load-error" role="alert" hidden></p>
     </main>
+    <dialog id="relationship-detail" class="relationship-detail" aria-labelledby="detail-title">
+      <form method="dialog"><button class="dialog-close" aria-label="关闭关系详情">×</button></form>
+      <div id="detail-content"></div>
+    </dialog>
     <script src="explorer-data.js"></script>
     <script src="app.js"></script>
   </body>

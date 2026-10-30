@@ -99,6 +99,25 @@ h2 {
   margin-bottom: 24px;
 }
 
+.heading-actions { display: flex; align-items: center; gap: 10px; }
+
+.workflow-toggle, .copy-location {
+  padding: 8px 13px;
+  border: 1px solid #b7c8af;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2f4630;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workflow-toggle:hover, .workflow-toggle:focus-visible, .copy-location:hover, .copy-location:focus-visible {
+  background: #eaf1e6;
+  outline: 2px solid transparent;
+}
+
 .count {
   padding: 8px 13px;
   border: 1px solid #e1e6de;
@@ -192,6 +211,69 @@ h2 {
   color: #8b4742;
 }
 
+.relationships { margin-top: 64px; }
+
+.relationship-list { display: grid; gap: 15px; }
+
+.relationship-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 22px 24px;
+  border: 1px solid #b7c8af;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #191919;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(35, 45, 32, 0.055);
+}
+
+.relationship-line:hover, .relationship-line:focus-visible { border-color: #526b49; outline: 2px solid transparent; }
+.relation-node { font-family: Georgia, "Songti SC", serif; font-size: 1.05rem; font-weight: 600; }
+.relation-arrow { color: #526b49; font-size: 1.5rem; }
+.relation-type { color: #505050; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.82rem; }
+.relation-status { padding: 7px 10px; border-radius: 999px; background: #eaf1e6; color: #2f4630; font-size: 0.82rem; font-weight: 700; }
+.review-needs-review .relation-status { background: #fff8e8; color: #59451f; }
+.review-unknown .relation-status { background: #f0f0f0; color: #444; }
+
+.workflow-highlight .module-card[data-module-id="production-control"],
+.workflow-highlight .module-card[data-module-id="translation-execution"],
+.workflow-highlight .relationship-line {
+  border-color: #526b49;
+  box-shadow: 0 0 0 3px rgba(120, 148, 107, 0.16), 0 14px 34px rgba(35, 45, 32, 0.08);
+}
+
+.relationship-detail {
+  width: min(860px, calc(100% - 32px));
+  max-height: calc(100vh - 40px);
+  padding: 34px;
+  overflow: auto;
+  border: 1px solid #d7ded3;
+  border-radius: 24px;
+  background: #fff;
+  color: #191919;
+  box-shadow: 0 30px 90px rgba(20, 28, 18, 0.22);
+}
+.relationship-detail::backdrop { background: rgba(27, 34, 25, 0.36); }
+.relationship-detail form { position: sticky; top: 0; z-index: 2; height: 0; text-align: right; }
+.dialog-close { border: 0; background: transparent; color: #333; font-size: 2rem; cursor: pointer; }
+.detail-title { margin: 12px 42px 22px 0; color: #191919; font-family: Georgia, "Songti SC", serif; font-size: 1.7rem; letter-spacing: 0; text-transform: none; }
+.detail-facts { display: grid; grid-template-columns: 120px 1fr; gap: 8px 18px; padding: 20px; border-radius: 16px; background: #f7f9f6; }
+.detail-facts dt { color: #505050; font-weight: 650; }
+.detail-facts dd { margin: 0; font-family: "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
+.relationship-detail h3 { margin: 30px 0 12px; font-family: Georgia, "Songti SC", serif; }
+.relationship-detail li { margin: 7px 0; line-height: 1.55; }
+.evidence-card { margin-top: 16px; padding: 20px; border: 1px solid #e1e6de; border-radius: 17px; }
+.evidence-role { margin: 0 0 8px; color: #526b49; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; }
+.evidence-card h4 { margin: 0 0 8px; }
+.evidence-id { display: block; overflow-wrap: anywhere; color: #505050; font-size: 0.75rem; }
+.evidence-location { overflow-wrap: anywhere; }
+.evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
+
 @media (min-width: 1180px) {
   .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -202,6 +284,8 @@ h2 {
   .snapshot { margin-bottom: 50px; padding: 24px; }
   .module-grid { grid-template-columns: 1fr; gap: 17px; }
   .module-card { min-height: 0; padding: 26px; }
+  .relationship-line { grid-template-columns: 1fr auto 1fr; }
+  .relation-type, .relation-status { grid-column: 1 / -1; justify-self: start; }
 }
 
 @media (max-width: 520px) {
@@ -210,5 +294,8 @@ h2 {
   .snapshot dl { grid-template-columns: 1fr; gap: 6px; }
   .snapshot dd { margin-bottom: 10px; }
   .section-heading { align-items: flex-end; gap: 16px; }
+  .heading-actions { align-items: flex-end; flex-direction: column-reverse; }
   .module-card h3 { max-width: 100%; margin-top: 25px; }
+  .relationship-detail { padding: 24px; }
+  .detail-facts { grid-template-columns: 1fr; }
 }
