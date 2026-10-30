@@ -10,9 +10,9 @@ not an architecture approval, Push, Merge, Issue closure, or T3 authorization.
   `21e922f06da3aa692514413bcd0911f259d11881`.
 - T2 branch: `codex/architecture-explorer-t2`.
 - Candidate source snapshot and scanner revision:
-  `76629f821d1d0efbdde0b5ca63b6dc394962a2dc`.
+  `b348a139884f6a33e3f84b6c6fd393fc0c22c463`.
 - Candidate evidence package and final tested code revision:
-  `b2f83ec8988cb6cc2acadc820cb7c4701a2902e0`.
+  `8b5d7c51de7554c8e5ec417e6f4abe91253628ec`.
 - The candidate source worktree was clean when scanned.
 - The branch is local only and has not been pushed or merged.
 - No authorized T3 integration baseline exists. T3 must not infer one from this
@@ -20,11 +20,11 @@ not an architecture approval, Push, Merge, Issue closure, or T3 authorization.
 
 The commit containing this delivery record is documentation-only. The code,
 tests, machine candidate, and Markdown report actually exercised by final
-validation are fixed at `b2f83ec8988cb6cc2acadc820cb7c4701a2902e0`.
+validation are fixed at `8b5d7c51de7554c8e5ec417e6f4abe91253628ec`.
 
-The earlier `d41b205...` and `e494c1a...` candidate artifacts are retained as
-immutable history but are superseded by the stricter `76629f8...` candidate and
-must not be used for architecture review.
+The earlier `d41b205...`, `e494c1a...`, and `76629f8...` candidate artifacts are
+retained as immutable history but are superseded by the AST-backed
+`b348a13...` candidate and must not be used for architecture review.
 
 ## Closed scan scope
 
@@ -44,21 +44,22 @@ The scanner does not traverse the repository, read production data or logs, or
 execute Supervisor, Worker, Provider, Reviewer, Repair, or other production
 entrypoints. It validates every allowlisted path before reading, rejects links
 and reparse points, and uses one stable byte read per file for parsing, hashing,
-size, and source-snapshot metadata.
+size, and source-snapshot metadata. Supervisor structure is inspected with
+PowerShell's static AST parser; the production script is never executed.
 
 ## Candidate artifacts
 
 - Machine record:
-  `output/architecture-explorer/t2-candidate-76629f8/candidate.json`
+  `output/architecture-explorer/t2-candidate-b348a13/candidate.json`
 - Human review report:
-  `output/architecture-explorer/t2-candidate-76629f8/candidate-review.md`
-- Scanner version: `architecture-explorer-t2/1.2`
+  `output/architecture-explorer/t2-candidate-b348a13/candidate-review.md`
+- Scanner version: `architecture-explorer-t2/1.3`
 - Candidate report summary SHA-256:
-  `2a978a9d7ce4e84745b060cdac0a881f6134c583d49a00a0a509afe10ca754cd`
+  `64cb4bc55fa7beee582acbd196fc01a43f5ba886d2dee9fca44ab31f53db2c0d`
 - Machine file SHA-256:
-  `1d32ff5fb9b6523b3caa45cc5b1ed0fb48b56dc55fd75bb6db955442fba4ec4f`
+  `83283a5f001748a1ae270e2307900e586e372cab4e409f04b5688cee8f37041d`
 - Markdown file SHA-256:
-  `ab588183995cbffd42e9ba22973baac92d3c58be151d72448a4f3f2fce73f8db`
+  `d60f4acd524341a81805acc82d215bb198031a8be1864ebfd23aa327c53aec3c`
 - Scan outcome: `complete`.
 - Relation status: `candidate` / `PENDING_HUMAN_REVIEW`.
 - Runtime state: `NOT_COLLECTED`.
@@ -81,32 +82,32 @@ Formal scan command:
 ```powershell
 $python scripts\architecture_explorer\generate_supervisor_worker_candidate.py `
   --repository . `
-  --output-directory output\architecture-explorer\t2-candidate-76629f8
+  --output-directory output\architecture-explorer\t2-candidate-b348a13
 ```
 
 Final regression command at
-`b2f83ec8988cb6cc2acadc820cb7c4701a2902e0`:
+`8b5d7c51de7554c8e5ec417e6f4abe91253628ec`:
 
 ```powershell
 $python -m pytest -q -rs -p no:cacheprovider `
-  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-repair2-final-b2f83ec `
+  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-ast-final-8b5d7c5 `
   tests\architecture_explorer\test_top_level_explorer.py `
   tests\architecture_explorer\test_supervisor_worker_candidate.py
 ```
 
-Result: `61 passed, 0 failed, 0 skipped in 17.17s`.
+Result: `67 passed, 0 failed, 0 skipped in 32.77s`.
 
 The two P1 counterexample families were also rerun explicitly at the same
 commit:
 
 ```powershell
 $python -m pytest -q -p no:cacheprovider `
-  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-repair2-p1-b2f83ec `
+  --basetemp D:\translate\.test-tmp\architecture-explorer-t2-ast-counterexamples-8b5d7c5 `
   tests\architecture_explorer\test_supervisor_worker_candidate.py `
-  -k 'wrapper_main_rebinding_breaks_imported_function_identity or supervisor_state_binding_requires_exact_argument_values'
+  -k 'complete_chain or supervisor_state_binding or supervisor_argument_order or supervisor_argument_vector_must or process_boundary_definition_ignores'
 ```
 
-Result: `4 passed, 0 failed, 0 skipped in 1.23s`.
+Result: `9 passed, 19 deselected in 7.36s`.
 
 Compilation by the project interpreter passed for all 11 Python files in the
 Architecture Explorer source, script, and test directories. `git diff --check`
@@ -120,13 +121,17 @@ T2 did not create, copy, or modify production data to bypass that condition.
 ## Confirmed automatic facts and retained unknowns
 
 The candidate records unique source evidence for the Supervisor script binding,
-production argument vector with direct `$before.active_batch` and
-`$before.next_checkpoint` value bindings, process boundary definition and
-invocation, the exact Python wrapper import immediately followed by its
-`__name__ == "__main__"` call, Worker mode and authorization contracts, `args`
-parsing, canary exit, worker-id guard, batch/checkpoint pairing guard, and the
-ordered top-level Worker production call. These are automatic source facts,
-not reviewed architecture facts.
+one exact ordered production argument vector with direct `$before.active_batch`
+and `$before.next_checkpoint` value bindings, and the same vector's later use by
+the unique process boundary invocation. PowerShell comments and string contents
+are not AST array elements; duplicate, reordered, unsupported, or unassociated
+arguments remain incomplete. The process boundary definition's creation,
+`Start`, and `WaitForExit` calls are AST nodes rather than string matches. The
+candidate also records the exact Python wrapper import immediately followed by
+its `__name__ == "__main__"` call, Worker mode and authorization contracts,
+`args` parsing, canary exit, worker-id guard, batch/checkpoint pairing guard,
+and the ordered top-level Worker production call. These are automatic source
+facts, not reviewed architecture facts.
 
 Static scanning does not prove:
 
@@ -151,6 +156,8 @@ is `tests/architecture_explorer/test_supervisor_worker_candidate.py`. It covers
 the complete chain, missing evidence, duplicate-match ambiguity, unknown static
 branch, incorrect `__main__` conditions, unrelated `.main()` calls, changed
 wrapper imports, imported-name rebinding, incorrect Supervisor state values,
-production calls nested in canary, missing/reordered guards, external links,
-source changes during read, line-move-stable evidence IDs, behavioral auxiliary
-assertions, auxiliary evidence separation, and machine/Markdown parity.
+comment/string decoys, duplicate or reordered Supervisor arguments, launch
+association, production calls nested in canary, missing/reordered guards,
+external links, source changes during read, line-move-stable evidence IDs,
+behavioral auxiliary assertions, auxiliary evidence separation, and
+machine/Markdown parity.
