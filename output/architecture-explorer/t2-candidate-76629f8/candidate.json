@@ -1,0 +1,447 @@
+{
+  "schema": "architecture-explorer.relationship-candidate.v1",
+  "scanner_version": "architecture-explorer-t2/1.2",
+  "scanned_at": "2026-10-30T04:05:42Z",
+  "source_snapshot": {
+    "schema": "architecture-explorer.snapshot.v1",
+    "revision": "76629f821d1d0efbdde0b5ca63b6dc394962a2dc",
+    "worktree": {
+      "state": "clean",
+      "porcelain": []
+    },
+    "scanner_version": "architecture-explorer-t2/1.2",
+    "input_files": [
+      {
+        "path": "scripts/production/production_campaign_supervisor.ps1",
+        "sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47",
+        "size_bytes": 123223
+      },
+      {
+        "path": "scripts/production/run_qwen_deterministic_worker.py",
+        "sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9",
+        "size_bytes": 355
+      },
+      {
+        "path": "src/booktrans/production_worker/worker.py",
+        "sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a",
+        "size_bytes": 41229
+      },
+      {
+        "path": "tests/production/test_supervisor_launch_boundary.ps1",
+        "sha256": "aaab3044c6b0d4f2122823812db3575542ad1a5024844d7ccd58c9c508b1ced5",
+        "size_bytes": 8097
+      },
+      {
+        "path": "tests/unit/test_production_entrypoint_bootstrap.py",
+        "sha256": "a157a6e55fac1c49b395fc16beac40cbb1f9c2547ce7375776f3b2600d8a44e5",
+        "size_bytes": 1579
+      },
+      {
+        "path": "tests/unit/test_qwen_deterministic_worker.py",
+        "sha256": "6a915fc7f50fba02939b04e486e543d46ef9b3d526558c9de75aaac5ccc5128d",
+        "size_bytes": 201269
+      }
+    ],
+    "scanned_at": "2026-10-30T04:05:42Z",
+    "facts_sha256": "c22ad0fdd1ec3a1401de011c63d4f285f814364c2cdf8f9183008acb66dfdfa5"
+  },
+  "scan_scope": {
+    "production_files": [
+      "scripts/production/production_campaign_supervisor.ps1",
+      "scripts/production/run_qwen_deterministic_worker.py",
+      "src/booktrans/production_worker/worker.py"
+    ],
+    "auxiliary_test_files": [
+      "tests/production/test_supervisor_launch_boundary.ps1",
+      "tests/unit/test_production_entrypoint_bootstrap.py",
+      "tests/unit/test_qwen_deterministic_worker.py"
+    ],
+    "scope_policy": "closed-world explicit file allowlist; paths validated before one stable content read; no directory traversal"
+  },
+  "evidence": [
+    {
+      "evidence_id": "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13",
+      "source_role": "production",
+      "evidence_kind": "worker_script_binding",
+      "path": "scripts/production/production_campaign_supervisor.ps1",
+      "symbol": "$deterministicWorkerScript",
+      "structural_anchor": "powershell:assignment:$deterministicWorkerScript",
+      "syntax_position": "module/assignment:$deterministicWorkerScript#1",
+      "current_location": {
+        "line_start": 52,
+        "line_end": 52
+      },
+      "snippet": "$deterministicWorkerScript = Join-Path $Root \"scripts\\production\\run_qwen_deterministic_worker.py\"\r",
+      "normalized_snippet_sha256": "32249443cf0e783808c579a69bf04b14b75eb6b796d756cc562551f2a591ea0a",
+      "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+    },
+    {
+      "evidence_id": "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711",
+      "source_role": "production",
+      "evidence_kind": "process_boundary_definition",
+      "path": "scripts/production/production_campaign_supervisor.ps1",
+      "symbol": "Start-DeterministicWorkerProcess",
+      "structural_anchor": "powershell:function:Start-DeterministicWorkerProcess",
+      "syntax_position": "function:Start-DeterministicWorkerProcess#1",
+      "current_location": {
+        "line_start": 224,
+        "line_end": 293
+      },
+      "snippet": "function Start-DeterministicWorkerProcess([string]$FilePath, [string[]]$ArgumentVector, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath, [ref]$LaunchDiagnostics) {\r\n    $LaunchDiagnostics.Value.launch_stage = 'PROCESS_ARGUMENT_BUILD'\r\n    $LaunchDiagnostics.Value.executable = $FilePath\r\n    $LaunchDiagnostics.Value.working_directory = $WorkingDirectory\r\n    $quotedArguments = @($ArgumentVector | ForEach-Object { ConvertTo-ChildCommandLineArgument ([string]$_) })\r\n    # Windows PowerShell can expose ProcessStartInfo.EnvironmentVariables as\r\n    # null for a valid instance.  Do not use that collection: the child gets\r\n    # an inherited environment captured at Process.Start instead.\r\n    $startInfo = [System.Diagnostics.ProcessStartInfo]::new($FilePath, [string]::Join(' ', [string[]]$quotedArguments))\r\n    $startInfo.WorkingDirectory = $WorkingDirectory\r\n    $startInfo.UseShellExecute = $false\r\n    $startInfo.RedirectStandardOutput = $true\r\n    $startInfo.RedirectStandardError = $true\r\n    $childEnvironment = Get-CanonicalChildEnvironment\r\n    $environmentKeys = @($childEnvironment.Keys | ForEach-Object { [string]$_ })\r\n    $duplicateGroups = @($environmentKeys | Group-Object { $_.ToUpperInvariant() } | Where-Object { $_.Count -gt 1 })\r\n    $LaunchDiagnostics.Value.env_key_count = $environmentKeys.Count\r\n    $LaunchDiagnostics.Value.case_insensitive_duplicate_count = $duplicateGroups.Count\r\n    $LaunchDiagnostics.Value.launch_stage = 'ENVIRONMENT_BUILD'\r\n    $environmentScope = [System.EnvironmentVariableTarget]::Process\r\n    $normalizedKeys = @('Path', 'BOOKTRANS_PRODUCTION_WORKER_ID', 'BOOKTRANS_PRODUCTION_WORKER_HANDOFF_PATH', 'BOOKTRANS_PRODUCTION_BATCH', 'BOOKTRANS_PRODUCTION_CHECKPOINT')\r\n    $parentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n    $affectedKeys = @($parentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n        $candidate = $_\r\n        $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n    })\r\n    foreach ($name in $normalizedKeys) {\r\n        if ($null -eq ($affectedKeys | Where-Object { $_ -ieq $name } | Select-Object -First 1)) { $affectedKeys += $name }\r\n    }\r\n    $parentSnapshot = @()\r\n    foreach ($key in $affectedKeys) {\r\n        $parentSnapshot += [ordered]@{ key = $key; value = [Environment]::GetEnvironmentVariable($key, $environmentScope) }\r\n    }\r\n    try {\r\n        # Only the normalized launch keys are changed.  Every other variable\r\n        # is inherited untouched, and the process environment is restored\r\n        # before this worker launch returns.\r\n        foreach ($key in $affectedKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($key in $normalizedKeys) {\r\n            if ($childEnvironment.ContainsKey($key)) {\r\n                [Environment]::SetEnvironmentVariable($key, [string]$childEnvironment[$key], $environmentScope)\r\n            }\r\n        }\r\n        $child = [System.Diagnostics.Process]::new()\r\n        $child.StartInfo = $startInfo\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_ENTER'\r\n        if (-not $child.Start()) { throw [System.InvalidOperationException]::new('WORKER_LAUNCH_FAILED:PROCESS_START_RETURNED_FALSE') }\r\n        $LaunchDiagnostics.Value.child_created = $true\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_RETURN'\r\n        $stdoutTask = $child.StandardOutput.ReadToEndAsync()\r\n        $stderrTask = $child.StandardError.ReadToEndAsync()\r\n        $LaunchDiagnostics.Value.launch_stage = 'CHILD_EXIT_WAIT'\r\n        $child.WaitForExit()\r\n        [System.IO.File]::WriteAllText($StdoutPath, $stdoutTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        [System.IO.File]::WriteAllText($StderrPath, $stderrTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        return $child\r\n    } finally {\r\n        $currentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n        $restoreKeys = @($currentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n            $candidate = $_\r\n            $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n        })\r\n        foreach ($key in $restoreKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($entry in $parentSnapshot) {\r\n            if ($null -ne $entry.value) { [Environment]::SetEnvironmentVariable([string]$entry.key, [string]$entry.value, $environmentScope) }\r\n        }\r\n    }\r\n}\r\n\r\n",
+      "normalized_snippet_sha256": "113a6afaad9335832b31e72e6a446e45ec25f4b21dbd76431d8f70421e351dfa",
+      "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+    },
+    {
+      "evidence_id": "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3",
+      "source_role": "production",
+      "evidence_kind": "production_argument_vector",
+      "path": "scripts/production/production_campaign_supervisor.ps1",
+      "symbol": "$workerArgumentVector",
+      "structural_anchor": "powershell:assignment:$workerArgumentVector",
+      "syntax_position": "production-loop/assignment:$workerArgumentVector#1",
+      "current_location": {
+        "line_start": 1279,
+        "line_end": 1284
+      },
+      "snippet": "                $workerArgumentVector = @(\r\n                    $deterministicWorkerScript, '--root', $Root, '--run-path', $run,\r\n                    '--worker-id', $workerId, '--handoff-path', $workerHandoffPath,\r\n                    '--batch-label', $before.active_batch, '--checkpoint', $before.next_checkpoint,\r\n                    '--mode', 'production', '--authorize-production-checkpoint-write'\r\n                ) + $workerArgs\r",
+      "normalized_snippet_sha256": "585b46b61f3bea89e2092abc66ee8a41de89f78840c18e33fc1314c05d0c1099",
+      "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+    },
+    {
+      "evidence_id": "evidence:sha256:2b0a961f9feeeaff6d9325bc1ae50ae299723ecfd0fc58a8952d35a469aa250e",
+      "source_role": "production",
+      "evidence_kind": "process_boundary_invocation",
+      "path": "scripts/production/production_campaign_supervisor.ps1",
+      "symbol": "Start-DeterministicWorkerProcess",
+      "structural_anchor": "powershell:call:Start-DeterministicWorkerProcess",
+      "syntax_position": "production-loop/call:Start-DeterministicWorkerProcess#1",
+      "current_location": {
+        "line_start": 1305,
+        "line_end": 1305
+      },
+      "snippet": "                    $child = Start-DeterministicWorkerProcess $python $workerArgumentVector $Root $workerStdoutPath $workerStderrPath ([ref]$launchDiagnostics)\r",
+      "normalized_snippet_sha256": "e51bb0c99bb0a6cfb713477c495fec8f968ad7803a22df53c7d9c2911d042052",
+      "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+    },
+    {
+      "evidence_id": "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a",
+      "source_role": "production",
+      "evidence_kind": "worker_wrapper_import",
+      "path": "scripts/production/run_qwen_deterministic_worker.py",
+      "symbol": "module",
+      "structural_anchor": "python:import:booktrans.production_worker.worker.main",
+      "syntax_position": "module/import:worker.main#1",
+      "current_location": {
+        "line_start": 11,
+        "line_end": 11
+      },
+      "snippet": "from booktrans.production_worker.worker import main",
+      "normalized_snippet_sha256": "91dae863a97e6b138ad691f2673994d16eddf25bc3c4a946c93d035080da5529",
+      "file_sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9"
+    },
+    {
+      "evidence_id": "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc",
+      "source_role": "production",
+      "evidence_kind": "worker_wrapper_main_call",
+      "path": "scripts/production/run_qwen_deterministic_worker.py",
+      "symbol": "module",
+      "structural_anchor": "python:main-guard:call-main",
+      "syntax_position": "module/if:__name__==__main__/call:main#1",
+      "current_location": {
+        "line_start": 14,
+        "line_end": 15
+      },
+      "snippet": "if __name__ == \"__main__\":\r\n    raise SystemExit(main())",
+      "normalized_snippet_sha256": "6033fff73548e19f3c2a68f692078c2c58ea34357472d17e1f6d0f84c459f5f0",
+      "file_sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9"
+    },
+    {
+      "evidence_id": "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2",
+      "source_role": "production",
+      "evidence_kind": "worker_mode_contract",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "build_parser",
+      "structural_anchor": "python:function:build_parser/add_argument:--mode",
+      "syntax_position": "function:build_parser/call:add_argument:--mode#1",
+      "current_location": {
+        "line_start": 741,
+        "line_end": 741
+      },
+      "snippet": "parser.add_argument(\"--mode\", choices=(\"canary\", \"production\"), default=\"canary\")",
+      "normalized_snippet_sha256": "316ef8a56ba98b43f158b023505a993cf3cbc17ef8830d2c2612351c435b27a3",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa",
+      "source_role": "production",
+      "evidence_kind": "worker_authorization_contract",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "build_parser",
+      "structural_anchor": "python:function:build_parser/add_argument:--authorize-production-checkpoint-write",
+      "syntax_position": "function:build_parser/call:add_argument:--authorize-production-checkpoint-write#1",
+      "current_location": {
+        "line_start": 744,
+        "line_end": 744
+      },
+      "snippet": "parser.add_argument(\"--authorize-production-checkpoint-write\", action=\"store_true\")",
+      "normalized_snippet_sha256": "d56c5bfd8e94d4a2f3d91336785b45ba4bdf57717d90590661e117e4ea797c79",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2",
+      "source_role": "production",
+      "evidence_kind": "worker_argument_parse",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "main",
+      "structural_anchor": "python:function:main/assignment:args=parse_args",
+      "syntax_position": "function:main/assignment:args=parse_args#1",
+      "current_location": {
+        "line_start": 799,
+        "line_end": 799
+      },
+      "snippet": "args = build_parser().parse_args(argv)",
+      "normalized_snippet_sha256": "f55240734847b7cf280028f27f7d849aeba44e666b48f5fdec92e459718d96ff",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d",
+      "source_role": "production",
+      "evidence_kind": "worker_canary_exit_guard",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "main",
+      "structural_anchor": "python:function:main/if:args.mode==canary/exit",
+      "syntax_position": "function:main/if:args.mode==canary/exit#1",
+      "current_location": {
+        "line_start": 801,
+        "line_end": 820
+      },
+      "snippet": "if args.mode == \"canary\":\r\n        stamp = datetime.now(timezone.utc).strftime(\"%Y%m%dT%H%M%SZ\")\r\n        output = args.isolated_output or (args.root / \"runs\" / f\"qwen-production-canary-{stamp}\")\r\n        report = run_canary_command(\r\n            root=args.root,\r\n            run=args.run_path,\r\n            isolated_output=output,\r\n            continue_from_raw=args.continue_from_raw,\r\n            resume=args.resume,\r\n            recalculate_from_evidence=args.recalculate_from_evidence,\r\n            semantic_review=args.semantic_review,\r\n            semantic_review_ids=[item.strip() for item in str(args.semantic_review_ids or \"\").split(\",\") if item.strip()],\r\n            corrected_second_review=args.corrected_second_review,\r\n            group_repair=args.group_repair,\r\n            human_adjudicate=args.human_adjudicate,\r\n            human_adjudication_path=args.human_adjudication_path,\r\n            watchdog_seconds=args.watchdog_seconds,\r\n        )\r\n        print(json.dumps({\"output\": str(output), \"gate\": report.get(\"gate\")}, ensure_ascii=False), flush=True)\r\n        return 0 if report.get(\"gate\", {}).get(\"passed\") else 2",
+      "normalized_snippet_sha256": "ea06b467ef053a3c945e92a83ad19f2e7c11f5248b56f89db528747009be5c68",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5",
+      "source_role": "production",
+      "evidence_kind": "worker_id_guard",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "main",
+      "structural_anchor": "python:function:main/guard:worker-id-required",
+      "syntax_position": "function:main/guard:worker-id-required#1",
+      "current_location": {
+        "line_start": 821,
+        "line_end": 822
+      },
+      "snippet": "if not args.worker_id:\r\n        raise SystemExit(\"WORKER_ID_REQUIRED\")",
+      "normalized_snippet_sha256": "473b6da3b36a31fbc5ac10355fd56d9f668add3bc5d7978eb77ec33a91e7d9dd",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914",
+      "source_role": "production",
+      "evidence_kind": "worker_batch_checkpoint_guard",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "main",
+      "structural_anchor": "python:function:main/guard:batch-checkpoint-pair",
+      "syntax_position": "function:main/guard:batch-checkpoint-pair#1",
+      "current_location": {
+        "line_start": 823,
+        "line_end": 824
+      },
+      "snippet": "if bool(args.batch_label) != bool(args.checkpoint):\r\n        raise SystemExit(\"WORKER_LAUNCH_BINDING_INCOMPLETE\")",
+      "normalized_snippet_sha256": "08ca045007f09d74331a890f263c9f5953b84ef509391c7361c8450a5a5bedd7",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d",
+      "source_role": "production",
+      "evidence_kind": "worker_production_branch",
+      "path": "src/booktrans/production_worker/worker.py",
+      "symbol": "main",
+      "structural_anchor": "python:function:main/call:run_production_checkpoint",
+      "syntax_position": "function:main/non-canary/call:run_production_checkpoint#1",
+      "current_location": {
+        "line_start": 825,
+        "line_end": 839
+      },
+      "snippet": "run_production_checkpoint(\r\n        root=args.root,\r\n        run=args.run_path,\r\n        worker_id=args.worker_id,\r\n        handoff_path=handoff,\r\n        authorize=args.authorize_production_checkpoint_write,\r\n        semantic_rescue=args.semantic_rescue,\r\n        human_adjudication_path=args.human_adjudication_path,\r\n        d051_approval_path=args.d051_approval_path,\r\n        d051_reuse_approval_path=args.d051_reuse_approval_path,\r\n        d051_reuse_display_id=args.d051_reuse_display_id,\r\n        review_policy=args.review_policy,\r\n        batch_label=args.batch_label,\r\n        checkpoint=args.checkpoint,\r\n    )",
+      "normalized_snippet_sha256": "32cc6599a3b8a8984432c887289ad0efa7ab7a9516d9671979b610e4bc4d9e87",
+      "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+    },
+    {
+      "evidence_id": "evidence:sha256:d4307dd3cd7fafa73753a47904cc34a8d97f86001e4f65dfe1ee959898ca40b5",
+      "source_role": "auxiliary_test",
+      "evidence_kind": "auxiliary_launch_boundary_test",
+      "path": "tests/production/test_supervisor_launch_boundary.ps1",
+      "symbol": "Assert-True",
+      "structural_anchor": "powershell:test-assertion:inherited-child-created",
+      "syntax_position": "script/assert:inherited-child-created#1",
+      "current_location": {
+        "line_start": 55,
+        "line_end": 55
+      },
+      "snippet": "    Assert-True ($inheritChild.ExitCode -eq 0 -and $inheritDiagnostics.child_created) 'inherited-environment launch creates child'\r",
+      "normalized_snippet_sha256": "ee0d5df8310489d65a5e179c3e9f0ffd46037e31ff54226e645da93693a87f5b",
+      "file_sha256": "aaab3044c6b0d4f2122823812db3575542ad1a5024844d7ccd58c9c508b1ced5"
+    },
+    {
+      "evidence_id": "evidence:sha256:6923a936fd716d2a81f67ca76e8161e48778f6a88d2eee67e950ccafa2d9930a",
+      "source_role": "auxiliary_test",
+      "evidence_kind": "auxiliary_wrapper_bootstrap_test",
+      "path": "tests/unit/test_production_entrypoint_bootstrap.py",
+      "symbol": "test_supervisor_worker_entrypoint_imports_providers_and_reaches_preflight",
+      "structural_anchor": "python:test-function:test_supervisor_worker_entrypoint_imports_providers_and_reaches_preflight",
+      "syntax_position": "module/function:test_supervisor_worker_entrypoint_imports_providers_and_reaches_preflight#1",
+      "current_location": {
+        "line_start": 10,
+        "line_end": 39
+      },
+      "snippet": "def test_supervisor_worker_entrypoint_imports_providers_and_reaches_preflight() -> None:\r\n    path = Path(r\"D:\\translate\\scripts\\production\\run_qwen_deterministic_worker.py\")\r\n    spec = importlib.util.spec_from_file_location(\"run_qwen_deterministic_worker_bootstrap\", path)\r\n    assert spec is not None and spec.loader is not None\r\n    module = importlib.util.module_from_spec(spec)\r\n    spec.loader.exec_module(module)\r\n    assert hasattr(module, \"main\")\r\n    assert QwenMTProvider.__name__ == \"QwenMTProvider\"\r\n    args = build_parser().parse_args(\r\n        [\r\n            \"--mode\",\r\n            \"production\",\r\n            \"--worker-id\",\r\n            \"bootstrap-preflight\",\r\n            \"--run-path\",\r\n            str(DEFAULT_RUN),\r\n            \"--batch-label\",\r\n            \"FULL_BOOK_BATCH_025\",\r\n            \"--checkpoint\",\r\n            \"checkpoint_07\",\r\n        ]\r\n    )\r\n    assert args.mode == \"production\"\r\n    assert args.authorize_production_checkpoint_write is False\r\n    assert args.batch_label == \"FULL_BOOK_BATCH_025\"\r\n    assert args.checkpoint == \"checkpoint_07\"\r\n    payload = frozen_b022_checkpoint03_inputs(DEFAULT_RUN)\r\n    assert payload[\"source_sha256\"] == EXPECTED_SOURCE_SHA\r\n    assert payload[\"order\"][0] == \"body.p.06939\"\r\n    assert len(payload[\"order\"]) == 25",
+      "normalized_snippet_sha256": "29ed528a3c638011aedb657642d7f95a5364c29cb95bf32c3207d4456f7d52a9",
+      "file_sha256": "a157a6e55fac1c49b395fc16beac40cbb1f9c2547ce7375776f3b2600d8a44e5"
+    },
+    {
+      "evidence_id": "evidence:sha256:54c6950772cddd265eecc3c89b43d87cb8070081d43ecd7d46f66cebb29ab7ff",
+      "source_role": "auxiliary_test",
+      "evidence_kind": "auxiliary_worker_binding_test",
+      "path": "tests/unit/test_qwen_deterministic_worker.py",
+      "symbol": "test_production_worker_package_does_not_call_codex",
+      "structural_anchor": "python:test-function:test_production_worker_package_does_not_call_codex",
+      "syntax_position": "module/function:test_production_worker_package_does_not_call_codex#1",
+      "current_location": {
+        "line_start": 1764,
+        "line_end": 1781
+      },
+      "snippet": "def test_production_worker_package_does_not_call_codex() -> None:\r\n    root = Path(r\"D:\\translate\\src\\booktrans\\production_worker\")\r\n    for path in root.glob(\"*.py\"):\r\n        text = path.read_text(encoding=\"utf-8\")\r\n        assert \"codex exec\" not in text\r\n        assert \"CodexExecutable\" not in text\r\n    text = Path(r\"D:\\translate\\scripts\\production\\production_campaign_supervisor.ps1\").read_text(encoding=\"utf-8\")\r\n    assert \"run_qwen_deterministic_worker.py\" in text\r\n    assert \"run_allowlisted_recovery.py\" in text\r\n    assert \"workerKind=deterministic\" in text\r\n    assert 'if ($CodexExecutable -eq \"codex\")' in text\r\n    assert \"QWEN_NARROW_REPAIR\" in text\r\n    assert \"DETERMINISTIC_EVIDENCE\" in text\r\n    assert \"--forbid-production-write\" in text\r\n    assert \"serialized_repair_contract_json\" in text\r\n    recovery_block = text.split(\"AUTO_RECOVERY_START fingerprint=\")[1].split(\"AUTO_RECOVERY_EXHAUSTED\")[0]\r\n    assert \"CodexExecutable exec\" not in recovery_block\r\n    assert \"$allowlistedRecoveryScript\" in recovery_block",
+      "normalized_snippet_sha256": "8e0350b6f81aade1846943561e19d72a7add8f13c8e83d1c7c1360316718da54",
+      "file_sha256": "6a915fc7f50fba02939b04e486e543d46ef9b3d526558c9de75aaac5ccc5128d"
+    }
+  ],
+  "required_findings": {
+    "worker_script_binding": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13"
+      ]
+    },
+    "production_argument_vector": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3"
+      ]
+    },
+    "process_boundary_definition": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711"
+      ]
+    },
+    "process_boundary_invocation": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:2b0a961f9feeeaff6d9325bc1ae50ae299723ecfd0fc58a8952d35a469aa250e"
+      ]
+    },
+    "worker_wrapper_import": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a"
+      ]
+    },
+    "worker_wrapper_main_call": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc"
+      ]
+    },
+    "worker_mode_contract": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2"
+      ]
+    },
+    "worker_authorization_contract": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa"
+      ]
+    },
+    "worker_argument_parse": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2"
+      ]
+    },
+    "worker_canary_exit_guard": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d"
+      ]
+    },
+    "worker_id_guard": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5"
+      ]
+    },
+    "worker_batch_checkpoint_guard": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914"
+      ]
+    },
+    "worker_production_branch": {
+      "status": "unique",
+      "evidence_ids": [
+        "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d"
+      ]
+    }
+  },
+  "candidate_relation": {
+    "status": "candidate",
+    "scan_outcome": "complete",
+    "review_status": "PENDING_HUMAN_REVIEW",
+    "source_module": "production-control",
+    "target_module": "translation-execution",
+    "direction": "production-control -> translation-execution",
+    "proposed_relationship_type": "process-launch",
+    "runtime_state": "NOT_COLLECTED",
+    "reachability": {
+      "status": "STATIC_CONDITIONAL",
+      "proven_conditions": [
+        "Supervisor argument vector selects --mode production.",
+        "Supervisor argument vector supplies --authorize-production-checkpoint-write.",
+        "Supervisor binds batch and checkpoint from the current rebuilt state.",
+        "The wrapper imports the exact Worker main and calls it only under __name__ == '__main__'.",
+        "Worker main parses args through build_parser().parse_args(argv).",
+        "Worker main's exact canary guard exits before the production guard sequence.",
+        "Worker main then requires worker-id, then paired batch/checkpoint, before a top-level run_production_checkpoint return."
+      ],
+      "retained_unknowns": [
+        "Static scanning does not prove that the Supervisor operational loop reaches this launch on any particular run.",
+        "Static scanning does not prove that runtime preconditions, credentials, or external services are available.",
+        "Parameter business meaning beyond the observed names, literals, and direct bindings remains unreviewed."
+      ]
+    },
+    "production_evidence_ids": [
+      "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13",
+      "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711",
+      "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3",
+      "evidence:sha256:2b0a961f9feeeaff6d9325bc1ae50ae299723ecfd0fc58a8952d35a469aa250e",
+      "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a",
+      "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc",
+      "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2",
+      "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa",
+      "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2",
+      "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d",
+      "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5",
+      "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914",
+      "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d"
+    ],
+    "auxiliary_test_evidence_ids": [
+      "evidence:sha256:d4307dd3cd7fafa73753a47904cc34a8d97f86001e4f65dfe1ee959898ca40b5",
+      "evidence:sha256:6923a936fd716d2a81f67ca76e8161e48778f6a88d2eee67e950ccafa2d9930a",
+      "evidence:sha256:54c6950772cddd265eecc3c89b43d87cb8070081d43ecd7d46f66cebb29ab7ff"
+    ]
+  },
+  "candidate_report_sha256": "2a978a9d7ce4e84745b060cdac0a881f6134c583d49a00a0a509afe10ca754cd"
+}
