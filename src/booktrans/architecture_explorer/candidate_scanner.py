@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import base64
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,7 +13,7 @@ from typing import Any, Iterable
 from .generator import ExplorerInputError
 
 
-SCANNER_VERSION = "architecture-explorer-t2/1.2"
+SCANNER_VERSION = "architecture-explorer-t2/1.3"
 CANDIDATE_SCHEMA = "architecture-explorer.relationship-candidate.v1"
 PRODUCTION_FILES = (
     "scripts/production/production_campaign_supervisor.ps1",
@@ -40,6 +41,164 @@ REQUIRED_EVIDENCE_KINDS = (
     "worker_batch_checkpoint_guard",
     "worker_production_branch",
 )
+
+_POWERSHELL_AST_QUERY = r"""
+$ErrorActionPreference = 'Stop'
+$encoded = [Console]::In.ReadToEnd().Trim()
+$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded)).TrimStart([char]0xFEFF)
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseInput(
+    $source,
+    [ref]$tokens,
+    [ref]$parseErrors
+)
+
+function Convert-T2AstElement($element) {
+    $record = [ordered]@{
+        type = $element.GetType().Name
+        text = $element.Extent.Text
+    }
+    if ($element -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+        $record.kind = 'string'
+        $record.value = $element.Value
+    } elseif ($element -is [System.Management.Automation.Language.VariableExpressionAst]) {
+        $record.kind = 'variable'
+        $record.name = $element.VariablePath.UserPath
+    } elseif ($element -is [System.Management.Automation.Language.MemberExpressionAst]) {
+        $record.kind = 'member'
+        $record.static = [bool]$element.Static
+        if ($element.Expression -is [System.Management.Automation.Language.VariableExpressionAst]) {
+            $record.base = $element.Expression.VariablePath.UserPath
+        }
+        if ($element.Member -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+            $record.member = $element.Member.Value
+        }
+    } else {
+        $record.kind = 'other'
+    }
+    [pscustomobject]$record
+}
+
+$result = [ordered]@{
+    parse_error_count = @($parseErrors).Count
+    parse_errors = @($parseErrors | ForEach-Object {
+        [pscustomobject][ordered]@{
+            line = $_.Extent.StartLineNumber
+            message = $_.Message
+            text = $_.Extent.Text
+        }
+    })
+    assignments = @()
+    invocations = @()
+    functions = @()
+}
+
+if (@($parseErrors).Count -eq 0) {
+    $assignmentNodes = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+        $node.Left.VariablePath.UserPath -eq 'workerArgumentVector'
+    }, $true))
+    foreach ($node in $assignmentNodes) {
+        $record = [ordered]@{
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+            operator = [string]$node.Operator
+            shape = 'unsupported'
+            append_variable = $null
+            elements = @()
+        }
+        $commandExpression = $node.Right
+        if ($commandExpression -is [System.Management.Automation.Language.CommandExpressionAst]) {
+            $binary = $commandExpression.Expression
+            if (
+                $binary -is [System.Management.Automation.Language.BinaryExpressionAst] -and
+                $binary.Operator -eq [System.Management.Automation.Language.TokenKind]::Plus -and
+                $binary.Left -is [System.Management.Automation.Language.ArrayExpressionAst] -and
+                $binary.Right -is [System.Management.Automation.Language.VariableExpressionAst]
+            ) {
+                $statements = @($binary.Left.SubExpression.Statements)
+                if (
+                    $statements.Count -eq 1 -and
+                    $statements[0] -is [System.Management.Automation.Language.PipelineAst]
+                ) {
+                    $pipelineElements = @($statements[0].PipelineElements)
+                    if (
+                        $pipelineElements.Count -eq 1 -and
+                        $pipelineElements[0] -is [System.Management.Automation.Language.CommandExpressionAst] -and
+                        $pipelineElements[0].Expression -is [System.Management.Automation.Language.ArrayLiteralAst]
+                    ) {
+                        $record.shape = 'array-plus-variable'
+                        $record.append_variable = $binary.Right.VariablePath.UserPath
+                        $record.elements = @(
+                            $pipelineElements[0].Expression.Elements |
+                                ForEach-Object { Convert-T2AstElement $_ }
+                        )
+                    }
+                }
+            }
+        }
+        $result.assignments += [pscustomobject]$record
+    }
+
+    $invocationNodes = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -eq 'Start-DeterministicWorkerProcess'
+    }, $true))
+    foreach ($node in $invocationNodes) {
+        $result.invocations += [pscustomobject][ordered]@{
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+            elements = @($node.CommandElements | ForEach-Object { Convert-T2AstElement $_ })
+        }
+    }
+
+    $functionNodes = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Start-DeterministicWorkerProcess'
+    }, $true))
+    foreach ($node in $functionNodes) {
+        $memberCalls = @($node.FindAll({
+            param($child)
+            $child -is [System.Management.Automation.Language.InvokeMemberExpressionAst]
+        }, $true))
+        $processStartInfo = @($memberCalls | Where-Object {
+            $_.Static -and
+            $_.Expression -is [System.Management.Automation.Language.TypeExpressionAst] -and
+            $_.Expression.TypeName.FullName -eq 'System.Diagnostics.ProcessStartInfo' -and
+            $_.Member.Value -eq 'new'
+        })
+        $childStart = @($memberCalls | Where-Object {
+            -not $_.Static -and
+            $_.Expression -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $_.Expression.VariablePath.UserPath -eq 'child' -and
+            $_.Member.Value -eq 'Start'
+        })
+        $childWait = @($memberCalls | Where-Object {
+            -not $_.Static -and
+            $_.Expression -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $_.Expression.VariablePath.UserPath -eq 'child' -and
+            $_.Member.Value -eq 'WaitForExit'
+        })
+        $result.functions += [pscustomobject][ordered]@{
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+            process_start_info_count = $processStartInfo.Count
+            child_start_count = $childStart.Count
+            child_wait_count = $childWait.Count
+        }
+    }
+}
+
+$result | ConvertTo-Json -Compress -Depth 12
+"""
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -133,14 +292,11 @@ def _regex_evidence(
     structural_anchor: str,
     syntax_position: str,
     flags: int = 0,
-    required_literals: tuple[str, ...] = (),
     source_role: str = "production",
 ) -> list[dict[str, Any]]:
     found = []
     for ordinal, match in enumerate(re.finditer(pattern, text, flags), start=1):
         snippet = match.group(0)
-        if required_literals and not all(literal in snippet for literal in required_literals):
-            continue
         start = _line_number(text, match.start())
         end = start + snippet.count("\n")
         found.append(
@@ -160,27 +316,172 @@ def _regex_evidence(
     return found
 
 
-def _powershell_function_evidence(
-    *,
+def _powershell_ast(text: str, path: str) -> dict[str, Any]:
+    encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    try:
+        completed = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                _POWERSHELL_AST_QUERY,
+            ],
+            input=encoded,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError as error:
+        raise ExplorerInputError("PowerShell AST parser is unavailable") from error
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise ExplorerInputError(f"PowerShell AST parser failed for {path}: {detail}")
+    try:
+        result = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise ExplorerInputError(f"PowerShell AST parser returned invalid JSON for {path}") from error
+    if not isinstance(result, dict):
+        raise ExplorerInputError(f"PowerShell AST parser returned invalid data for {path}")
+    return result
+
+
+def _ast_element_signature(element: dict[str, Any]) -> tuple[str, str, str]:
+    kind = element.get("kind")
+    if kind == "string":
+        return ("string", str(element.get("value", "")), "")
+    if kind == "variable":
+        return ("variable", str(element.get("name", "")), "")
+    if kind == "member" and element.get("static") is False:
+        return (
+            "member",
+            str(element.get("base", "")),
+            str(element.get("member", "")),
+        )
+    return (str(kind or ""), "", "")
+
+
+def _powershell_supervisor_evidence(
     text: str,
     path: str,
     file_sha256: str,
-    name: str,
-    evidence_kind: str,
-    required_literals: tuple[str, ...],
 ) -> list[dict[str, Any]]:
-    pattern = rf"(?ms)^function\s+{re.escape(name)}\b.*?(?=^function\s+|\Z)"
-    return _regex_evidence(
-        text=text,
-        path=path,
-        file_sha256=file_sha256,
-        pattern=pattern,
-        evidence_kind=evidence_kind,
-        symbol=name,
-        structural_anchor=f"powershell:function:{name}",
-        syntax_position=f"function:{name}",
-        required_literals=required_literals,
+    structure = _powershell_ast(text, path)
+    if structure.get("parse_error_count") != 0:
+        return []
+
+    assignments = structure.get("assignments")
+    invocations = structure.get("invocations")
+    functions = structure.get("functions")
+    if not all(isinstance(items, list) for items in (assignments, invocations, functions)):
+        raise ExplorerInputError(f"PowerShell AST parser omitted required collections for {path}")
+
+    evidence: list[dict[str, Any]] = []
+    if len(functions) == 1:
+        function = functions[0]
+        if (
+            function.get("process_start_info_count") == 1
+            and function.get("child_start_count") == 1
+            and function.get("child_wait_count") == 1
+        ):
+            evidence.append(
+                _evidence(
+                    path=path,
+                    source_role="production",
+                    evidence_kind="process_boundary_definition",
+                    symbol="Start-DeterministicWorkerProcess",
+                    structural_anchor="powershell:function:Start-DeterministicWorkerProcess",
+                    syntax_position="function:Start-DeterministicWorkerProcess#1",
+                    snippet=str(function["text"]),
+                    line_start=int(function["line_start"]),
+                    line_end=int(function["line_end"]),
+                    file_sha256=file_sha256,
+                )
+            )
+
+    expected_arguments = (
+        ("variable", "deterministicWorkerScript", ""),
+        ("string", "--root", ""),
+        ("variable", "Root", ""),
+        ("string", "--run-path", ""),
+        ("variable", "run", ""),
+        ("string", "--worker-id", ""),
+        ("variable", "workerId", ""),
+        ("string", "--handoff-path", ""),
+        ("variable", "workerHandoffPath", ""),
+        ("string", "--batch-label", ""),
+        ("member", "before", "active_batch"),
+        ("string", "--checkpoint", ""),
+        ("member", "before", "next_checkpoint"),
+        ("string", "--mode", ""),
+        ("string", "production", ""),
+        ("string", "--authorize-production-checkpoint-write", ""),
     )
+    expected_invocation = (
+        ("string", "Start-DeterministicWorkerProcess", ""),
+        ("variable", "python", ""),
+        ("variable", "workerArgumentVector", ""),
+        ("variable", "Root", ""),
+        ("variable", "workerStdoutPath", ""),
+        ("variable", "workerStderrPath", ""),
+    )
+
+    assignment: dict[str, Any] | None = assignments[0] if len(assignments) == 1 else None
+    invocation: dict[str, Any] | None = invocations[0] if len(invocations) == 1 else None
+    assignment_is_exact = bool(
+        assignment
+        and assignment.get("operator") == "Equals"
+        and assignment.get("shape") == "array-plus-variable"
+        and assignment.get("append_variable") == "workerArgs"
+        and tuple(_ast_element_signature(item) for item in assignment.get("elements", []))
+        == expected_arguments
+    )
+    invocation_elements = invocation.get("elements", []) if invocation else []
+    invocation_is_exact = bool(
+        invocation
+        and len(invocation_elements) == 7
+        and tuple(_ast_element_signature(item) for item in invocation_elements[:6])
+        == expected_invocation
+        and invocation_elements[6].get("type") == "ParenExpressionAst"
+        and invocation_elements[6].get("text") == "([ref]$launchDiagnostics)"
+    )
+    is_ordered_launch = bool(
+        assignment_is_exact
+        and invocation_is_exact
+        and int(assignment["line_end"]) < int(invocation["line_start"])
+    )
+    if is_ordered_launch:
+        evidence.extend(
+            [
+                _evidence(
+                    path=path,
+                    source_role="production",
+                    evidence_kind="production_argument_vector",
+                    symbol="$workerArgumentVector",
+                    structural_anchor="powershell:assignment:$workerArgumentVector",
+                    syntax_position="production-loop/assignment:$workerArgumentVector#1",
+                    snippet=str(assignment["text"]),
+                    line_start=int(assignment["line_start"]),
+                    line_end=int(assignment["line_end"]),
+                    file_sha256=file_sha256,
+                ),
+                _evidence(
+                    path=path,
+                    source_role="production",
+                    evidence_kind="process_boundary_invocation",
+                    symbol="Start-DeterministicWorkerProcess",
+                    structural_anchor="powershell:call:Start-DeterministicWorkerProcess",
+                    syntax_position="production-loop/call:Start-DeterministicWorkerProcess#1",
+                    snippet=str(invocation["text"]),
+                    line_start=int(invocation["line_start"]),
+                    line_end=int(invocation["line_end"]),
+                    file_sha256=file_sha256,
+                ),
+            ]
+        )
+    return evidence
 
 
 def _node_segment(text: str, node: ast.AST) -> str:
@@ -677,49 +978,7 @@ def _collect_evidence(files: dict[str, tuple[str, str, int]]) -> list[dict[str, 
             structural_anchor="powershell:assignment:$deterministicWorkerScript",
             syntax_position="module/assignment:$deterministicWorkerScript",
         ),
-        *_regex_evidence(
-            text=supervisor,
-            path=supervisor_path,
-            file_sha256=supervisor_hash,
-            pattern=r"(?ms)^\s*\$workerArgumentVector\s*=\s*@\(.*?^\s*\)\s*\+\s*\$workerArgs\s*$",
-            evidence_kind="production_argument_vector",
-            symbol="$workerArgumentVector",
-            structural_anchor="powershell:assignment:$workerArgumentVector",
-            syntax_position="production-loop/assignment:$workerArgumentVector",
-            required_literals=(
-                "$deterministicWorkerScript",
-                "'--root'",
-                "'--run-path'",
-                "'--worker-id'",
-                "'--handoff-path'",
-                "'--batch-label', $before.active_batch",
-                "'--checkpoint', $before.next_checkpoint",
-                "'--mode', 'production'",
-                "'--authorize-production-checkpoint-write'",
-            ),
-        ),
-        *_powershell_function_evidence(
-            text=supervisor,
-            path=supervisor_path,
-            file_sha256=supervisor_hash,
-            name="Start-DeterministicWorkerProcess",
-            evidence_kind="process_boundary_definition",
-            required_literals=(
-                "[System.Diagnostics.ProcessStartInfo]::new",
-                "$child.Start()",
-                "$child.WaitForExit()",
-            ),
-        ),
-        *_regex_evidence(
-            text=supervisor,
-            path=supervisor_path,
-            file_sha256=supervisor_hash,
-            pattern=r"(?m)^\s*\$child\s*=\s*Start-DeterministicWorkerProcess\s+\$python\s+\$workerArgumentVector\s+\$Root\s+\$workerStdoutPath\s+\$workerStderrPath\s+\(\[ref\]\$launchDiagnostics\)\s*$",
-            evidence_kind="process_boundary_invocation",
-            symbol="Start-DeterministicWorkerProcess",
-            structural_anchor="powershell:call:Start-DeterministicWorkerProcess",
-            syntax_position="production-loop/call:Start-DeterministicWorkerProcess",
-        ),
+        *_powershell_supervisor_evidence(supervisor, supervisor_path, supervisor_hash),
     ]
 
     wrapper_path = PRODUCTION_FILES[1]

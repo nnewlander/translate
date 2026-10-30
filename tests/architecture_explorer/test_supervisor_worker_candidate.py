@@ -337,6 +337,99 @@ def test_supervisor_state_binding_requires_exact_argument_values(
     assert not candidate["candidate_relation"]["reachability"]["proven_conditions"]
 
 
+@pytest.mark.parametrize(
+    "decoy",
+    [
+        "    # '--batch-label', $before.active_batch\n"
+        "    # '--checkpoint', $before.next_checkpoint\n",
+        '    "\'--batch-label\', $before.active_batch", '
+        '"\'--checkpoint\', $before.next_checkpoint",\n',
+    ],
+)
+def test_supervisor_state_binding_ignores_comment_and_string_decoys(
+    source_repository: Path,
+    decoy: str,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[0]
+    text = path.read_text(encoding="utf-8")
+    text = text.replace("$before.active_batch", "'WRONG_BATCH'")
+    text = text.replace("$before.next_checkpoint", "'WRONG_CHECKPOINT'")
+    text = text.replace("    '--mode', 'production'", decoy + "    '--mode', 'production'")
+    path.write_text(text, encoding="utf-8")
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["production_argument_vector"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        "'--checkpoint', $before.next_checkpoint, '--batch-label', $before.active_batch",
+        "'--batch-label', $before.active_batch, '--batch-label', $before.active_batch, "
+        "'--checkpoint', $before.next_checkpoint",
+    ],
+)
+def test_supervisor_argument_order_and_duplicates_are_not_proven(
+    source_repository: Path,
+    replacement: str,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[0]
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "'--batch-label', $before.active_batch, '--checkpoint', $before.next_checkpoint",
+            replacement,
+        ),
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["production_argument_vector"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
+def test_supervisor_argument_vector_must_feed_the_launch_boundary(
+    source_repository: Path,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[0]
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "Start-DeterministicWorkerProcess $python $workerArgumentVector",
+            "Start-DeterministicWorkerProcess $python $otherArgumentVector",
+        ),
+        encoding="utf-8",
+    )
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["production_argument_vector"]["status"] == "missing"
+    assert candidate["required_findings"]["process_boundary_invocation"]["status"] == "missing"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
+def test_process_boundary_definition_ignores_comment_decoys(
+    source_repository: Path,
+) -> None:
+    path = source_repository / PRODUCTION_FILES[0]
+    text = path.read_text(encoding="utf-8")
+    text = text.replace(
+        "if (-not $child.Start()) { throw 'launch failed' }",
+        "if (-not $true) { throw 'launch failed' } # $child.Start()",
+    )
+    text = text.replace("    $child.WaitForExit()", "    # $child.WaitForExit()")
+    path.write_text(text, encoding="utf-8")
+
+    candidate = _scan(source_repository)
+
+    assert candidate["required_findings"]["process_boundary_definition"]["status"] == "missing"
+    assert candidate["candidate_relation"]["scan_outcome"] == "incomplete"
+    assert candidate["candidate_relation"]["reachability"]["status"] == "UNKNOWN"
+
+
 def test_production_call_inside_canary_branch_is_not_non_canary_evidence(
     source_repository: Path,
 ) -> None:

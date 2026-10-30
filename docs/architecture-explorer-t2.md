@@ -31,10 +31,17 @@ must parse `args` from
 batch/checkpoint guards in order before its top-level production return. Other
 shapes remain incomplete/unknown rather than being guessed.
 
-The Supervisor production argument-vector evidence also requires direct value
-bindings from the rebuilt state: `--batch-label` must be paired with
-`$before.active_batch`, and `--checkpoint` with `$before.next_checkpoint`.
-Finding the option names without those values is incomplete evidence.
+The Supervisor evidence is parsed with PowerShell's static AST parser; the
+source text is never executed. The supported argument-vector shape is one
+unique `$workerArgumentVector = @(...) + $workerArgs` assignment whose ordered
+array elements exactly bind `--batch-label` to `$before.active_batch` and
+`--checkpoint` to `$before.next_checkpoint`. The same array variable must be
+passed by one unique `Start-DeterministicWorkerProcess` command after the
+assignment. Comments, string contents, duplicate or reordered options,
+unsupported array expressions, additional assignments, and different launch
+arguments make the evidence incomplete rather than being guessed. The process
+boundary's `ProcessStartInfo`, child `Start`, and `WaitForExit` calls are also
+verified as AST invocation nodes rather than text fragments.
 
 Run with the project interpreter from a clean, fixed worktree:
 
