@@ -906,6 +906,12 @@ def _validated_source_path(repository: Path, relative: str) -> Path:
     return candidate
 
 
+def validated_source_path(repository: Path, relative: str) -> Path:
+    """Validate one closed-world scan input without reading its contents."""
+
+    return _validated_source_path(repository, relative)
+
+
 def _read_allowed_files(repository: Path) -> dict[str, tuple[str, str, int]]:
     result: dict[str, tuple[str, str, int]] = {}
     for relative in SCAN_FILES:
@@ -1145,5 +1151,6 @@ __all__ = [
     "REQUIRED_EVIDENCE_KINDS",
     "SCAN_FILES",
     "SCANNER_VERSION",
+    "validated_source_path",
     "scan_supervisor_worker_candidate",
 ]

@@ -7,6 +7,7 @@ T3 把 GitHub Issue #3 中经 API 核验的人工审核决定转成版本化映�
 - 被审核生产源码快照固定为 `857a4b85cf4763b74ecff0d02e660b005a0c8bae`，候选摘要为 `f08de10f90f76c07754b1e024ec16468874965bdc01d5ec53a002e140468ee98`。
 - 固定候选输入位于 `architecture-explorer/review-inputs/`，由上述干净 Commit 直接重生成，不依赖临时 worktree 输出。
 - 版本化审核映射位于 `architecture-explorer/reviews/supervisor-worker.v1.json`。它由 GitHub API 评论 `6516894339` 与仓库权限 API 响应导入；真实作者是 `nnewlander`，`author_association=OWNER`，仓库权限是 `admin`。
+- 独立 GitHub 来源收据位于 `architecture-explorer/reviews/supervisor-worker.source.v1.json`，保存固定仓库、Issue、评论、真实作者、评论时间、原始正文和权限响应的规范化 API 字段。
 - T3 Explorer 实现 Commit 只记录在生成数据的 `implementation` 字段中。它与 `reviewed_source_snapshot` 分开，Explorer-only 变化不会被当作生产源码变化。
 
 ## T3–T5 最小公共数据约定
@@ -23,9 +24,15 @@ T3 把 GitHub Issue #3 中经 API 核验的人工审核决定转成版本化映�
 
 ## 严格发布门禁
 
-首次发布的导入器采取封闭授权：API 评论作者与权限主体必须一致，`author_association` 必须为 `OWNER`，仓库权限必须为 `admin`。正文必须符合 Issue #3 的封闭字段格式。正文中自称 reviewer 不参与授权。
+首次发布的在线导入器采取封闭授权：它自己调用已认证的 `gh api`，不接受调用者提供的 comment/permission JSON。导入器只允许 `nnewlander/translate`、Issue #3 和评论 `6516894339`，并核对仓库 ID、Issue ID、评论 ID/URL、真实作者 login/ID、创建和更新时间、原始正文、`author_association=OWNER` 与 `admin` 权限。正文必须符合 Issue #3 的封闭字段格式；正文中自称 reviewer 不参与授权。
+
+离线 build 同时需要审核映射和独立来源收据。实现中固定了来源收据的规范化 SHA-256；build 先验证收据身份和摘要，再从收据中的原始评论与权限重新生成审核映射，并要求结果与版本化映射逐字段一致。缺少收据、收据被改写或映射与收据不一致时，关系保守降级为 `unknown`。
+
+该方案的信任根是：经过独立 Code Review 的实现代码、其中固定的来源摘要，以及受版本控制的来源收据。普通 SHA-256 不是数字签名，不能防御能够同时改写实现代码、固定摘要、来源收据、审核映射和测试的攻击者；T3 不虚构这种防篡改保证。它解决的是普通离线构建不能仅凭一份自述 OWNER/admin 的本地映射提升审核状态的问题。
 
 映射导入和离线站点构建都会校验：生产源码 Commit 和干净状态、扫描器版本、候选摘要、13 条生产 Evidence ID 的集合与顺序、源/目标模块、方向、关系类型、静态可达状态、运行状态和保留未知事项。构建还逐个计算三份生产源码当前 SHA-256；辅助测试和 Explorer 自身文件不参与“当前生产源码精确一致”的判定。
+
+源码连续性读取使用固定三文件白名单：Supervisor、Python 包装入口和 Worker。candidate 中的绝对路径、`..`、额外路径或不同顺序会在读取前失败；每个白名单路径还会拒绝 symlink、junction、reparse point、仓库外解析结果和非文件目标。candidate 不能扩大读取范围。
 
 保守状态规则：
 
@@ -39,7 +46,22 @@ T3 把 GitHub Issue #3 中经 API 核验的人工审核决定转成版本化映�
 
 ## 离线生成
 
-先用 T1 命令生成当前 Explorer 实现快照，再构建 T3 页面：
+只有更新真实 GitHub 审核材料时才运行在线导入；该命令直接使用 `gh api` 并把结果写到 `output/` 供审阅，不接收本地 API JSON：
+
+```powershell
+$python = (Resolve-Path 'D:\translate\.venv\Scripts\python.exe').Path
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+& $python scripts\architecture_explorer\generate_reviewed_relationship.py import-review `
+  --repository . `
+  --candidate architecture-explorer\review-inputs\supervisor-worker-857a4b8.json `
+  --github-repository nnewlander/translate `
+  --issue 3 `
+  --comment-id 6516894339 `
+  --output output\architecture-explorer\review-import\supervisor-worker.v1.json `
+  --source-output output\architecture-explorer\review-import\supervisor-worker.source.v1.json
+```
+
+日常离线使用不连接 GitHub。先用 T1 命令生成当前 Explorer 实现快照，再使用已版本化的映射和来源收据构建 T3 页面：
 
 ```powershell
 $python = (Resolve-Path 'D:\translate\.venv\Scripts\python.exe').Path
@@ -53,6 +75,7 @@ $env:PYTHONPATH = (Resolve-Path 'src').Path
   --mapping architecture-explorer\modules.json `
   --candidate architecture-explorer\review-inputs\supervisor-worker-857a4b8.json `
   --review-mapping architecture-explorer\reviews\supervisor-worker.v1.json `
+  --review-source architecture-explorer\reviews\supervisor-worker.source.v1.json `
   --web-assets architecture-explorer\web `
   --output-directory output\architecture-explorer\t3-site\site
 ```

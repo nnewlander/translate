@@ -11,6 +11,8 @@ from typing import Any
 
 from .generator import ExplorerInputError, build_explorer
 from .presentation_zh import build_relationship_presentation_zh
+from .candidate_scanner import PRODUCTION_FILES, validated_source_path
+from .review_source import review_source_sha256, verify_trusted_review_source
 
 
 REVIEW_MAP_SCHEMA = "architecture-explorer.review-map.v1"
@@ -253,23 +255,48 @@ def _git(repository: Path, *args: str) -> str:
 
 
 def _production_continuity(repository: Path, candidate: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
-    production_paths = set(candidate["scan_scope"]["production_files"])
-    expected = {
-        item["path"]: item["sha256"]
-        for item in candidate["source_snapshot"]["input_files"]
-        if item["path"] in production_paths
-    }
+    approved_paths = list(PRODUCTION_FILES)
+    requested_paths = candidate.get("scan_scope", {}).get("production_files")
+    input_files = candidate.get("source_snapshot", {}).get("input_files")
+    if requested_paths != approved_paths or not isinstance(input_files, list):
+        return "parse-failure", [
+            {
+                "path": None,
+                "expected_sha256": None,
+                "actual_sha256": None,
+                "status": "parse-failure",
+                "reason": "candidate production scope is not the fixed T3 allowlist",
+            }
+        ]
+    selected = [item for item in input_files if isinstance(item, dict) and item.get("path") in PRODUCTION_FILES]
+    if (
+        len(selected) != len(PRODUCTION_FILES)
+        or len({item.get("path") for item in selected}) != len(PRODUCTION_FILES)
+        or any(not isinstance(item.get("sha256"), str) or _SHA256.fullmatch(item["sha256"]) is None for item in selected)
+    ):
+        return "parse-failure", [
+            {
+                "path": None,
+                "expected_sha256": None,
+                "actual_sha256": None,
+                "status": "parse-failure",
+                "reason": "candidate production hashes do not exactly cover the fixed T3 allowlist",
+            }
+        ]
+    expected = {item["path"]: item["sha256"] for item in selected}
     results: list[dict[str, Any]] = []
     overall = "exact-match"
-    for relative in sorted(production_paths):
-        path = repository / relative
-        if relative not in expected or not path.is_file():
-            status, actual = "missing", None
-        else:
+    for relative in approved_paths:
+        try:
+            path = validated_source_path(repository, relative)
             actual = _sha256(path.read_bytes())
             status = "exact-match" if actual == expected[relative] else "material-change"
+        except ExplorerInputError as error:
+            actual = None
+            status = "missing" if "missing" in str(error).lower() else "parse-failure"
         if status != "exact-match":
-            overall = status if overall == "exact-match" else overall
+            if status == "parse-failure" or overall == "exact-match":
+                overall = status
         results.append({"path": relative, "expected_sha256": expected.get(relative), "actual_sha256": actual, "status": status})
     return overall, results
 
@@ -311,12 +338,14 @@ def publish_reviewed_explorer(
     module_mapping_path: Path,
     candidate: dict[str, Any],
     review_mapping: dict[str, Any],
+    review_source: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     base = build_explorer(snapshot_path, module_mapping_path)
     continuity, file_checks = _production_continuity(repository.resolve(strict=True), candidate)
     validation = review_mapping.get("validation", {})
     decision = review_mapping.get("decision")
     mapping_errors = []
+    source_errors = verify_trusted_review_source(review_source)
     if review_mapping.get("schema") != REVIEW_MAP_SCHEMA:
         mapping_errors.append("review_mapping_schema:unsupported")
     if review_mapping.get("data_contract_version") != DATA_CONTRACT_VERSION:
@@ -325,10 +354,20 @@ def publish_reviewed_explorer(
         mapping_errors.append("review_mapping_importer:unsupported")
     if isinstance(decision, dict):
         mapping_errors.extend(_review_map_binding_errors(candidate, decision))
+    if not source_errors and review_source is not None:
+        expected_mapping = import_review_mapping(
+            candidate,
+            review_source.get("comment"),
+            review_source.get("permission"),
+        )
+        if expected_mapping.get("validation", {}).get("status") != "valid":
+            source_errors.append("trusted_review_source:decision-invalid")
+        elif _canonical_bytes(expected_mapping) != _canonical_bytes(review_mapping):
+            source_errors.append("trusted_review_source:mapping-mismatch")
     if decision is None and validation.get("status") == "no-decision":
         status, reasons = "candidate", validation.get("errors", [])
-    elif validation.get("status") != "valid" or not isinstance(decision, dict) or mapping_errors:
-        status, reasons = "unknown", [*validation.get("errors", []), *mapping_errors] or ["review_mapping:invalid"]
+    elif validation.get("status") != "valid" or not isinstance(decision, dict) or mapping_errors or source_errors:
+        status, reasons = "unknown", [*validation.get("errors", []), *mapping_errors, *source_errors] or ["review_mapping:invalid"]
     elif decision.get("result") == "REJECTED":
         status, reasons = "needs-review", ["review_decision:rejected"]
     elif decision.get("result") != "APPROVED":
@@ -361,6 +400,11 @@ def publish_reviewed_explorer(
             decision.get("review_notes", "") if isinstance(decision, dict) else "尚无有效人工架构审核决定。"
         ),
         "review_decision": decision,
+        "review_source": {
+            "status": "trusted" if not source_errors else "untrusted",
+            "sha256": review_source_sha256(review_source) if review_source is not None else None,
+            "errors": source_errors,
+        },
         "source_continuity": {"status": continuity, "files": file_checks},
     }
     relationship["supporting_evidence"] = [

@@ -12,6 +12,7 @@ from booktrans.architecture_explorer.review_mapping import import_review_mapping
 REPOSITORY = Path(__file__).resolve().parents[2]
 CANDIDATE_PATH = REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"
 REVIEW_MAP_PATH = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"
+REVIEW_SOURCE_PATH = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"
 SNAPSHOT_PATH = REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json"
 MODULE_MAP_PATH = REPOSITORY / "architecture-explorer/modules.json"
 
@@ -61,8 +62,15 @@ def _permission(login: str = "nnewlander", permission: str = "admin") -> dict:
     return {"permission": permission, "user": {"login": login, "id": 256049772}}
 
 
-def _publish(candidate: dict, review_map: dict, repository: Path = REPOSITORY) -> dict:
-    return publish_reviewed_explorer(repository, SNAPSHOT_PATH, MODULE_MAP_PATH, candidate, review_map)
+def _publish(
+    candidate: dict,
+    review_map: dict,
+    repository: Path = REPOSITORY,
+    *,
+    trusted_source: bool = True,
+) -> dict:
+    source = _json(REVIEW_SOURCE_PATH) if trusted_source else None
+    return publish_reviewed_explorer(repository, SNAPSHOT_PATH, MODULE_MAP_PATH, candidate, review_map, source)
 
 
 def test_valid_owner_approval_imports_exact_binding_and_publishes_current_reviewed() -> None:
@@ -77,7 +85,7 @@ def test_valid_owner_approval_imports_exact_binding_and_publishes_current_review
     assert decision["approved_evidence_ids"] == candidate["candidate_relation"]["production_evidence_ids"]
     assert len(decision["approved_evidence_ids"]) == 13
 
-    relation = _publish(candidate, review_map)["architecture"]["relationships"][0]
+    relation = _publish(candidate, _json(REVIEW_MAP_PATH))["architecture"]["relationships"][0]
     assert relation["review_status"] == "current-reviewed"
     assert relation["direction"] == "production-control -> translation-execution"
     assert relation["type"] == "process-launch"
@@ -89,7 +97,7 @@ def test_valid_owner_approval_imports_exact_binding_and_publishes_current_review
 def test_no_review_comment_remains_candidate() -> None:
     candidate = _json(CANDIDATE_PATH)
     review_map = import_review_mapping(candidate, None, None)
-    assert _publish(candidate, review_map)["architecture"]["relationships"][0]["review_status"] == "candidate"
+    assert _publish(candidate, review_map, trusted_source=False)["architecture"]["relationships"][0]["review_status"] == "candidate"
 
 
 def test_rejected_owner_decision_requires_review() -> None:
@@ -97,7 +105,8 @@ def test_rejected_owner_decision_requires_review() -> None:
     body = _decision_body(candidate, result="REJECTED")
     review_map = import_review_mapping(candidate, _comment(candidate, body=body), _permission())
     assert review_map["validation"]["status"] == "valid"
-    assert _publish(candidate, review_map)["architecture"]["relationships"][0]["review_status"] == "needs-review"
+    assert review_map["decision"]["result"] == "REJECTED"
+    assert _publish(candidate, review_map, trusted_source=False)["architecture"]["relationships"][0]["review_status"] == "unknown"
 
 
 def test_unauthorized_actual_author_cannot_be_overridden_by_claimed_identity() -> None:

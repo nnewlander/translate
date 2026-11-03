@@ -1,8 +1,21 @@
 """Offline Architecture Explorer data generation."""
 
 from .generator import SCANNER_VERSION, build_explorer, scan_snapshot
-
-__all__ = ["SCANNER_VERSION", "build_explorer", "scan_snapshot"]
+from .candidate_report import render_candidate_report, write_candidate_outputs
+from .candidate_scanner import scan_supervisor_worker_candidate
 from .review_mapping import import_review_mapping, parse_review_decision, publish_reviewed_explorer
+from .review_source import fetch_github_review_source, verify_trusted_review_source
 
-__all__ = ["import_review_mapping", "parse_review_decision", "publish_reviewed_explorer"]
+__all__ = [
+    "SCANNER_VERSION",
+    "build_explorer",
+    "fetch_github_review_source",
+    "import_review_mapping",
+    "parse_review_decision",
+    "publish_reviewed_explorer",
+    "render_candidate_report",
+    "scan_snapshot",
+    "scan_supervisor_worker_candidate",
+    "verify_trusted_review_source",
+    "write_candidate_outputs",
+]
