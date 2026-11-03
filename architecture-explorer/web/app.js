@@ -32,6 +32,7 @@
   const heroTitle = document.querySelector(".hero h1");
   const heroLede = document.querySelector(".hero .lede");
   const breadcrumb = document.querySelector("#breadcrumb");
+  const bottomNavigation = document.querySelector("#bottom-navigation");
   const backButton = document.querySelector("#back-button");
   const homeButton = document.querySelector("#home-button");
   const relationList = document.querySelector("#relationship-list");
@@ -181,7 +182,7 @@
     const drilldown = currentDrilldown(); const atTop = !drilldown;
     breadcrumb.replaceChildren(); breadcrumb.append(text("span", navigation.root.name, "crumb"));
     if (drilldown) breadcrumb.append(text("span", "›", "crumb-separator"), text("span", drilldown.name, "crumb current"));
-    backButton.hidden = atTop; homeButton.hidden = atTop;
+    bottomNavigation.hidden = atTop;
     heroTitle.textContent = atTop ? "顶层架构" : drilldown.name;
     heroLede.textContent = atTop ? "已批准的逻辑职责，与源码覆盖核验分别呈现。" : drilldown.coverage_note;
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选逻辑职责";

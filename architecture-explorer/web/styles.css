@@ -24,17 +24,24 @@ main {
 .hero { max-width: 780px; margin-bottom: 48px; }
 
 .architecture-navigation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
   margin: -22px 0 34px;
 }
 .breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; color: #505050; font-size: 0.9rem; }
 .crumb.current { color: #2f4630; font-weight: 750; }
 .crumb-separator { color: #78946b; }
-.navigation-actions { display: flex; gap: 8px; }
-.navigation-actions button, .evidence-link {
+.bottom-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-top: 42px;
+  padding-top: 24px;
+  border-top: 1px solid #e1e6de;
+}
+.bottom-navigation[hidden] { display: none; }
+.bottom-navigation #back-button { justify-self: start; }
+.bottom-navigation #home-button { justify-self: end; }
+.bottom-navigation button, .evidence-link {
   padding: 8px 13px;
   border: 1px solid #b7c8af;
   border-radius: 999px;
@@ -45,7 +52,7 @@ main {
   font-weight: 650;
   cursor: pointer;
 }
-.navigation-actions button:hover, .navigation-actions button:focus-visible, .evidence-link:hover, .evidence-link:focus-visible { background: #eaf1e6; }
+.bottom-navigation button:hover, .bottom-navigation button:focus-visible, .evidence-link:hover, .evidence-link:focus-visible { background: #eaf1e6; }
 
 .eyebrow {
   margin: 0;
@@ -286,9 +293,14 @@ h2 {
 .workflow-highlight .module-card[data-module-id="production-control"],
 .workflow-highlight .module-card[data-module-id="translation-execution"],
 .workflow-highlight .relationship-line {
-  border-color: #526b49;
-  box-shadow: 0 0 0 3px rgba(120, 148, 107, 0.16), 0 14px 34px rgba(35, 45, 32, 0.08);
+  border: 6px solid transparent;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, #ffe7a1 0%, #f5bd46 42%, #e99a25 72%, #ffd76d 100%) border-box;
+  box-shadow: 0 12px 34px rgba(217, 143, 24, 0.24), 0 0 0 2px rgba(255, 213, 111, 0.22);
 }
+.workflow-highlight .module-card[data-module-id="production-control"]::before,
+.workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #e99a25; }
 
 .relationship-detail {
   width: min(860px, calc(100% - 32px));
@@ -370,7 +382,8 @@ h2 {
   .relationship-detail { padding: 24px; }
   .detail-facts { grid-template-columns: 1fr; }
   .meaning-grid { grid-template-columns: 1fr; }
-  .architecture-navigation { align-items: flex-start; flex-direction: column; }
+  .bottom-navigation { gap: 12px; margin-top: 34px; }
+  .bottom-navigation button { max-width: 100%; white-space: normal; }
   .evidence-group { padding: 18px; }
   .raw-evidence-facts { grid-template-columns: 1fr; }
 }

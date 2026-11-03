@@ -15,10 +15,6 @@
       </header>
       <nav class="architecture-navigation" aria-label="架构层级导航">
         <div id="breadcrumb" class="breadcrumb" aria-label="当前位置"></div>
-        <div class="navigation-actions">
-          <button id="back-button" type="button" hidden>返回上一级</button>
-          <button id="home-button" type="button" hidden>返回最高级</button>
-        </div>
       </nav>
       <section class="snapshot" aria-labelledby="snapshot-heading">
         <h2 id="snapshot-heading">源码快照</h2>
@@ -45,6 +41,10 @@
         <summary><span id="history-title">历史与辅助区</span><span class="summary-hint">默认收起</span></summary>
         <div id="history-content"></div>
       </details>
+      <nav id="bottom-navigation" class="bottom-navigation" aria-label="返回导航" hidden>
+        <button id="back-button" type="button">返回上一级</button>
+        <button id="home-button" type="button">返回最高级</button>
+      </nav>
       <p id="load-error" class="load-error" role="alert" hidden></p>
     </main>
     <div id="module-context-menu" class="context-menu" role="menu" hidden>

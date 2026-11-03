@@ -120,3 +120,32 @@ def test_offline_ui_wires_read_only_breadcrumb_context_menu_and_local_state_asse
     assert "pointerdown" in app
     assert "stopImmediatePropagation" in app
     assert "suppressPrimaryOnce" in state
+
+
+def test_return_navigation_is_after_history_and_uses_bottom_alignment() -> None:
+    page = (REPOSITORY / "architecture-explorer/web/index.html").read_text(encoding="utf-8")
+    styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
+    app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
+
+    assert page.index('id="history-and-auxiliary"') < page.index('id="bottom-navigation"')
+    assert page.index('id="bottom-navigation"') < page.index('id="load-error"')
+    bottom_markup = page.split('id="bottom-navigation"', 1)[1].split("</nav>", 1)[0]
+    assert bottom_markup.index('id="back-button"') < bottom_markup.index('id="home-button"')
+    assert ".bottom-navigation #back-button { justify-self: start; }" in styles
+    assert ".bottom-navigation #home-button { justify-self: end; }" in styles
+    assert "bottomNavigation.hidden = atTop" in app
+
+
+def test_workflow_toggle_uses_warm_gradient_highlight_and_restores_by_class_toggle() -> None:
+    styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
+    app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
+
+    highlight = styles.split(
+        '.workflow-highlight .module-card[data-module-id="production-control"]', 1
+    )[1].split("}", 1)[0]
+    assert "border: 6px solid transparent" in highlight
+    assert "linear-gradient(135deg" in highlight
+    assert "#f5bd46" in highlight
+    assert 'classList.toggle("workflow-highlight", active)' in app
+    assert 'setAttribute("aria-pressed", String(active))' in app
+    assert 'active ? "取消流程高亮" : "高亮最小生产流程"' in app
