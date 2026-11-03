@@ -79,6 +79,7 @@ def _trusted_decision(
         decision.get("result") != "APPROVED"
         or not isinstance(approved_ids, list)
         or len(approved_ids) != 13
+        or len(set(approved_ids)) != 13
         or decision.get("approved_evidence_ids") != approved_ids
     ):
         raise ExplorerInputError("T5-Lite requires one approved 13-evidence T3 decision")
@@ -103,7 +104,11 @@ def _assessment(repository: Path, candidate: dict[str, Any]) -> dict[str, Any]:
         status, review_status = "ambiguous", "unknown"
     elif current.get("candidate_relation", {}).get("scan_outcome") != "complete":
         status, review_status = "missing", "needs-review"
-    elif current_ids != approved_ids:
+    elif len(current_ids) != 13:
+        status, review_status = "missing", "needs-review"
+    elif len(set(current_ids)) != 13:
+        status, review_status = "ambiguous", "unknown"
+    elif set(current_ids) != set(approved_ids):
         status, review_status = "material-change", "needs-review"
     else:
         status, review_status = "exact-match", "current-reviewed"

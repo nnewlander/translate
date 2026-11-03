@@ -5,6 +5,7 @@ T5-Lite 只维护首条已审核的 Supervisor → Worker 关系。正式范围�
 ## 保留的契约
 
 - 使用 T2 真实扫描比较原 T3 决定批准的 13 条生产 Evidence ID；不修改 T2 身份规则。
+- 在扫描完整且 13 条 ID 唯一时按身份集合比较，源码位置导致的排列变化不失效；T3 原始证据展示顺序保持不变。
 - 空行和纯位置移动保持稳定 ID，不触发无意义告警。证据缺失、歧义、解析失败或 ID 改变时保守降级。
 - T3 GitHub Owner 来源、权限收据和审核映射仍是唯一人工批准来源。review-state 只记录连续性结果，不复制 Evidence ID 或授予批准。
 - T4 只有在 T3 来源可信、review-state 有效、状态为 `current-reviewed` 且当前 13 条 ID 精确匹配时，才允许显示 `partial` 源码归属。

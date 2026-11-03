@@ -12,7 +12,7 @@ from booktrans.architecture_explorer.review_cli import main as review_main
 from booktrans.architecture_explorer.review_mapping import import_review_mapping
 from booktrans.architecture_explorer import review_source
 from booktrans.architecture_explorer.review_source import review_source_sha256
-from t5_lite_fixture import commit, create_source_repository
+from t5_lite_fixture import commit, create_source_repository, git, git_output
 
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -219,6 +219,82 @@ def test_blank_lines_keep_current_review_and_update_locations(tmp_path: Path) ->
     assert relationship["source_continuity"]["status"] == "exact-match"
 
 
+def test_moved_build_parser_keeps_current_review_and_t4_partial(tmp_path: Path) -> None:
+    repository = create_source_repository(tmp_path)
+    assert review_main(_update_args(repository)) == 0
+    original_ids = scan_supervisor_worker_candidate(repository)["candidate_relation"][
+        "production_evidence_ids"
+    ]
+    worker = repository / PRODUCTION_FILES[2]
+    source = worker.read_text(encoding="utf-8")
+    parser_start = source.index("\ndef build_parser()")
+    main_start = source.index("\ndef main(", parser_start)
+    parser_block = source[parser_start:main_start]
+    worker.write_text(
+        source[:parser_start] + source[main_start:].rstrip() + "\n\n" + parser_block.lstrip(),
+        encoding="utf-8",
+    )
+    commit(repository, "move complete build_parser function after main")
+
+    moved = scan_supervisor_worker_candidate(repository)
+    moved_ids = moved["candidate_relation"]["production_evidence_ids"]
+    assert moved["candidate_relation"]["scan_outcome"] == "complete"
+    assert len(moved_ids) == len(set(moved_ids)) == 13
+    assert set(moved_ids) == set(original_ids)
+    assert moved_ids != original_ids
+
+    assert review_main(_build_args(repository, output="output/moved-function")) == 0
+
+    data = json.loads(
+        (repository / "output/moved-function/explorer-data.json").read_text(encoding="utf-8")
+    )
+    relationship = data["architecture"]["relationships"][0]
+    boundary = next(
+        item
+        for item in data["navigation"]["drilldowns"][0]["children"]
+        if item["id"] == "worker-launch-boundary"
+    )
+    assert relationship["review_status"] == "current-reviewed"
+    assert relationship["source_continuity"]["status"] == "exact-match"
+    assert relationship["evidence_ids"] == original_ids
+    assert boundary["source_assignment"]["status"] == "partial"
+
+
+def test_complete_scan_with_changed_evidence_id_requires_review(tmp_path: Path) -> None:
+    repository = create_source_repository(tmp_path)
+    assert review_main(_update_args(repository)) == 0
+    original_ids = scan_supervisor_worker_candidate(repository)["candidate_relation"][
+        "production_evidence_ids"
+    ]
+    worker = repository / PRODUCTION_FILES[2]
+    source = worker.read_text(encoding="utf-8")
+    worker.write_text(
+        source.replace(
+            'parser.add_argument("--mode", choices=("canary", "production"), default="canary")',
+            'parser.add_argument("--mode", default="canary", choices=("canary", "production"))',
+        ),
+        encoding="utf-8",
+    )
+    commit(repository, "change one evidence identity")
+
+    changed = scan_supervisor_worker_candidate(repository)
+    changed_ids = changed["candidate_relation"]["production_evidence_ids"]
+    assert changed["candidate_relation"]["scan_outcome"] == "complete"
+    assert len(changed_ids) == len(set(changed_ids)) == 13
+    assert set(changed_ids) != set(original_ids)
+
+    assert review_main(
+        _build_args(repository, with_navigation=False, output="output/changed-id")
+    ) == 0
+
+    data = json.loads(
+        (repository / "output/changed-id/explorer-data.json").read_text(encoding="utf-8")
+    )
+    relationship = data["architecture"]["relationships"][0]
+    assert relationship["review_status"] == "needs-review"
+    assert relationship["source_continuity"]["status"] == "material-change"
+
+
 def test_recorded_invalidation_survives_source_restoration(tmp_path: Path) -> None:
     repository = create_source_repository(tmp_path)
     state_path = repository / "output/review-state.json"
@@ -249,6 +325,44 @@ def test_recorded_invalidation_survives_source_restoration(tmp_path: Path) -> No
     still_invalid = json.loads(state_path.read_text(encoding="utf-8"))
     assert still_invalid["status"] == "needs-review"
     assert still_invalid["reasons"] == invalid["reasons"]
+
+
+def test_committed_invalidation_persists_in_clean_worktree(tmp_path: Path) -> None:
+    repository = create_source_repository(tmp_path)
+    state_path = repository / "output/review-state.json"
+    assert review_main(_update_args(repository)) == 0
+    git(repository, "add", "-f", "output/review-state.json")
+    commit(repository, "record current review state")
+    worker = repository / PRODUCTION_FILES[2]
+    original = worker.read_text(encoding="utf-8")
+    worker.write_text(
+        original.replace("return run_production_checkpoint(", "return other_checkpoint("),
+        encoding="utf-8",
+    )
+    assert review_main(_update_args(repository)) == 0
+    commit(repository, "record invalid review state")
+    invalid = json.loads(state_path.read_text(encoding="utf-8"))
+    assert invalid["status"] == "needs-review"
+    worker.write_text(original, encoding="utf-8")
+    commit(repository, "restore source without clearing review state")
+    assert git_output(repository, "status", "--porcelain") == ""
+
+    checkout = tmp_path / "clean-checkout"
+    git(repository, "worktree", "add", "--detach", str(checkout), "HEAD")
+    try:
+        assert git_output(checkout, "status", "--porcelain") == ""
+        assert review_main(
+            _build_args(checkout, with_navigation=False, output="output/clean-build")
+        ) == 0
+        data = json.loads(
+            (checkout / "output/clean-build/explorer-data.json").read_text(encoding="utf-8")
+        )
+        relationship = data["architecture"]["relationships"][0]
+        assert relationship["review_status"] == "needs-review"
+        assert relationship["source_continuity"]["status"] == "exact-match"
+        assert relationship["source_continuity"]["review_state"] == "valid"
+    finally:
+        git(repository, "worktree", "remove", "--force", str(checkout))
 
 
 def test_unrecorded_change_can_disappear_after_source_restoration(tmp_path: Path) -> None:

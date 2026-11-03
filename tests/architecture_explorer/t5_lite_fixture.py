@@ -14,6 +14,15 @@ def git(repository: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repository), *args], check=True, capture_output=True)
 
 
+def git_output(repository: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repository), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
 def commit(repository: Path, message: str) -> None:
     git(repository, "add", ".")
     git(
@@ -39,4 +48,4 @@ def create_source_repository(root: Path) -> Path:
     return repository
 
 
-__all__ = ["commit", "create_source_repository", "git"]
+__all__ = ["commit", "create_source_repository", "git", "git_output"]
