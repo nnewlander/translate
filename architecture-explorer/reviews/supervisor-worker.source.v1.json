@@ -1,0 +1,50 @@
+{
+  "schema": "architecture-explorer.github-review-source.v1",
+  "repository": {
+    "id": 1425303246,
+    "node_id": "R_kgDOVPRmzg",
+    "full_name": "nnewlander/translate",
+    "html_url": "https://github.com/nnewlander/translate",
+    "private": false,
+    "owner": {
+      "login": "nnewlander",
+      "id": 256049772,
+      "node_id": "U_kgDOD0MCbA",
+      "type": "User"
+    }
+  },
+  "issue": {
+    "id": 6058497210,
+    "node_id": "I_kwDOVPRmzs8AAAABaR1Uug",
+    "number": 3,
+    "html_url": "https://github.com/nnewlander/translate/issues/3",
+    "repository_url": "https://api.github.com/repos/nnewlander/translate",
+    "state": "closed"
+  },
+  "comment": {
+    "id": 6516894339,
+    "node_id": "IC_kwDOVPRmzs8AAAABhG_qgw",
+    "html_url": "https://github.com/nnewlander/translate/issues/3#issuecomment-6516894339",
+    "issue_url": "https://api.github.com/repos/nnewlander/translate/issues/3",
+    "author_association": "OWNER",
+    "created_at": "2026-10-30T06:56:39Z",
+    "updated_at": "2026-10-30T08:45:17Z",
+    "body": "ARCHITECTURE_REVIEW_DECISION\ndecision: APPROVED\nreviewed_source_commit: 857a4b85cf4763b74ecff0d02e660b005a0c8bae\nreviewed_worktree_state: clean\ncandidate_report_sha256: f08de10f90f76c07754b1e024ec16468874965bdc01d5ec53a002e140468ee98\nscanner_version: architecture-explorer-t2/1.3\napproved_evidence_ids:\n- evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13\n- evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711\n- evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3\n- evidence:sha256:3929e17745639510a1a3c6a39b5be55b5a6afc2070c3f18cb300fa0107983308\n- evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a\n- evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc\n- evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2\n- evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa\n- evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2\n- evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d\n- evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5\n- evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914\n- evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d\n  source_module: production-control\n  target_module: translation-execution\n  direction: production-control -> translation-execution\n  relationship_type: process-launch\n  approved_reachability: STATIC_CONDITIONAL\n  runtime_state: NOT_COLLECTED\n  retained_unknowns:\n- Static scanning does not prove that the Supervisor operational loop reaches this launch on any particular run.\n- Static scanning does not prove that runtime preconditions, credentials, or external services are available.\n- Parameter business meaning beyond the observed names, literals, and direct bindings remains unreviewed.\n  review_notes: |\n  Owner approves only the conditional static process-launch architecture relationship for this exact snapshot and the 13 production evidence IDs above.\n  The approved static conditions are:\n  - Supervisor argument vector selects --mode production.\n  - Supervisor argument vector supplies --authorize-production-checkpoint-write.\n  - Supervisor binds batch and checkpoint from the current rebuilt state.\n  - The wrapper imports the exact Worker main and calls it only under __name__ == '__main__'.\n  - Worker main parses args through build_parser().parse_args(argv).\n  - Worker main's exact canary guard exits before the production guard sequence.\n  - Worker main then requires worker-id, then paired batch/checkpoint, before a top-level run_production_checkpoint return.\n    The following 3 auxiliary-test evidence IDs are accepted only as supporting context, not independent proof of a production invocation:\n  - evidence:sha256:d4307dd3cd7fafa73753a47904cc34a8d97f86001e4f65dfe1ee959898ca40b5\n  - evidence:sha256:6923a936fd716d2a81f67ca76e8161e48778f6a88d2eee67e950ccafa2d9930a\n  - evidence:sha256:54c6950772cddd265eecc3c89b43d87cb8070081d43ecd7d46f66cebb29ab7ff\n    No actual run, credentials, external dependencies, or successful translation invocation is asserted.\n    The reviewer identity and review time must be verified from the actual GitHub comment author and timestamp.\n    This decision does not by itself authorize closing Issue #3 or starting T3.",
+    "user": {
+      "login": "nnewlander",
+      "id": 256049772,
+      "node_id": "U_kgDOD0MCbA",
+      "type": "User"
+    }
+  },
+  "permission": {
+    "permission": "admin",
+    "role_name": "admin",
+    "user": {
+      "login": "nnewlander",
+      "id": 256049772,
+      "node_id": "U_kgDOD0MCbA",
+      "type": "User"
+    }
+  }
+}
