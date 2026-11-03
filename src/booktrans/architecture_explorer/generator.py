@@ -437,5 +437,5 @@ def write_site(data: dict[str, Any], output_directory: Path, web_assets: Path) -
         f"window.ARCHITECTURE_EXPLORER_DATA = {javascript_data};\n",
         encoding="utf-8",
     )
-    for filename in ("index.html", "app.js", "styles.css"):
+    for filename in ("index.html", "t4-state.js", "app.js", "styles.css"):
         shutil.copyfile(web_assets / filename, output_directory / filename)

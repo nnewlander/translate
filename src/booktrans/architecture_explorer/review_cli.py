@@ -7,6 +7,7 @@ from typing import Any
 
 from .generator import ExplorerInputError, validate_cli_output_path, write_json, write_site
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
+from .navigation import apply_navigation
 from .review_source import (
     TRUSTED_COMMENT_ID,
     TRUSTED_ISSUE_NUMBER,
@@ -45,6 +46,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--candidate", type=Path, required=True)
     build.add_argument("--review-mapping", type=Path, required=True)
     build.add_argument("--review-source", type=Path)
+    build.add_argument("--navigation", type=Path)
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
     return parser
@@ -84,10 +86,11 @@ def main(argv: list[str] | None = None) -> int:
         args.repository, args.output_directory, directory=True,
         inputs=tuple(
             path for path in (
-                args.snapshot, args.mapping, args.candidate, args.review_mapping, args.review_source, args.web_assets
+                args.snapshot, args.mapping, args.candidate, args.review_mapping, args.review_source,
+                args.navigation, args.web_assets
             ) if path is not None
         ),
-        output_files=("explorer-data.json", "explorer-data.js", "index.html", "app.js", "styles.css"),
+        output_files=("explorer-data.json", "explorer-data.js", "index.html", "t4-state.js", "app.js", "styles.css"),
     )
     data = publish_reviewed_explorer(
         args.repository,
@@ -97,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
         _object(args.review_mapping),
         _object(args.review_source) if args.review_source is not None else None,
     )
+    if args.navigation is not None:
+        data = apply_navigation(data, _object(args.navigation))
     write_site(data, output, args.web_assets)
     relation = data["architecture"]["relationships"][0]
     print(f"site={output / 'index.html'}")
