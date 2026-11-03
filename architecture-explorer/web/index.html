@@ -13,6 +13,13 @@
         <h1>顶层架构</h1>
         <p class="lede">已批准的逻辑职责，与源码覆盖核验分别呈现。</p>
       </header>
+      <nav class="architecture-navigation" aria-label="架构层级导航">
+        <div id="breadcrumb" class="breadcrumb" aria-label="当前位置"></div>
+        <div class="navigation-actions">
+          <button id="back-button" type="button" hidden>返回上一级</button>
+          <button id="home-button" type="button" hidden>返回最高级</button>
+        </div>
+      </nav>
       <section class="snapshot" aria-labelledby="snapshot-heading">
         <h2 id="snapshot-heading">源码快照</h2>
         <dl id="snapshot-metadata"></dl>
@@ -34,13 +41,21 @@
         </div>
         <div id="relationship-list" class="relationship-list"></div>
       </section>
+      <details id="history-and-auxiliary" class="history-and-auxiliary">
+        <summary><span id="history-title">历史与辅助区</span><span class="summary-hint">默认收起</span></summary>
+        <div id="history-content"></div>
+      </details>
       <p id="load-error" class="load-error" role="alert" hidden></p>
     </main>
+    <div id="module-context-menu" class="context-menu" role="menu" hidden>
+      <button id="context-evidence" type="button" role="menuitem">查看关系与源码证据</button>
+    </div>
     <dialog id="relationship-detail" class="relationship-detail" aria-labelledby="detail-title">
       <form method="dialog"><button class="dialog-close" aria-label="关闭关系详情">×</button></form>
       <div id="detail-content"></div>
     </dialog>
     <script src="explorer-data.js"></script>
+    <script src="t4-state.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

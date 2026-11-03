@@ -1,0 +1,63 @@
+{
+  "schema": "architecture-explorer.navigation.v1",
+  "root": {
+    "id": "top-level",
+    "name": "整体架构"
+  },
+  "drilldowns": [
+    {
+      "parent_module_id": "production-control",
+      "name": "生产调度与控制",
+      "coverage_note": "本层只展示有限的逻辑职责候选，不声称已经完成生产调度与控制的全部源码覆盖。",
+      "children": [
+        {
+          "id": "supervisor-orchestration",
+          "name": "Supervisor 编排",
+          "responsibility": "候选职责：组织生产控制循环，并协调何时准备或发起下一步工作。",
+          "review_status": "candidate",
+          "source_assignment": {
+            "status": "unverified",
+            "note": "职责名称与源码边界尚未逐项核验，不能据此认定具体文件属于本职责。",
+            "relationship_ids": []
+          }
+        },
+        {
+          "id": "worker-launch-boundary",
+          "name": "Worker 启动边界",
+          "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。",
+          "review_status": "candidate",
+          "source_assignment": {
+            "status": "partial",
+            "note": "T3 已审核关系只支持启动边界及其证据链；单条调用关系不足以证明完整源码归属。",
+            "relationship_ids": [
+              "relationship:production-control:launches:translation-execution"
+            ]
+          }
+        },
+        {
+          "id": "state-and-control-decisions",
+          "name": "状态与控制决策",
+          "responsibility": "候选职责：依据可恢复状态与控制条件决定继续、停止、阻断或移交。",
+          "review_status": "candidate",
+          "source_assignment": {
+            "status": "unverified",
+            "note": "内部职责和源码归属尚未完整核验，当前仅作为导航候选。",
+            "relationship_ids": []
+          }
+        }
+      ]
+    }
+  ],
+  "history_and_auxiliary": {
+    "title": "历史与辅助区",
+    "description": "不默认混入生产主图；这里的条目尚未逐项完成用途、时效和归属核验。",
+    "items": [
+      {
+        "id": "unclassified-supporting-materials",
+        "name": "尚未纳入主图的脚本、工具与材料",
+        "classification": "unclassified",
+        "note": "证据不足，不能仅根据文件名判断它们已经停用、属于实验或应归入历史。"
+      }
+    ]
+  }
+}
