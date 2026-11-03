@@ -143,17 +143,17 @@ def test_workflow_toggle_uses_warm_led_glow_and_restores_by_class_toggle() -> No
     highlight = styles.split(
         '.workflow-highlight .module-card[data-module-id="production-control"]', 1
     )[1].split("}", 1)[0]
-    assert "border-color: #e4aa2b" in highlight
-    assert "outline: 2px solid #e4aa2b" in highlight
-    assert "0 0 6px 3px rgba(242, 184, 56, 0.48)" in highlight
-    assert "0 0 14px 7px rgba(255, 218, 126, 0.24)" in highlight
+    assert "border-color: #ffd633" in highlight
+    assert "outline: 2px solid #ffd633" in highlight
+    assert "0 0 6px 3px rgba(255, 221, 82, 0.42)" in highlight
+    assert "0 0 14px 7px rgba(255, 239, 158, 0.25)" in highlight
     assert "linear-gradient" not in highlight
     assert 'classList.toggle("workflow-highlight", active)' in app
     assert 'setAttribute("aria-pressed", String(active))' in app
     assert 'active ? "取消流程高亮" : "高亮最小生产流程"' in app
 
 
-def test_source_snapshot_is_a_native_default_collapsed_keyboard_control() -> None:
+def test_source_snapshot_is_default_collapsed_and_keeps_native_keyboard_control() -> None:
     page = (REPOSITORY / "architecture-explorer/web/index.html").read_text(encoding="utf-8")
     app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
 
@@ -161,12 +161,29 @@ def test_source_snapshot_is_a_native_default_collapsed_keyboard_control() -> Non
     snapshot_start_tag = snapshot_markup.split(">", 1)[0]
     assert " open" not in snapshot_start_tag
     assert "<summary>" in snapshot_markup
-    assert 'id="snapshot-toggle-hint"' in snapshot_markup
+    assert "点击展开" not in snapshot_markup
+    assert "点击收起" not in snapshot_markup
     assert 'id="snapshot-metadata"' in snapshot_markup
     for label in ("Revision", "工作区", "扫描器", "扫描时间", "确定性摘要"):
         assert label in app
-    assert 'addEventListener("toggle"' in app
-    assert 'snapshotDetails.open ? "点击收起" : "点击展开"' in app
+    assert 'snapshotDetails.addEventListener("click"' in app
+    assert 'event.target.closest?.("summary")' in app
+    assert "event.preventDefault()" in app
+    assert "stateApi.nextSnapshotOpen(snapshotDetails.open" in app
+
+
+def test_snapshot_card_click_avoids_double_toggle_and_text_selection_collapse() -> None:
+    styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
+    app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
+
+    assert "hasSelectedSnapshotText" in app
+    assert "selection.isCollapsed" in app
+    assert "snapshotDetails.contains(selection.getRangeAt(0).commonAncestorContainer)" in app
+    assert "isMouseActivation: event.detail > 0" in app
+    assert "hasSelectedText: hasSelectedSnapshotText()" in app
+    assert ".snapshot:hover" in styles
+    assert "cursor: pointer" in styles
+    assert ".snapshot dd" in styles and "cursor: text" in styles
 
 
 def test_bottom_navigation_uses_watercolor_rose_palette_and_visible_focus() -> None:

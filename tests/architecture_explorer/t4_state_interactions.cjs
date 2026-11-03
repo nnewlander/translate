@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { initialState, reduce } = require("../../architecture-explorer/web/t4-state.js");
+const { initialState, nextSnapshotOpen, reduce } = require("../../architecture-explorer/web/t4-state.js");
 
 const productionControl = { type: "MODULE_PRIMARY", moduleId: "production-control", hasChildren: true };
 let state = reduce(initialState(), productionControl);
@@ -37,5 +37,18 @@ assert.equal(state.contextMenu, null);
 assert.equal(state.relationshipId, relationshipId);
 const fromLine = reduce(initialState(), { type: "RELATIONSHIP_PRIMARY", relationshipId });
 assert.equal(fromLine.relationshipId, state.relationshipId, "menu and line must select the same relationship id");
+
+assert.equal(nextSnapshotOpen(false, { isMouseActivation: true, hasSelectedText: false }), true);
+assert.equal(nextSnapshotOpen(true, { isMouseActivation: true, hasSelectedText: false }), false);
+assert.equal(
+  nextSnapshotOpen(true, { isMouseActivation: true, hasSelectedText: true }),
+  true,
+  "selecting snapshot text must not collapse the card"
+);
+assert.equal(
+  nextSnapshotOpen(false, { isMouseActivation: false, hasSelectedText: true }),
+  true,
+  "keyboard activation must remain available even if text was previously selected"
+);
 
 console.log("T4 interaction reducer: all assertions passed");

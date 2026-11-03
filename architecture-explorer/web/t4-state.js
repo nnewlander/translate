@@ -49,5 +49,10 @@
     return state;
   };
 
-  return { initialState, reduce };
+  const nextSnapshotOpen = (open, { isMouseActivation, hasSelectedText }) => {
+    if (isMouseActivation && hasSelectedText) return open;
+    return !open;
+  };
+
+  return { initialState, nextSnapshotOpen, reduce };
 });

@@ -106,7 +106,10 @@ h2 {
   border-radius: 24px;
   background: #ffffff;
   box-shadow: 0 14px 38px rgba(35, 45, 32, 0.055);
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
+.snapshot:hover { border-color: #b7c8af; box-shadow: 0 16px 42px rgba(35, 45, 32, 0.09); }
 
 .snapshot > summary {
   position: relative;
@@ -123,7 +126,6 @@ h2 {
   cursor: pointer;
 }
 .snapshot > summary:focus-visible { outline: 3px solid rgba(120, 148, 107, 0.24); outline-offset: 6px; border-radius: 8px; }
-.snapshot > summary .summary-hint { letter-spacing: 0; text-transform: none; }
 .snapshot:not([open]) { padding-block: 24px; }
 
 .snapshot dl {
@@ -145,6 +147,7 @@ h2 {
   font-family: "Cascadia Code", Consolas, monospace;
   font-size: 0.9rem;
   line-height: 1.6;
+  cursor: text;
 }
 
 .section-heading {
@@ -317,16 +320,16 @@ h2 {
 .workflow-highlight .module-card[data-module-id="production-control"],
 .workflow-highlight .module-card[data-module-id="translation-execution"],
 .workflow-highlight .relationship-line {
-  border-color: #e4aa2b;
-  outline: 2px solid #e4aa2b;
+  border-color: #ffd633;
+  outline: 2px solid #ffd633;
   outline-offset: 0;
   box-shadow:
-    0 0 6px 3px rgba(242, 184, 56, 0.48),
-    0 0 14px 7px rgba(255, 218, 126, 0.24),
-    0 14px 34px rgba(118, 79, 12, 0.11);
+    0 0 6px 3px rgba(255, 221, 82, 0.42),
+    0 0 14px 7px rgba(255, 239, 158, 0.25),
+    0 14px 34px rgba(131, 103, 14, 0.09);
 }
 .workflow-highlight .module-card[data-module-id="production-control"]::before,
-.workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #e99a25; }
+.workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #ffd633; }
 
 .relationship-detail {
   width: min(860px, calc(100% - 32px));

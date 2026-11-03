@@ -42,7 +42,6 @@
   const contextMenu = document.querySelector("#module-context-menu");
   const contextEvidence = document.querySelector("#context-evidence");
   const snapshotDetails = document.querySelector("#source-snapshot");
-  const snapshotToggleHint = document.querySelector("#snapshot-toggle-hint");
 
   const text = (tag, value, className) => {
     const element = document.createElement(tag);
@@ -59,8 +58,17 @@
     ["扫描时间", data.snapshot.scanned_at],
     ["确定性摘要", data.deterministic_content_sha256],
   ]) metadata.append(text("dt", term), text("dd", description));
-  snapshotDetails.addEventListener("toggle", () => {
-    snapshotToggleHint.textContent = snapshotDetails.open ? "点击收起" : "点击展开";
+  const hasSelectedSnapshotText = () => {
+    const selection = window.getSelection?.();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+    return snapshotDetails.contains(selection.getRangeAt(0).commonAncestorContainer);
+  };
+  snapshotDetails.addEventListener("click", (event) => {
+    if (event.target.closest?.("summary")) event.preventDefault();
+    snapshotDetails.open = stateApi.nextSnapshotOpen(snapshotDetails.open, {
+      isMouseActivation: event.detail > 0,
+      hasSelectedText: hasSelectedSnapshotText(),
+    });
   });
 
   const copyLocation = async (location, button) => {
