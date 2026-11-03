@@ -136,16 +136,45 @@ def test_return_navigation_is_after_history_and_uses_bottom_alignment() -> None:
     assert "bottomNavigation.hidden = atTop" in app
 
 
-def test_workflow_toggle_uses_warm_gradient_highlight_and_restores_by_class_toggle() -> None:
+def test_workflow_toggle_uses_warm_led_glow_and_restores_by_class_toggle() -> None:
     styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
     app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
 
     highlight = styles.split(
         '.workflow-highlight .module-card[data-module-id="production-control"]', 1
     )[1].split("}", 1)[0]
-    assert "border: 6px solid transparent" in highlight
-    assert "linear-gradient(135deg" in highlight
-    assert "#f5bd46" in highlight
+    assert "border-color: #e4aa2b" in highlight
+    assert "outline: 2px solid #e4aa2b" in highlight
+    assert "0 0 6px 3px rgba(242, 184, 56, 0.48)" in highlight
+    assert "0 0 14px 7px rgba(255, 218, 126, 0.24)" in highlight
+    assert "linear-gradient" not in highlight
     assert 'classList.toggle("workflow-highlight", active)' in app
     assert 'setAttribute("aria-pressed", String(active))' in app
     assert 'active ? "取消流程高亮" : "高亮最小生产流程"' in app
+
+
+def test_source_snapshot_is_a_native_default_collapsed_keyboard_control() -> None:
+    page = (REPOSITORY / "architecture-explorer/web/index.html").read_text(encoding="utf-8")
+    app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
+
+    snapshot_markup = page.split('<details id="source-snapshot"', 1)[1].split("</details>", 1)[0]
+    snapshot_start_tag = snapshot_markup.split(">", 1)[0]
+    assert " open" not in snapshot_start_tag
+    assert "<summary>" in snapshot_markup
+    assert 'id="snapshot-toggle-hint"' in snapshot_markup
+    assert 'id="snapshot-metadata"' in snapshot_markup
+    for label in ("Revision", "工作区", "扫描器", "扫描时间", "确定性摘要"):
+        assert label in app
+    assert 'addEventListener("toggle"' in app
+    assert 'snapshotDetails.open ? "点击收起" : "点击展开"' in app
+
+
+def test_bottom_navigation_uses_watercolor_rose_palette_and_visible_focus() -> None:
+    styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
+
+    assert "border: 1px solid #d6a1b4" in styles
+    assert "background: #fff4f7" in styles
+    assert "color: #99546d" in styles
+    assert ".bottom-navigation button:hover" in styles
+    assert ".bottom-navigation button:focus-visible" in styles
+    assert "outline: 3px solid rgba(214, 161, 180, 0.42)" in styles

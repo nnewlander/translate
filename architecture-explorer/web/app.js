@@ -41,6 +41,8 @@
   const detailContent = document.querySelector("#detail-content");
   const contextMenu = document.querySelector("#module-context-menu");
   const contextEvidence = document.querySelector("#context-evidence");
+  const snapshotDetails = document.querySelector("#source-snapshot");
+  const snapshotToggleHint = document.querySelector("#snapshot-toggle-hint");
 
   const text = (tag, value, className) => {
     const element = document.createElement(tag);
@@ -57,6 +59,9 @@
     ["扫描时间", data.snapshot.scanned_at],
     ["确定性摘要", data.deterministic_content_sha256],
   ]) metadata.append(text("dt", term), text("dd", description));
+  snapshotDetails.addEventListener("toggle", () => {
+    snapshotToggleHint.textContent = snapshotDetails.open ? "点击收起" : "点击展开";
+  });
 
   const copyLocation = async (location, button) => {
     try { await navigator.clipboard.writeText(location); }

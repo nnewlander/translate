@@ -43,16 +43,22 @@ main {
 .bottom-navigation #home-button { justify-self: end; }
 .bottom-navigation button, .evidence-link {
   padding: 8px 13px;
-  border: 1px solid #b7c8af;
   border-radius: 999px;
-  background: #fff;
-  color: #2f4630;
   font: inherit;
   font-size: 0.84rem;
   font-weight: 650;
   cursor: pointer;
 }
-.bottom-navigation button:hover, .bottom-navigation button:focus-visible, .evidence-link:hover, .evidence-link:focus-visible { background: #eaf1e6; }
+.bottom-navigation button {
+  border: 1px solid #d6a1b4;
+  background: #fff4f7;
+  color: #99546d;
+  box-shadow: 0 5px 15px rgba(153, 84, 109, 0.08);
+}
+.bottom-navigation button:hover { border-color: #c8869e; background: #fbe8ef; color: #813f57; }
+.bottom-navigation button:focus-visible { outline: 3px solid rgba(214, 161, 180, 0.42); outline-offset: 2px; }
+.evidence-link { border: 1px solid #b7c8af; background: #fff; color: #2f4630; }
+.evidence-link:hover, .evidence-link:focus-visible { background: #eaf1e6; }
 
 .eyebrow {
   margin: 0;
@@ -101,6 +107,24 @@ h2 {
   background: #ffffff;
   box-shadow: 0 14px 38px rgba(35, 45, 32, 0.055);
 }
+
+.snapshot > summary {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: #333333;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.snapshot > summary:focus-visible { outline: 3px solid rgba(120, 148, 107, 0.24); outline-offset: 6px; border-radius: 8px; }
+.snapshot > summary .summary-hint { letter-spacing: 0; text-transform: none; }
+.snapshot:not([open]) { padding-block: 24px; }
 
 .snapshot dl {
   position: relative;
@@ -293,11 +317,13 @@ h2 {
 .workflow-highlight .module-card[data-module-id="production-control"],
 .workflow-highlight .module-card[data-module-id="translation-execution"],
 .workflow-highlight .relationship-line {
-  border: 6px solid transparent;
-  background:
-    linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(135deg, #ffe7a1 0%, #f5bd46 42%, #e99a25 72%, #ffd76d 100%) border-box;
-  box-shadow: 0 12px 34px rgba(217, 143, 24, 0.24), 0 0 0 2px rgba(255, 213, 111, 0.22);
+  border-color: #e4aa2b;
+  outline: 2px solid #e4aa2b;
+  outline-offset: 0;
+  box-shadow:
+    0 0 6px 3px rgba(242, 184, 56, 0.48),
+    0 0 14px 7px rgba(255, 218, 126, 0.24),
+    0 14px 34px rgba(118, 79, 12, 0.11);
 }
 .workflow-highlight .module-card[data-module-id="production-control"]::before,
 .workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #e99a25; }
