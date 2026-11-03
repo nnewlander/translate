@@ -7,6 +7,7 @@ const productionControl = { type: "MODULE_PRIMARY", moduleId: "production-contro
 let state = reduce(initialState(), productionControl);
 assert.equal(state.levelId, "production-control");
 assert.equal(state.parentModuleId, "production-control");
+assert.deepEqual(state.navigationPath, ["top-level", "production-control"]);
 
 state = reduce(state, { type: "BACK" });
 assert.deepEqual(state, initialState());
@@ -27,8 +28,20 @@ state = reduce(initialState(), { type: "CONTEXT_OPEN", moduleId: "production-con
 state = reduce(state, { type: "OUTSIDE_POINTER" });
 assert.equal(state.contextMenu, null);
 state = reduce(state, productionControl);
-assert.equal(state.levelId, "top-level", "outside click must not also drill down");
-assert.equal(state.suppressPrimaryOnce, false);
+assert.equal(state.levelId, "production-control", "the next normal click after menu dismissal must work immediately");
+
+state = reduce(initialState(), { type: "CONTEXT_OPEN", moduleId: "production-control", x: 12, y: 18 });
+state = reduce(state, { type: "ESCAPE" });
+state = reduce(state, productionControl);
+assert.equal(state.levelId, "production-control", "the next click after Escape must work immediately");
+
+const simulatedThirdLevel = { type: "MODULE_PRIMARY", moduleId: "simulated-nested-level", hasChildren: true };
+state = reduce(reduce(initialState(), productionControl), simulatedThirdLevel);
+assert.deepEqual(state.navigationPath, ["top-level", "production-control", "simulated-nested-level"]);
+const backState = reduce(state, { type: "BACK" });
+assert.deepEqual(backState.navigationPath, ["top-level", "production-control"], "BACK removes exactly one path segment");
+const homeState = reduce(state, { type: "HOME" });
+assert.deepEqual(homeState.navigationPath, ["top-level"], "HOME returns directly to the root");
 
 const relationshipId = "relationship:production-control:launches:translation-execution";
 state = reduce(initialState(), { type: "CONTEXT_OPEN", moduleId: "production-control", x: 12, y: 18 });

@@ -31,7 +31,12 @@ def apply_navigation(explorer: dict[str, Any], navigation: dict[str, Any]) -> di
     modules = explorer.get("architecture", {}).get("modules", [])
     relationships = explorer.get("architecture", {}).get("relationships", [])
     module_ids = {item.get("id") for item in modules if isinstance(item, dict)}
-    relationship_ids = {item.get("id") for item in relationships if isinstance(item, dict)}
+    relationship_by_id = {
+        item.get("id"): item
+        for item in relationships
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    relationship_ids = set(relationship_by_id)
 
     root = navigation.get("root")
     if not isinstance(root, dict):
@@ -92,6 +97,17 @@ def apply_navigation(explorer: dict[str, Any], navigation: dict[str, Any]) -> di
                 raise ExplorerInputError(f"Unverified T4 child {child_id} cannot claim relationship evidence")
             if assignment_status == "partial" and not references:
                 raise ExplorerInputError(f"Partially verified T4 child {child_id} needs relationship evidence")
+            if assignment_status == "partial":
+                for relationship_id in references:
+                    relationship = relationship_by_id[relationship_id]
+                    review_status = relationship.get("review_status")
+                    continuity = relationship.get("source_continuity")
+                    continuity_status = continuity.get("status") if isinstance(continuity, dict) else None
+                    if review_status != "current-reviewed" or continuity_status != "exact-match":
+                        raise ExplorerInputError(
+                            f"T4 child {child_id} partial source assignment requires a "
+                            f"current-reviewed relationship with exact-match continuity: {relationship_id}"
+                        )
             children.append(
                 {
                     "id": child_id,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -19,6 +20,7 @@ REVIEW_SOURCE = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.so
 SNAPSHOT = REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json"
 MODULE_MAP = REPOSITORY / "architecture-explorer/modules.json"
 NAVIGATION = REPOSITORY / "architecture-explorer/navigation.v1.json"
+WEB_ASSETS = REPOSITORY / "architecture-explorer/web"
 
 
 def _json(path: Path) -> dict:
@@ -94,6 +96,31 @@ def test_navigation_rejects_promoting_candidate_responsibility(t3_data: dict) ->
         apply_navigation(t3_data, navigation)
 
 
+@pytest.mark.parametrize(
+    ("review_status", "continuity_status"),
+    [
+        ("unknown", "exact-match"),
+        ("needs-review", "exact-match"),
+        ("current-reviewed", "missing"),
+    ],
+)
+def test_partial_assignment_rejects_relationship_that_fails_t3_trust_gate(
+    t3_data: dict,
+    review_status: str,
+    continuity_status: str,
+) -> None:
+    invalid = deepcopy(t3_data)
+    relationship = invalid["architecture"]["relationships"][0]
+    relationship["review_status"] = review_status
+    relationship["source_continuity"]["status"] = continuity_status
+
+    with pytest.raises(
+        ExplorerInputError,
+        match="partial source assignment requires a current-reviewed relationship with exact-match continuity",
+    ):
+        apply_navigation(invalid, _json(NAVIGATION))
+
+
 def test_node_interaction_state_suite_covers_navigation_menu_and_misclick_guard() -> None:
     completed = subprocess.run(
         ["node", str(REPOSITORY / "tests/architecture_explorer/t4_state_interactions.cjs")],
@@ -105,6 +132,57 @@ def test_node_interaction_state_suite_covers_navigation_menu_and_misclick_guard(
     )
     assert completed.returncode == 0, completed.stderr
     assert "all assertions passed" in completed.stdout
+
+
+def test_real_browser_dom_order_closes_menu_without_suppressing_next_click(
+    tmp_path: Path,
+    t3_data: dict,
+) -> None:
+    browser_candidates = (
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    )
+    browser = next((path for path in browser_candidates if path.is_file()), None)
+    if browser is None:
+        pytest.skip("Chrome or Edge headless browser is unavailable")
+
+    from booktrans.architecture_explorer.generator import write_site
+
+    site = tmp_path / "site"
+    write_site(apply_navigation(t3_data, _json(NAVIGATION)), site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t4_dom_interactions.js",
+        site / "t4-dom-interactions.js",
+    )
+    page = site / "index.html"
+    html = page.read_text(encoding="utf-8").replace(
+        "</body>", '<script src="t4-dom-interactions.js"></script></body>'
+    )
+    page.write_text(html, encoding="utf-8")
+    completed = subprocess.run(
+        [
+            str(browser),
+            "--headless=new",
+            "--disable-gpu",
+            "--disable-background-networking",
+            "--disable-breakpad",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--allow-file-access-from-files",
+            f"--user-data-dir={tmp_path / 'browser-profile'}",
+            "--virtual-time-budget=2000",
+            "--dump-dom",
+            page.resolve().as_uri(),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert 'data-dom-regression="pass"' in completed.stdout, completed.stdout
 
 
 def test_offline_ui_wires_read_only_breadcrumb_context_menu_and_local_state_asset() -> None:
@@ -119,7 +197,8 @@ def test_offline_ui_wires_read_only_breadcrumb_context_menu_and_local_state_asse
     assert "contextmenu" in app
     assert "pointerdown" in app
     assert "stopImmediatePropagation" in app
-    assert "suppressPrimaryOnce" in state
+    assert "suppressPrimaryOnce" not in state
+    assert 'navigationPath: ["top-level"]' in state
 
 
 def test_return_navigation_is_after_history_and_uses_bottom_alignment() -> None:
