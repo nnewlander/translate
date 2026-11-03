@@ -19,7 +19,7 @@ REVIEW_MAP_SCHEMA = "architecture-explorer.review-map.v1"
 DATA_CONTRACT_VERSION = "architecture-explorer.t3-t5.v1"
 REVIEW_IMPORTER_VERSION = "architecture-explorer-t3/1.0"
 REVIEW_MARKER = "ARCHITECTURE_REVIEW_DECISION"
-REVIEW_STATUSES = {"candidate", "current-reviewed", "needs-review", "unknown"}
+REVIEW_STATUSES = {"candidate", "historical-reviewed", "current-reviewed", "needs-review", "unknown"}
 CONTINUITY_STATUSES = {
     "exact-match", "equivalent-relocation", "material-change", "missing", "ambiguous", "parse-failure"
 }
@@ -339,13 +339,16 @@ def publish_reviewed_explorer(
     candidate: dict[str, Any],
     review_mapping: dict[str, Any],
     review_source: dict[str, Any] | None = None,
+    *,
+    review_state_path: Path | None = None,
 ) -> dict[str, Any]:
     base = build_explorer(snapshot_path, module_mapping_path)
-    continuity, file_checks = _production_continuity(repository.resolve(strict=True), candidate)
+    _baseline_continuity, file_checks = _production_continuity(repository.resolve(strict=True), candidate)
     validation = review_mapping.get("validation", {})
     decision = review_mapping.get("decision")
     mapping_errors = []
     source_errors = verify_trusted_review_source(review_source)
+    current_assessment = None
     if review_mapping.get("schema") != REVIEW_MAP_SCHEMA:
         mapping_errors.append("review_mapping_schema:unsupported")
     if review_mapping.get("data_contract_version") != DATA_CONTRACT_VERSION:
@@ -364,6 +367,27 @@ def publish_reviewed_explorer(
             source_errors.append("trusted_review_source:decision-invalid")
         elif _canonical_bytes(expected_mapping) != _canonical_bytes(review_mapping):
             source_errors.append("trusted_review_source:mapping-mismatch")
+    if (
+        not source_errors
+        and not mapping_errors
+        and isinstance(decision, dict)
+        and validation.get("status") == "valid"
+        and decision.get("result") == "APPROVED"
+    ):
+        from .continuity import evaluate_review_state
+
+        current_assessment = evaluate_review_state(
+            repository,
+            candidate,
+            review_mapping,
+            review_source,
+            review_state_path,
+        )
+    continuity = (
+        current_assessment["continuity_status"]
+        if current_assessment is not None
+        else _baseline_continuity
+    )
     if decision is None and validation.get("status") == "no-decision":
         status, reasons = "candidate", validation.get("errors", [])
     elif validation.get("status") != "valid" or not isinstance(decision, dict) or mapping_errors or source_errors:
@@ -372,10 +396,10 @@ def publish_reviewed_explorer(
         status, reasons = "needs-review", ["review_decision:rejected"]
     elif decision.get("result") != "APPROVED":
         status, reasons = "unknown", ["review_decision:unsupported"]
-    elif continuity != "exact-match":
-        status, reasons = "needs-review", [f"production_source_continuity:{continuity}"]
+    elif current_assessment is not None:
+        status, reasons = current_assessment["review_status"], current_assessment["reasons"]
     else:
-        status, reasons = "current-reviewed", []
+        status, reasons = "historical-reviewed", ["review_state:missing"]
     if status not in REVIEW_STATUSES or continuity not in CONTINUITY_STATUSES:
         raise ExplorerInputError("Internal T3 review state is invalid")
     relation_candidate = candidate["candidate_relation"]
@@ -391,6 +415,9 @@ def publish_reviewed_explorer(
         "direction": relation_candidate["direction"],
         "type": relation_candidate["proposed_relationship_type"],
         "review_status": status,
+        "review_scope": (
+            "current-source-snapshot" if status == "current-reviewed" else "historical-t3-snapshot"
+        ),
         "review_reasons": reasons,
         "code_reachability": relation_candidate["reachability"],
         "runtime_state": relation_candidate["runtime_state"],
@@ -405,7 +432,13 @@ def publish_reviewed_explorer(
             "sha256": review_source_sha256(review_source) if review_source is not None else None,
             "errors": source_errors,
         },
-        "source_continuity": {"status": continuity, "files": file_checks},
+        "source_continuity": {
+            "status": continuity,
+            "files": file_checks,
+            "review_state": (
+                current_assessment.get("state_status") if current_assessment is not None else "missing"
+            ),
+        },
     }
     relationship["supporting_evidence"] = [
         item for item in candidate["evidence"] if item.get("source_role") == "auxiliary_test"

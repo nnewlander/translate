@@ -21,6 +21,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 CANDIDATE_PATH = REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"
 REVIEW_MAP_PATH = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"
 REVIEW_SOURCE_PATH = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"
+REVIEW_STATE_PATH = REPOSITORY / "output/architecture-explorer/t5-lite/review-state.v1.json"
 SNAPSHOT_PATH = REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json"
 MODULE_MAP_PATH = REPOSITORY / "architecture-explorer/modules.json"
 
@@ -37,6 +38,7 @@ def _publish(review_map: dict, review_source: dict | None = None) -> dict:
         _json(CANDIDATE_PATH),
         review_map,
         review_source,
+        review_state_path=REVIEW_STATE_PATH,
     )
 
 

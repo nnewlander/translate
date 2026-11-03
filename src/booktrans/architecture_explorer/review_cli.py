@@ -8,6 +8,7 @@ from typing import Any
 from .generator import ExplorerInputError, validate_cli_output_path, write_json, write_site
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .navigation import apply_navigation
+from .continuity import update_review_state
 from .review_source import (
     TRUSTED_COMMENT_ID,
     TRUSTED_ISSUE_NUMBER,
@@ -39,6 +40,16 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--comment-id", type=int, default=TRUSTED_COMMENT_ID)
     review.add_argument("--output", type=Path, required=True)
     review.add_argument("--source-output", type=Path, required=True)
+    update = commands.add_parser(
+        "update-review-state",
+        help="explicitly assess and atomically update the T5-Lite Git review state",
+    )
+    update.add_argument("--repository", type=Path, required=True)
+    update.add_argument("--candidate", type=Path, required=True)
+    update.add_argument("--review-mapping", type=Path, required=True)
+    update.add_argument("--review-source", type=Path, required=True)
+    update.add_argument("--review-state", type=Path, required=True)
+    update.add_argument("--assessed-at", required=True)
     build = commands.add_parser("build", help="build the offline reviewed relationship site")
     build.add_argument("--repository", type=Path, required=True)
     build.add_argument("--snapshot", type=Path, required=True)
@@ -46,6 +57,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--candidate", type=Path, required=True)
     build.add_argument("--review-mapping", type=Path, required=True)
     build.add_argument("--review-source", type=Path)
+    build.add_argument("--review-state", type=Path)
     build.add_argument("--navigation", type=Path)
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
@@ -82,12 +94,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"review_source_sha256={review_source_sha256(source)}")
         print(f"validation={mapping['validation']['status']}")
         return 0 if mapping["validation"]["status"] == "valid" else 2
+    if args.command == "update-review-state":
+        state_path = validate_cli_output_path(
+            args.repository,
+            args.review_state,
+            directory=False,
+            inputs=(args.candidate, args.review_mapping, args.review_source),
+        )
+        state = update_review_state(
+            args.repository,
+            _object(args.candidate),
+            _object(args.review_mapping),
+            _object(args.review_source),
+            state_path,
+            assessed_at=args.assessed_at,
+        )
+        print(f"review_state={state_path}")
+        print(f"review_status={state['status']}")
+        print(f"source_continuity={state['continuity_status']}")
+        return 0
+    review_state_path = None
+    if args.review_state is not None:
+        review_state_path = (
+            args.review_state
+            if args.review_state.is_absolute()
+            else args.repository / args.review_state
+        ).resolve()
     output = validate_cli_output_path(
         args.repository, args.output_directory, directory=True,
         inputs=tuple(
             path for path in (
                 args.snapshot, args.mapping, args.candidate, args.review_mapping, args.review_source,
-                args.navigation, args.web_assets
+                args.navigation, args.web_assets, review_state_path
             ) if path is not None
         ),
         output_files=("explorer-data.json", "explorer-data.js", "index.html", "t4-state.js", "app.js", "styles.css"),
@@ -99,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         _object(args.candidate),
         _object(args.review_mapping),
         _object(args.review_source) if args.review_source is not None else None,
+        review_state_path=review_state_path,
     )
     if args.navigation is not None:
         data = apply_navigation(data, _object(args.navigation))

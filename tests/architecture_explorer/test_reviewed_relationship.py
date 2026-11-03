@@ -4,15 +4,16 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
-import shutil
 
 from booktrans.architecture_explorer.review_mapping import import_review_mapping, publish_reviewed_explorer
+from t5_lite_fixture import create_source_repository
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 CANDIDATE_PATH = REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"
 REVIEW_MAP_PATH = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"
 REVIEW_SOURCE_PATH = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"
+REVIEW_STATE_PATH = REPOSITORY / "output/architecture-explorer/t5-lite/review-state.v1.json"
 SNAPSHOT_PATH = REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json"
 MODULE_MAP_PATH = REPOSITORY / "architecture-explorer/modules.json"
 
@@ -70,7 +71,15 @@ def _publish(
     trusted_source: bool = True,
 ) -> dict:
     source = _json(REVIEW_SOURCE_PATH) if trusted_source else None
-    return publish_reviewed_explorer(repository, SNAPSHOT_PATH, MODULE_MAP_PATH, candidate, review_map, source)
+    return publish_reviewed_explorer(
+        repository,
+        SNAPSHOT_PATH,
+        MODULE_MAP_PATH,
+        candidate,
+        review_map,
+        source,
+        review_state_path=REVIEW_STATE_PATH,
+    )
 
 
 def test_valid_owner_approval_imports_exact_binding_and_publishes_current_reviewed() -> None:
@@ -150,20 +159,15 @@ def test_locally_claimed_valid_mapping_without_owner_api_provenance_is_unknown()
     assert "review_mapping_binding:github_authorization" in relation["review_reasons"]
 
 
-def test_changed_current_production_source_requires_review(tmp_path: Path, monkeypatch) -> None:
+def test_non_evidence_production_comment_does_not_require_review(tmp_path: Path) -> None:
     candidate = _json(CANDIDATE_PATH)
     review_map = _json(REVIEW_MAP_PATH)
-    for relative in candidate["scan_scope"]["production_files"]:
-        destination = tmp_path / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(REPOSITORY / relative, destination)
-    changed = tmp_path / candidate["scan_scope"]["production_files"][0]
+    repository = create_source_repository(tmp_path)
+    changed = repository / candidate["scan_scope"]["production_files"][0]
     changed.write_text(changed.read_text(encoding="utf-8") + "\n# material T3 test change\n", encoding="utf-8")
-    monkeypatch.setattr("booktrans.architecture_explorer.review_mapping._git", lambda *_args: "test-value")
-
-    relation = _publish(candidate, review_map, tmp_path)["architecture"]["relationships"][0]
-    assert relation["review_status"] == "needs-review"
-    assert relation["source_continuity"]["status"] == "material-change"
+    relation = _publish(candidate, review_map, repository)["architecture"]["relationships"][0]
+    assert relation["review_status"] == "current-reviewed"
+    assert relation["source_continuity"]["status"] == "exact-match"
 
 
 def test_explorer_only_changes_do_not_invalidate_reviewed_production_snapshot() -> None:

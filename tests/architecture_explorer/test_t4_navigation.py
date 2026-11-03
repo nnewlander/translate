@@ -17,6 +17,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 CANDIDATE = REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"
 REVIEW_MAP = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"
 REVIEW_SOURCE = REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"
+REVIEW_STATE = REPOSITORY / "output/architecture-explorer/t5-lite/review-state.v1.json"
 SNAPSHOT = REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json"
 MODULE_MAP = REPOSITORY / "architecture-explorer/modules.json"
 NAVIGATION = REPOSITORY / "architecture-explorer/navigation.v1.json"
@@ -36,6 +37,7 @@ def t3_data() -> dict:
         _json(CANDIDATE),
         _json(REVIEW_MAP),
         _json(REVIEW_SOURCE),
+        review_state_path=REVIEW_STATE,
     )
 
 
