@@ -170,6 +170,7 @@ def build_relationship_presentation_zh(
         "relationship_name": "进程启动",
         "summary": "Supervisor 在满足指定条件时，可以启动独立的 Python Worker 进程，并传递生产参数。",
         "status_explanations": {
+            "historical-reviewed": "历史审核：这条关系曾通过 T3 人工审核，但缺少一致、有效的 T5-Lite 复核状态，因此不能代表当前源码仍已审核。",
             "current-reviewed": "当前已审核：Owner 已批准这份固定源码快照中的关系，且当前相关生产源码与审核依据精确一致。",
             "STATIC_CONDITIONAL": "静态条件可达：从源码结构可以确认这条调用路径在满足列出的模式、参数和守卫条件时可到达；这不是一次实际运行记录。",
             "NOT_COLLECTED": "真实运行状态未采集：Explorer 没有读取运行日志或监控数据，因此不知道某次启动是否真实发生或是否成功。",

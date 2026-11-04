@@ -11,7 +11,7 @@
   }
 
   const coverageLabels = { unverified: "源码覆盖：未核验", partial: "源码覆盖：部分核验", verified: "源码覆盖：已核验" };
-  const reviewLabels = { candidate: "候选", "current-reviewed": "当前已审核", "needs-review": "需要复核", unknown: "未知" };
+  const reviewLabels = { candidate: "候选", "historical-reviewed": "历史审核", "current-reviewed": "当前已审核", "needs-review": "需要复核", unknown: "未知" };
   const assignmentLabels = { unverified: "源码归属：未核验", partial: "源码归属：部分核验" };
   const modules = data.architecture.modules;
   const relationships = Array.isArray(data.architecture.relationships) ? data.architecture.relationships : [];

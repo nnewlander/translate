@@ -39,6 +39,7 @@ $env:PYTHONPATH = (Resolve-Path 'src').Path
   --candidate architecture-explorer\review-inputs\supervisor-worker-857a4b8.json `
   --review-mapping architecture-explorer\reviews\supervisor-worker.v1.json `
   --review-source architecture-explorer\reviews\supervisor-worker.source.v1.json `
+  --review-state output\architecture-explorer\t5-lite\review-state.v1.json `
   --navigation architecture-explorer\navigation.v1.json `
   --web-assets architecture-explorer\web `
   --output-directory output\architecture-explorer\t4-site\site

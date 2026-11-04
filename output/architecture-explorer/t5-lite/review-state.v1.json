@@ -1,0 +1,9 @@
+{
+  "schema": "architecture-explorer.review-state.v1",
+  "relationship_id": "relationship:production-control:launches:translation-execution",
+  "review_decision_id": "github-comment:6516894339",
+  "status": "current-reviewed",
+  "continuity_status": "exact-match",
+  "assessed_at": "2026-11-03T20:33:36Z",
+  "reasons": []
+}

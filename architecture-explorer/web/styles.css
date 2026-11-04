@@ -315,6 +315,7 @@ h2 {
 .relation-type { color: #505050; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.82rem; }
 .relation-status { padding: 7px 10px; border-radius: 999px; background: #eaf1e6; color: #2f4630; font-size: 0.82rem; font-weight: 700; }
 .review-needs-review .relation-status { background: #fff8e8; color: #59451f; }
+.review-historical-reviewed .relation-status { background: #eef1f4; color: #45515d; }
 .review-unknown .relation-status { background: #f0f0f0; color: #444; }
 
 .workflow-highlight .module-card[data-module-id="production-control"],
