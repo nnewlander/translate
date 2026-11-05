@@ -35,7 +35,6 @@
           <h2 id="relationships-heading">架构关系</h2>
           <span id="relationship-count" class="count"></span>
         </div>
-        <p class="relationships-guide">看看不同模块怎样合作。这里展示有证据支持的模块协作方式；点击关系可以了解依据。已审核不等于某次运行真的执行过。</p>
         <div id="relationship-list" class="relationship-list"></div>
       </section>
       <details id="source-facts" class="source-facts">
@@ -44,22 +43,7 @@
           <span id="source-facts-count" class="summary-hint"></span>
         </summary>
         <div class="source-facts-content">
-          <p class="source-facts-intro">这里像一份代码清单，记录有哪些代码文件、程序可以从哪里启动，以及它们直接引用了什么。它能帮助我们调查项目，但不能单凭这些信息判断代码属于哪个架构模块。</p>
-          <details id="source-facts-glossary" class="source-facts-help">
-            <summary>术语说明</summary>
-            <dl class="source-facts-glossary">
-              <dt>Python 模块</dt><dd>一个可以被其他代码引用的 Python 文件或文件夹，像项目里的一个小零件。</dd>
-              <dt>入口</dt><dd>程序开始工作的地方，像大楼的入口；命令行工具或 Worker 通常从这里启动。</dd>
-              <dt>import</dt><dd>代码直接引用另一个 Python 模块，像在清单上写明“会用到这个零件”。</dd>
-              <dt>文件哈希</dt><dd>根据文件内容生成的数字指纹；内容变化时，指纹通常也会变化。</dd>
-              <dt>Evidence ID</dt><dd>某条源码证据的稳定编号，方便以后再次找到和核对。</dd>
-              <dt>静态分析</dt><dd>只阅读代码文字和结构，不运行程序；因此不能证明真实运行时发生了什么。</dd>
-            </dl>
-          </details>
-          <details id="source-facts-boundaries" class="source-facts-help">
-            <summary>技术边界（详细）</summary>
-            <p class="source-facts-notice">自动静态事实不赋予七模块归属，也不证明运行可达或架构协作。动态 import、运行时调用和完整调用图未采集，保持 unknown。范围外文件仅表示未纳入本次扫描，不代表历史、停用或无效。</p>
-          </details>
+          <p class="source-facts-notice">自动静态事实不赋予七模块归属，也不证明运行可达或架构协作。动态 import、运行时调用和完整调用图未采集，保持 unknown。范围外文件仅表示未纳入本次扫描，不代表历史、停用或无效。</p>
           <label for="source-module-select">选择源码模块</label>
           <select id="source-module-select"></select>
           <div id="source-module-detail" aria-live="polite"></div>

@@ -335,41 +335,6 @@ def test_offline_build_adds_source_facts_without_changing_seven_module_trust_sta
     assert "renderSourceModule" in app
 
 
-def test_source_facts_explains_plain_language_terms_and_keeps_boundaries_collapsed() -> None:
-    page = (WEB_ASSETS / "index.html").read_text(encoding="utf-8")
-    source_facts = page.split('<details id="source-facts"', 1)[1].split(
-        '<details id="history-and-auxiliary"', 1
-    )[0]
-
-    assert (
-        "这里像一份代码清单，记录有哪些代码文件、程序可以从哪里启动，以及它们直接引用了什么。"
-        "它能帮助我们调查项目，但不能单凭这些信息判断代码属于哪个架构模块。"
-    ) in source_facts
-    assert '<details id="source-facts-glossary"' in source_facts
-    assert '<summary>术语说明</summary>' in source_facts
-    glossary = source_facts.split('<details id="source-facts-glossary"', 1)[1].split(
-        "</details>", 1
-    )[0]
-    assert " open" not in glossary.split(">", 1)[0]
-    for term in (
-        "Python 模块",
-        "入口",
-        "import",
-        "文件哈希",
-        "Evidence ID",
-        "静态分析",
-    ):
-        assert term in glossary
-    assert '<details id="source-facts-boundaries"' in source_facts
-    boundaries = source_facts.split('<details id="source-facts-boundaries"', 1)[1].split(
-        "</details>", 1
-    )[0]
-    assert " open" not in boundaries.split(">", 1)[0]
-    assert "自动静态事实不赋予七模块归属" in boundaries
-    assert "动态 import、运行时调用和完整调用图未采集" in boundaries
-    assert "范围外文件仅表示未纳入本次扫描" in boundaries
-
-
 def test_real_browser_shows_one_source_module_on_demand(source_repository: Path) -> None:
     browser_candidates = (
         Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
