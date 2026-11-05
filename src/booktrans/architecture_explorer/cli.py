@@ -10,6 +10,7 @@ from .generator import (
     write_json,
     write_site,
 )
+from .source_scanner import attach_python_source_facts, scan_python_source_facts
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -53,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         inputs=(args.snapshot, args.mapping, args.web_assets),
         output_files=("explorer-data.json", "explorer-data.js", "index.html", "app.js", "styles.css"),
     )
-    data = build_explorer(args.snapshot, args.mapping)
+    data = attach_python_source_facts(
+        build_explorer(args.snapshot, args.mapping),
+        scan_python_source_facts(args.repository),
+    )
     write_site(data, output_directory, args.web_assets)
     print(f"site={output_directory / 'index.html'}")
     print(f"data={output_directory / 'explorer-data.json'}")

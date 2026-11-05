@@ -42,6 +42,10 @@
   const contextMenu = document.querySelector("#module-context-menu");
   const contextEvidence = document.querySelector("#context-evidence");
   const snapshotDetails = document.querySelector("#source-snapshot");
+  const sourceFactsDetails = document.querySelector("#source-facts");
+  const sourceFactsCount = document.querySelector("#source-facts-count");
+  const sourceModuleSelect = document.querySelector("#source-module-select");
+  const sourceModuleDetail = document.querySelector("#source-module-detail");
 
   const text = (tag, value, className) => {
     const element = document.createElement(tag);
@@ -85,6 +89,53 @@
   const expandable = (label, className = "technical-details") => {
     const details = document.createElement("details");
     details.className = className; details.append(text("summary", label)); return details;
+  };
+
+  const sourceEvidence = (fact, label) => {
+    const evidence = fact.evidence;
+    const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
+    const details = expandable(label, "source-fact-evidence");
+    const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
+    for (const [term, value] of [
+      ["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind],
+    ]) facts.append(text("dt", term), text("dd", value));
+    const button = text("button", "复制定位信息", "copy-location"); button.type = "button";
+    button.addEventListener("click", () => copyLocation(location, button));
+    details.append(facts, text("pre", evidence.snippet), button); return details;
+  };
+
+  const renderSourceModule = () => {
+    const sourceFacts = data.source_facts;
+    const module = sourceFacts?.modules?.[Number(sourceModuleSelect.value)];
+    sourceModuleDetail.replaceChildren();
+    if (!module) { sourceModuleDetail.append(text("p", "当前范围内没有可展示的 Python 源码事实。", "empty-evidence")); return; }
+    const identity = document.createElement("dl"); identity.className = "source-module-identity";
+    for (const [term, value] of [
+      ["模块身份", module.module_id], ["仓库相对路径", module.path], ["文件 SHA-256", module.file_sha256],
+    ]) identity.append(text("dt", term), text("dd", value));
+    sourceModuleDetail.append(identity);
+    const imports = document.createElement("section"); imports.append(text("h3", `顶层直接 import（${module.direct_imports.length}）`));
+    if (module.direct_imports.length) {
+      for (const item of module.direct_imports) {
+        const imported = item.kind === "from" ? `${".".repeat(item.level)}${item.module} → ${item.names.join(", ")}` : item.module;
+        imports.append(sourceEvidence(item, imported));
+      }
+    } else imports.append(text("p", "未发现顶层直接 import。", "empty-evidence"));
+    const entries = document.createElement("section"); entries.append(text("h3", `明确入口事实（${module.entries.length}）`));
+    if (module.entries.length) {
+      for (const item of module.entries) entries.append(sourceEvidence(item, `${item.kind} · ${item.symbol}`));
+    } else entries.append(text("p", "未发现本 Ticket 定义的明确入口事实。", "empty-evidence"));
+    sourceModuleDetail.append(imports, entries);
+  };
+
+  const initializeSourceFacts = () => {
+    const sourceFacts = data.source_facts;
+    if (!sourceFacts || !Array.isArray(sourceFacts.modules)) { sourceFactsDetails.hidden = true; return; }
+    sourceFactsCount.textContent = `${sourceFacts.scope.files_scanned} 个文件 · 默认收起`;
+    sourceFacts.modules.forEach((module, index) => {
+      const option = document.createElement("option"); option.value = String(index); option.textContent = module.path; sourceModuleSelect.append(option);
+    });
+    sourceModuleSelect.addEventListener("change", renderSourceModule); renderSourceModule();
   };
 
   const evidenceCard = (evidence, guide) => {
@@ -288,5 +339,5 @@
     workflowToggle.textContent = active ? "取消流程高亮" : "高亮最小生产流程";
   });
 
-  renderRelationships(); render();
+  initializeSourceFacts(); renderRelationships(); render();
 })();

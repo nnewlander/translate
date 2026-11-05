@@ -9,6 +9,7 @@ from .generator import ExplorerInputError, validate_cli_output_path, write_json,
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .navigation import apply_navigation
 from .continuity import update_review_state
+from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .review_source import (
     TRUSTED_COMMENT_ID,
     TRUSTED_ISSUE_NUMBER,
@@ -139,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         _object(args.review_source) if args.review_source is not None else None,
         review_state_path=review_state_path,
     )
+    data = attach_python_source_facts(data, scan_python_source_facts(args.repository))
     if args.navigation is not None:
         data = apply_navigation(data, _object(args.navigation))
     write_site(data, output, args.web_assets)

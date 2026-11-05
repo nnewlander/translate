@@ -278,6 +278,19 @@ h2 {
 .relationships { margin-top: 64px; }
 
 .history-and-auxiliary { margin-top: 64px; border: 1px solid #dce4d8; border-radius: 20px; background: #fbfcfa; }
+.source-facts { margin-top: 64px; border: 1px solid #dce4d8; border-radius: 20px; background: #fbfcfa; }
+.source-facts > summary { display: flex; justify-content: space-between; gap: 18px; padding: 22px 24px; color: #2f4630; font-weight: 750; cursor: pointer; }
+.source-facts-content { padding: 0 24px 24px; }
+.source-facts-notice { padding: 14px 16px; border-left: 4px solid #d6a1b4; background: #fff4f7; color: #5d4650; line-height: 1.6; }
+.source-facts label { display: block; margin: 20px 0 8px; font-weight: 700; }
+.source-facts select { width: 100%; padding: 11px 12px; border: 1px solid #b7c8af; border-radius: 10px; background: #fff; color: #233024; }
+.source-module-identity, .raw-evidence-facts { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 8px 18px; }
+.source-module-identity { margin: 24px 0; }
+.source-module-identity dt, .raw-evidence-facts dt { color: #505050; font-weight: 650; }
+.source-module-identity dd, .raw-evidence-facts dd { margin: 0; overflow-wrap: anywhere; }
+.source-fact-evidence { margin-top: 10px; padding: 12px 14px; border: 1px solid #e1e6de; border-radius: 12px; background: #fff; }
+.source-fact-evidence summary { cursor: pointer; font-weight: 650; }
+.source-fact-evidence pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
 .history-and-auxiliary > summary { display: flex; justify-content: space-between; gap: 18px; padding: 22px 24px; color: #2f4630; font-weight: 750; cursor: pointer; }
 .summary-hint { color: #666; font-size: 0.82rem; font-weight: 500; }
 #history-content { padding: 0 24px 24px; }
