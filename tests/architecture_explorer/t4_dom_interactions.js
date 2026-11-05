@@ -33,6 +33,15 @@
     card.click();
     assert(title() === "生产调度与控制", "next normal click after Escape was suppressed");
 
+    const relationship = document.querySelector(".relationship-line");
+    assert(relationship, "reviewed relationship missing");
+    relationship.click();
+    const explanation = document.querySelector(".plain-collaboration-explanation");
+    assert(explanation?.textContent.includes("调度员"), "plain relationship analogy missing");
+    assert(explanation.textContent.includes("生产调度与控制"), "source module role missing from explanation");
+    assert(explanation.textContent.includes("翻译执行与模型接入"), "target module role missing from explanation");
+    assert(explanation.textContent.includes("不代表某次运行真的启动过 Worker"), "runtime limit missing from explanation");
+
     document.documentElement.dataset.domRegression = "pass";
   } catch (error) {
     document.documentElement.dataset.domRegression = "fail";

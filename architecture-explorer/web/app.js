@@ -91,17 +91,44 @@
     details.className = className; details.append(text("summary", label)); return details;
   };
 
-  const sourceEvidence = (fact, label) => {
+  const sourceImportExplanation = (module, item) => {
+    const importedModule = `${".".repeat(item.level)}${item.module}`;
+    const importedNames = item.names.join("、");
+    if (item.kind === "from") {
+      return `在“${module.path}”中，这条源码从“${importedModule}”直接引入“${importedNames}”。它能证明当前文件写有这条引用，但不能证明运行时一定执行到这里，也不能据此判断架构归属。`;
+    }
+    return `在“${module.path}”中，这条源码直接引用了“${item.module}”。它能证明当前文件写有这条引用，但不能证明运行时一定执行到这里，也不能据此判断架构归属。`;
+  };
+
+  const sourceEntryExplanation = (module, item) => {
+    if (item.kind === "declarative_cli") {
+      return `“${item.symbol}”在这个文件中被声明为命令行应用入口，可以把它理解为接收命令的服务台。它说明命令可以从这里组织和转交，不证明任何命令已经运行。`;
+    }
+    if (item.kind === "package_entry") {
+      return `“${module.path}”是 Python 以包方式启动时首先查看的入口位置。它说明程序会先来到这里；之后具体动作以源码证据为准。`;
+    }
+    if (item.kind === "deterministic_worker_wrapper") {
+      return `这个包装入口在文件被直接运行时，把执行交给“booktrans.production_worker.worker.main”，并把结果作为进程退出状态。它证明静态启动路径存在，不代表 Worker 在某次运行中真的启动。`;
+    }
+    if (item.kind === "main_guard") {
+      return `这段入口只在“${module.path}”被直接运行时生效；如果文件只是被其他代码 import，它不会因此启动。`;
+    }
+    return `扫描在“${module.path}”中找到了“${item.kind}”入口事实。它只描述源码里可见的启动结构，不证明运行已经发生。`;
+  };
+
+  const sourceEvidence = (fact, label, explanation) => {
     const evidence = fact.evidence;
     const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
-    const details = expandable(label, "source-fact-evidence");
+    const card = document.createElement("article"); card.className = "source-fact-card";
+    card.append(text("h4", label), text("p", explanation, "source-fact-explanation"));
+    const details = expandable("查看定位和原始证据", "source-fact-evidence");
     const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
     for (const [term, value] of [
       ["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind],
     ]) facts.append(text("dt", term), text("dd", value));
     const button = text("button", "复制定位信息", "copy-location"); button.type = "button";
     button.addEventListener("click", () => copyLocation(location, button));
-    details.append(facts, text("pre", evidence.snippet), button); return details;
+    details.append(facts, text("pre", evidence.snippet), button); card.append(details); return card;
   };
 
   const renderSourceModule = () => {
@@ -113,17 +140,24 @@
     for (const [term, value] of [
       ["模块身份", module.module_id], ["仓库相对路径", module.path], ["文件 SHA-256", module.file_sha256],
     ]) identity.append(text("dt", term), text("dd", value));
-    sourceModuleDetail.append(identity);
+    sourceModuleDetail.append(
+      identity,
+      text(
+        "p",
+        `扫描把仓库文件“${module.path}”记录为 Python 模块“${module.module_id}”。路径用于找到原文件，SHA-256 是本次内容的指纹，方便以后核对是否仍是同一版；这些身份信息不表示它属于某个架构模块。`,
+        "source-module-trace"
+      )
+    );
     const imports = document.createElement("section"); imports.append(text("h3", `顶层直接 import（${module.direct_imports.length}）`));
     if (module.direct_imports.length) {
       for (const item of module.direct_imports) {
         const imported = item.kind === "from" ? `${".".repeat(item.level)}${item.module} → ${item.names.join(", ")}` : item.module;
-        imports.append(sourceEvidence(item, imported));
+        imports.append(sourceEvidence(item, imported, sourceImportExplanation(module, item)));
       }
     } else imports.append(text("p", "未发现顶层直接 import。", "empty-evidence"));
     const entries = document.createElement("section"); entries.append(text("h3", `明确入口事实（${module.entries.length}）`));
     if (module.entries.length) {
-      for (const item of module.entries) entries.append(sourceEvidence(item, `${item.kind} · ${item.symbol}`));
+      for (const item of module.entries) entries.append(sourceEvidence(item, `${item.kind} · ${item.symbol}`, sourceEntryExplanation(module, item)));
     } else entries.append(text("p", "未发现本 Ticket 定义的明确入口事实。", "empty-evidence"));
     sourceModuleDetail.append(imports, entries);
   };
@@ -160,6 +194,11 @@
     if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
   };
 
+  const relationshipPlainExplanation = (relation, guide) => {
+    if (relation.id !== "relationship:production-control:launches:translation-execution") return null;
+    return `可以把“${guide.source_module_name}”看作调度员：它准备启动条件并发起任务；“${guide.target_module_name}”像接手具体工作的工人，接收参数后进入执行流程。这样调度和执行可以各自处理自己的步骤；现有证据只证明代码中存在这条有条件的协作路径，不代表某次运行真的启动过 Worker。`;
+  };
+
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
     detailContent.replaceChildren(); detailContent.dataset.relationshipId = relation.id;
@@ -169,6 +208,8 @@
       title,
       text("p", guide.relationship_name, "plain-relation-name"), text("p", guide.summary, "relationship-summary")
     );
+    const plainExplanation = relationshipPlainExplanation(relation, guide);
+    if (plainExplanation) detailContent.append(text("p", plainExplanation, "plain-collaboration-explanation"));
     const statusGrid = document.createElement("section"); statusGrid.className = "meaning-grid";
     for (const [title, description] of [
       [reviewLabels[relation.review_status] || "未知", guide.status_explanations[relation.review_status] || "当前没有可用的有效审核结论。"],

@@ -287,7 +287,11 @@ h2 {
 .source-module-identity { margin: 24px 0; }
 .source-module-identity dt, .raw-evidence-facts dt { color: #505050; font-weight: 650; }
 .source-module-identity dd, .raw-evidence-facts dd { margin: 0; overflow-wrap: anywhere; }
-.source-fact-evidence { margin-top: 10px; padding: 12px 14px; border: 1px solid #e1e6de; border-radius: 12px; background: #fff; }
+.source-module-trace { margin: -8px 0 24px; padding: 14px 16px; border-left: 4px solid #78946b; background: #f7f9f6; color: #354235; line-height: 1.7; }
+.source-fact-card { margin-top: 12px; padding: 17px 18px; border: 1px solid #e1e6de; border-radius: 14px; background: #fff; }
+.source-fact-card h4 { margin: 0 0 8px; color: #283b29; }
+.source-fact-explanation { margin: 0; color: #333; line-height: 1.7; }
+.source-fact-evidence { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e6de; }
 .source-fact-evidence summary { cursor: pointer; font-weight: 650; }
 .source-fact-evidence pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
 .summary-hint { color: #666; font-size: 0.82rem; font-weight: 500; }
@@ -360,6 +364,7 @@ h2 {
 .detail-title { margin: 12px 42px 22px 0; color: #191919; font-family: Georgia, "Songti SC", serif; font-size: 1.7rem; letter-spacing: 0; text-transform: none; }
 .plain-relation-name { margin: -10px 0 10px; color: #526b49; font-size: 0.88rem; font-weight: 750; letter-spacing: 0.08em; }
 .relationship-summary { max-width: 700px; margin: 0 0 26px; color: #222; font-family: Georgia, "Songti SC", serif; font-size: 1.12rem; line-height: 1.75; }
+.plain-collaboration-explanation { max-width: 720px; margin: -8px 0 26px; padding: 17px 19px; border-left: 4px solid #78946b; border-radius: 0 14px 14px 0; background: #f7f9f6; color: #2f3d30; line-height: 1.75; }
 .detail-facts { display: grid; grid-template-columns: 120px 1fr; gap: 8px 18px; padding: 20px; border-radius: 16px; background: #f7f9f6; }
 .detail-facts dt { color: #505050; font-weight: 650; }
 .detail-facts dd { margin: 0; font-family: "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
