@@ -7,6 +7,7 @@ from .review_mapping import import_review_mapping, parse_review_decision, publis
 from .review_source import fetch_github_review_source, verify_trusted_review_source
 from .navigation import NAVIGATION_SCHEMA, apply_navigation
 from .continuity import evaluate_review_state, update_review_state
+from .source_scanner import scan_python_source_facts
 
 __all__ = [
     "SCANNER_VERSION",
@@ -21,6 +22,7 @@ __all__ = [
     "render_candidate_report",
     "scan_snapshot",
     "scan_supervisor_worker_candidate",
+    "scan_python_source_facts",
     "update_review_state",
     "verify_trusted_review_source",
     "write_candidate_outputs",

@@ -37,6 +37,18 @@
         </div>
         <div id="relationship-list" class="relationship-list"></div>
       </section>
+      <details id="source-facts" class="source-facts">
+        <summary>
+          <span>源码事实（按需查看）</span>
+          <span id="source-facts-count" class="summary-hint"></span>
+        </summary>
+        <div class="source-facts-content">
+          <p class="source-facts-notice">自动静态事实不赋予七模块归属，也不证明运行可达或架构协作。动态 import、运行时调用和完整调用图未采集，保持 unknown。范围外文件仅表示未纳入本次扫描，不代表历史、停用或无效。</p>
+          <label for="source-module-select">选择源码模块</label>
+          <select id="source-module-select"></select>
+          <div id="source-module-detail" aria-live="polite"></div>
+        </div>
+      </details>
       <details id="history-and-auxiliary" class="history-and-auxiliary">
         <summary><span id="history-title">历史与辅助区</span><span class="summary-hint">默认收起</span></summary>
         <div id="history-content"></div>

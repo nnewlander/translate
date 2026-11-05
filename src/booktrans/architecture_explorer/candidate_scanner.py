@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 import base64
 from datetime import datetime, timezone
-import hashlib
 import json
 from pathlib import Path
 import re
@@ -11,6 +10,13 @@ import subprocess
 from typing import Any, Iterable
 
 from .generator import ExplorerInputError
+from .source_primitives import (
+    build_static_evidence as _evidence,
+    canonical_bytes as _canonical_bytes,
+    git_output as _git,
+    read_stable_utf8,
+    sha256_bytes as _sha256,
+)
 
 
 SCANNER_VERSION = "architecture-explorer-t2/1.3"
@@ -201,28 +207,6 @@ $result | ConvertTo-Json -Compress -Depth 12
 """
 
 
-def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-
-
-def _sha256(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def _git(repository: Path, *args: str) -> str:
-    completed = subprocess.run(
-        ["git", "-C", str(repository), *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip()
-        raise ExplorerInputError(f"Git metadata unavailable: {detail}")
-    return completed.stdout.rstrip("\r\n")
-
-
 def _is_reparse_point(path: Path) -> bool:
     try:
         attributes = path.stat(follow_symlinks=False).st_file_attributes
@@ -231,54 +215,8 @@ def _is_reparse_point(path: Path) -> bool:
     return bool(attributes & 0x400)
 
 
-def _stat_signature(path: Path) -> tuple[int, int, int, int, int]:
-    stat = path.stat(follow_symlinks=False)
-    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
-
-
-def _normalized_snippet(snippet: str) -> str:
-    return " ".join(snippet.split())
-
-
 def _line_number(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
-
-
-def _evidence(
-    *,
-    path: str,
-    source_role: str,
-    evidence_kind: str,
-    symbol: str,
-    structural_anchor: str,
-    syntax_position: str,
-    snippet: str,
-    line_start: int,
-    line_end: int,
-    file_sha256: str,
-) -> dict[str, Any]:
-    normalized_hash = _sha256(_normalized_snippet(snippet).encode("utf-8"))
-    identity = {
-        "path": path,
-        "evidence_kind": evidence_kind,
-        "symbol": symbol,
-        "structural_anchor": structural_anchor,
-        "syntax_position": syntax_position,
-        "normalized_snippet_sha256": normalized_hash,
-    }
-    return {
-        "evidence_id": f"evidence:sha256:{_sha256(_canonical_bytes(identity))}",
-        "source_role": source_role,
-        "evidence_kind": evidence_kind,
-        "path": path,
-        "symbol": symbol,
-        "structural_anchor": structural_anchor,
-        "syntax_position": syntax_position,
-        "current_location": {"line_start": line_start, "line_end": line_end},
-        "snippet": snippet,
-        "normalized_snippet_sha256": normalized_hash,
-        "file_sha256": file_sha256,
-    }
 
 
 def _regex_evidence(
@@ -916,28 +854,7 @@ def _read_allowed_files(repository: Path) -> dict[str, tuple[str, str, int]]:
     result: dict[str, tuple[str, str, int]] = {}
     for relative in SCAN_FILES:
         path = _validated_source_path(repository, relative)
-        before_signature = _stat_signature(path)
-        before_resolved = path.resolve(strict=True)
-        try:
-            raw = path.read_bytes()
-        except OSError as error:
-            raise ExplorerInputError(f"T2 scan input could not be read: {relative}") from error
-        try:
-            after_signature = _stat_signature(path)
-            after_resolved = path.resolve(strict=True)
-        except (FileNotFoundError, OSError) as error:
-            raise ExplorerInputError(f"T2 scan input changed during scan: {relative}") from error
-        if (
-            before_signature != after_signature
-            or before_resolved != after_resolved
-            or len(raw) != after_signature[2]
-        ):
-            raise ExplorerInputError(f"T2 scan input changed during scan: {relative}")
-        try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError as error:
-            raise ExplorerInputError(f"T2 scan input is not UTF-8: {relative}") from error
-        result[relative] = (text, _sha256(raw), len(raw))
+        result[relative] = read_stable_utf8(path, relative, contract="T2")
     return result
 
 

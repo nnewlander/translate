@@ -42,6 +42,10 @@
   const contextMenu = document.querySelector("#module-context-menu");
   const contextEvidence = document.querySelector("#context-evidence");
   const snapshotDetails = document.querySelector("#source-snapshot");
+  const sourceFactsDetails = document.querySelector("#source-facts");
+  const sourceFactsCount = document.querySelector("#source-facts-count");
+  const sourceModuleSelect = document.querySelector("#source-module-select");
+  const sourceModuleDetail = document.querySelector("#source-module-detail");
 
   const text = (tag, value, className) => {
     const element = document.createElement(tag);
@@ -87,14 +91,122 @@
     details.className = className; details.append(text("summary", label)); return details;
   };
 
+  const sourceImportExplanation = (module, item) => {
+    const importedModule = `${".".repeat(item.level)}${item.module}`;
+    const importedNames = item.names.join("、");
+    if (item.kind === "from") {
+      return `“${module.path}”声明从“${importedModule}”直接引入“${importedNames}”，也就是当前文件点名要使用这些符号。静态扫描能确认这条引用写在源码中，但不能证明运行时一定执行到这里，也不能据此判断业务职责或架构归属。`;
+    }
+    return `“${module.path}”声明直接引用模块“${item.module}”，相当于在当前文件的工具清单中点名了它。静态扫描能确认引用存在，但不能证明运行时一定执行到这里，也不能据此判断业务职责或架构归属。`;
+  };
+
+  const sourceEntryExplanation = (module, item) => {
+    if (item.kind === "declarative_cli") {
+      return `“${item.symbol}”通过 Typer 声明为命令行应用入口，可以把它理解为接收命令的服务台。这个声明说明命令可以从这里组织和转交，但不证明任何命令已经运行。`;
+    }
+    if (item.kind === "package_entry") {
+      const packageName = module.module_id.replace(/\.__main__$/, "");
+      return `当用户使用“python -m ${packageName}”按包方式启动时，Python 会查找“${module.path}”。这能确认启动机制会先来到这里；之后具体动作以源码证据为准。`;
+    }
+    if (item.kind === "deterministic_worker_wrapper") {
+      return `这个包装入口在文件被直接运行时，把执行交给“booktrans.production_worker.worker.main”，并把结果作为进程退出状态。它证明静态启动路径存在，不代表 Worker 在某次运行中真的启动。`;
+    }
+    if (item.kind === "main_guard") {
+      return `条件“__name__ == "__main__"”像一道门禁：只有“${module.path}”被直接运行时才会进入；如果文件只是被其他代码 import，它不会因此启动。`;
+    }
+    return `扫描在“${module.path}”中找到了“${item.kind}”入口事实。它只描述源码里可见的启动结构，不证明运行已经发生。`;
+  };
+
+  const sourceEvidence = (fact, label, explanation) => {
+    const evidence = fact.evidence;
+    const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
+    const card = document.createElement("article"); card.className = "source-fact-card";
+    const traceSubject = evidence.evidence_kind === "direct_import" ? "这条引用" : "这个入口";
+    card.append(
+      text("h4", label),
+      text("p", explanation, "source-fact-explanation"),
+      text("p", `源码位置“${evidence.path}:${evidence.current_location.line_start}”把${traceSubject}定位到当前文件；Evidence ID 像这条扫描记录的收据号，便于之后引用并核对同一项证据。`, "source-evidence-trace")
+    );
+    const details = expandable("查看定位和原始证据", "source-fact-evidence");
+    const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
+    for (const [term, value] of [
+      ["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind],
+    ]) facts.append(text("dt", term), text("dd", value));
+    const button = text("button", "复制定位信息", "copy-location"); button.type = "button";
+    button.addEventListener("click", () => copyLocation(location, button));
+    details.append(facts, text("pre", evidence.snippet), button); card.append(details); return card;
+  };
+
+  const renderSourceModule = () => {
+    const sourceFacts = data.source_facts;
+    const module = sourceFacts?.modules?.[Number(sourceModuleSelect.value)];
+    sourceModuleDetail.replaceChildren();
+    if (!module) { sourceModuleDetail.append(text("p", "当前范围内没有可展示的 Python 源码事实。", "empty-evidence")); return; }
+    const identity = document.createElement("dl"); identity.className = "source-module-identity";
+    for (const [term, value] of [
+      ["模块身份", module.module_id], ["仓库相对路径", module.path], ["文件 SHA-256", module.file_sha256],
+    ]) identity.append(text("dt", term), text("dd", value));
+    sourceModuleDetail.append(
+      identity,
+      text(
+        "p",
+        `扫描把仓库文件“${module.path}”记录为 Python 模块“${module.module_id}”。路径用于找到原文件，SHA-256 是本次内容的指纹，方便以后核对是否仍是同一版；这些身份信息不表示它属于某个架构模块。`,
+        "source-module-trace"
+      )
+    );
+    const imports = document.createElement("section"); imports.append(text("h3", `顶层直接 import（${module.direct_imports.length}）`));
+    if (module.direct_imports.length) {
+      for (const item of module.direct_imports) {
+        const imported = item.kind === "from" ? `${".".repeat(item.level)}${item.module} → ${item.names.join(", ")}` : item.module;
+        imports.append(sourceEvidence(item, imported, sourceImportExplanation(module, item)));
+      }
+    } else imports.append(text("p", `扫描范围内没有记录到顶层直接 import。这只说明“${module.path}”没有此类静态记录，不代表它运行时不会通过其他机制取得依赖。`, "empty-evidence"));
+    const entries = document.createElement("section"); entries.append(text("h3", `明确入口事实（${module.entries.length}）`));
+    if (module.entries.length) {
+      for (const item of module.entries) entries.append(sourceEvidence(item, `${item.kind} · ${item.symbol}`, sourceEntryExplanation(module, item)));
+    } else entries.append(text("p", `扫描范围内没有记录到明确入口。这不等于文件没有用途，也不能据此判断业务职责；其他启动机制仍然未知。`, "empty-evidence"));
+    sourceModuleDetail.append(imports, entries);
+  };
+
+  const initializeSourceFacts = () => {
+    const sourceFacts = data.source_facts;
+    if (!sourceFacts || !Array.isArray(sourceFacts.modules)) { sourceFactsDetails.hidden = true; return; }
+    sourceFactsCount.textContent = `${sourceFacts.scope.files_scanned} 个文件 · 默认收起`;
+    sourceFacts.modules.forEach((module, index) => {
+      const option = document.createElement("option"); option.value = String(index); option.textContent = module.path; sourceModuleSelect.append(option);
+    });
+    sourceModuleSelect.addEventListener("change", renderSourceModule); renderSourceModule();
+  };
+
+  const evidencePlainExplanation = (evidence) => {
+    const explanations = {
+      worker_script_binding: `这像调度员先在通讯录里记下准确联系人：变量指向“scripts/production/run_qwen_deterministic_worker.py”，让后续启动知道要找哪个包装脚本。静态源码只证明目标路径被绑定，不证明脚本已经启动。`,
+      process_boundary_definition: `这像一套写好的“发车流程”：函数准备可执行文件、参数、工作目录和环境，收集输出，并定义等待子进程结束的步骤。它说明 Supervisor 具备这条独立进程边界，但不表示流程在某次运行中真的走过。`,
+      production_argument_vector: `这组参数像一张派工单：它写明“--mode production”、生产写入授权、worker-id，以及当前 batch-label 和 checkpoint。静态源码能确认派工单如何组装，不能确认它在真实运行中已经发出或被接受。`,
+      process_boundary_invocation: `这一行像把解释器、派工单和工作目录一起递到启动窗口“Start-DeterministicWorkerProcess”。它把前面的参数组装连接到进程边界；静态源码只证明存在这次调用。`,
+      worker_wrapper_import: `包装脚本通过这条 import 找到实际执行入口“booktrans.production_worker.worker.main”，像从总机转到真正接手工作的人员。它只证明入口引用关系，尚未证明 main 被调用。`,
+      worker_wrapper_main_call: `条件“__name__ == "__main__"”像门禁：只有包装脚本被直接运行时，才把工作交给 main，并把结果作为退出状态。它证明静态转交条件，不代表某次运行真的进入过这里。`,
+      worker_mode_contract: `这里像派工单上的模式选项：Worker 只接受 canary 或 production，且默认是 canary。它证明 production 是正式参数值，但不证明真实启动选择了 production。`,
+      worker_authorization_contract: `这里像派工单上的生产写入授权栏：“--authorize-production-checkpoint-write”出现时才记为开启。它证明 Worker 能识别这张通行证，不证明授权在某次运行中实际提供或有效。`,
+      worker_argument_parse: `这一步像 Worker 收到派工单后先拆单，把 argv 解析为后续条件检查使用的 args。它把外部参数接入控制流程，但静态源码不能证明真实参数已经到达。`,
+      worker_canary_exit_guard: `这是一道分流闸门：如果 mode 是 canary，就走隔离的 Canary 路径并在这里返回，不继续经过后面的生产守卫。它说明生产路径位于该分支之后，不证明某次运行选择了哪一边。`,
+      worker_id_guard: `这像开工前检查工牌：没有 worker-id 就立即停止，不能继续进入生产路径。源码证明这项必填条件存在，但没有提供任何一次运行的检查结果。`,
+      worker_batch_checkpoint_guard: `这像开工前核对成套派工信息：batch-label 和 checkpoint 必须一起提供，少一个就停止。它证明批次与检查点之间有配对守卫，不证明某次启动已经通过。`,
+      worker_production_branch: `这是静态证据链最后的交接门：通过前面的分支和守卫后，main 把已解析参数交给“run_production_checkpoint”。它证明调用在条件满足时可达，不等于真实生产 Checkpoint 已经执行。`,
+    };
+    return explanations[evidence.evidence_kind] || null;
+  };
+
   const evidenceCard = (evidence, guide) => {
     const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
-    const card = document.createElement("article"); card.className = "evidence-card";
+    const card = document.createElement("article"); card.className = "evidence-card"; card.dataset.evidenceKind = evidence.evidence_kind;
     card.append(
       text("p", evidence.source_role === "production" ? "生产源码证据" : "辅助测试证据 · 非生产调用事实", "evidence-role"),
       text("h4", guide.name), text("p", guide.explanation, "evidence-explanation"),
       text("p", guide.supports, "evidence-supports")
     );
+    const plainExplanation = evidence.source_role === "production" ? evidencePlainExplanation(evidence) : null;
+    if (plainExplanation) card.append(text("p", `通俗理解：${plainExplanation}`, "evidence-plain-explanation"));
     const raw = expandable("展开原始技术证据", "evidence-technical");
     const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
     for (const [term, value] of [["技术种类", evidence.evidence_kind], ["Evidence ID", evidence.evidence_id], ["源码定位", location]]) {
@@ -109,6 +221,21 @@
     if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
   };
 
+  const relationshipPlainExplanation = (relation, guide) => {
+    if (relation.id !== "relationship:production-control:launches:translation-execution") return null;
+    return `可以把“${guide.source_module_name}”看作调度员：它准备启动条件并发起任务；“${guide.target_module_name}”像接手具体工作的工人，接收参数后进入执行流程。这样调度和执行可以各自处理自己的步骤；现有证据只证明代码中存在这条有条件的协作路径，不代表某次运行真的启动过 Worker。`;
+  };
+
+  const modulePlainExplanations = {
+    "document-understanding": "可以把它看作档案整理员：把不可改的原书整理成每段都能准确找到的工作底稿，同时防止原文和位置被意外改乱。",
+    "scope-and-request": "可以把它看作派单前的选单员：确认这次处理哪些内容，并把范围、上下文和依据一起装进请求。",
+    "translation-execution": "可以把它看作翻译窗口：把已批准的请求交给合适的模型接口，收回候选译文，也能接着已有原始回复继续。",
+    "quality-and-repair": "可以把它看作质检员和受限返修台：先按规则查问题，再只在合同允许范围内修复，并保留每一版的来历。",
+    "production-evidence": "可以把它看作带封条的工作记录柜：保存并核对每一步生产事实，在 Checkpoint 封存可追溯证据。",
+    "production-control": "可以把它看作现场调度员：依据状态决定继续、恢复或停下，并确保同一批次只有一个写入者。",
+    "candidate-and-release": "可以把它看作装订与出厂检查环节：把获批译文放入候选文档，再确认包装内容和发布边界没有被意外改变。",
+  };
+
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
     detailContent.replaceChildren(); detailContent.dataset.relationshipId = relation.id;
@@ -118,6 +245,8 @@
       title,
       text("p", guide.relationship_name, "plain-relation-name"), text("p", guide.summary, "relationship-summary")
     );
+    const plainExplanation = relationshipPlainExplanation(relation, guide);
+    if (plainExplanation) detailContent.append(text("p", plainExplanation, "plain-collaboration-explanation"));
     const statusGrid = document.createElement("section"); statusGrid.className = "meaning-grid";
     for (const [title, description] of [
       [reviewLabels[relation.review_status] || "未知", guide.status_explanations[relation.review_status] || "当前没有可用的有效审核结论。"],
@@ -206,11 +335,12 @@
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const hasChildren = Boolean(drilldownByParent[module.id]);
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键查看关系与源码证据`);
-    article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"), text("h3", module.name), text("p", module.responsibility));
+    article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"), text("h3", module.name), text("p", module.responsibility, "module-responsibility"));
+    if (!isChild && modulePlainExplanations[module.id]) article.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses";
     if (isChild) statuses.append(text("span", "职责状态：候选", "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
-    article.append(statuses, text("span", hasChildren ? "左键下钻 · 右键查看证据" : "左键查看详情 · 右键查看证据", "interaction-hint"));
+    article.append(statuses);
     const activate = () => {
       dispatch({ type: "MODULE_PRIMARY", moduleId: module.id, hasChildren }); render();
       if (state.detailModuleId) showModuleDetail(moduleById[state.detailModuleId]);
@@ -288,5 +418,5 @@
     workflowToggle.textContent = active ? "取消流程高亮" : "高亮最小生产流程";
   });
 
-  renderRelationships(); render();
+  initializeSourceFacts(); renderRelationships(); render();
 })();
