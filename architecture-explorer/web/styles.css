@@ -207,8 +207,6 @@ h2 {
 
 .interactive-module { cursor: pointer; }
 .interactive-module:hover, .interactive-module:focus-visible { border-color: #78946b; outline: 3px solid rgba(120, 148, 107, 0.16); }
-.interaction-hint { margin-top: 17px; color: #63705e; font-size: 0.78rem; }
-
 .module-card::before {
   position: absolute;
   top: 0;
@@ -245,6 +243,8 @@ h2 {
   font-size: 1rem;
   line-height: 1.75;
 }
+.module-card .module-responsibility { margin-bottom: 12px; }
+.module-card .module-plain-explanation { margin-bottom: 24px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
 
 .statuses { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
@@ -291,6 +291,7 @@ h2 {
 .source-fact-card { margin-top: 12px; padding: 17px 18px; border: 1px solid #e1e6de; border-radius: 14px; background: #fff; }
 .source-fact-card h4 { margin: 0 0 8px; color: #283b29; }
 .source-fact-explanation { margin: 0; color: #333; line-height: 1.7; }
+.source-evidence-trace { margin: 9px 0 0; color: #536052; font-size: 0.88rem; line-height: 1.65; }
 .source-fact-evidence { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e6de; }
 .source-fact-evidence summary { cursor: pointer; font-weight: 650; }
 .source-fact-evidence pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
@@ -385,6 +386,7 @@ h2 {
 .evidence-card h4 { margin: 0 0 8px; }
 .evidence-explanation { margin: 0; color: #2f2f2f; line-height: 1.7; }
 .evidence-supports { margin: 12px 0 0; color: #354b35; font-size: 0.92rem; font-weight: 650; line-height: 1.6; }
+.evidence-plain-explanation { margin: 15px 0 0; padding: 14px 16px; border-left: 4px solid #78946b; border-radius: 0 12px 12px 0; background: #f7f9f6; color: #2f3d30; line-height: 1.7; }
 .evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
 .technical-details, .evidence-technical, .auxiliary-evidence, .original-review { margin-top: 16px; }
 .technical-details summary, .evidence-technical summary, .auxiliary-evidence summary, .original-review summary {
