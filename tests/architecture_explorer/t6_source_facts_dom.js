@@ -4,9 +4,16 @@
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   try {
     const details = document.querySelector("#source-facts");
+    const glossary = document.querySelector("#source-facts-glossary");
+    const boundaries = document.querySelector("#source-facts-boundaries");
     const select = document.querySelector("#source-module-select");
     const detail = document.querySelector("#source-module-detail");
     assert(details && !details.open, "source facts must be collapsed by default");
+    assert(glossary && !glossary.open, "glossary must be collapsed by default");
+    assert(boundaries && !boundaries.open, "technical boundaries must be collapsed by default");
+    assert(glossary.textContent.includes("Python 模块"), "plain-language glossary is missing");
+    assert(document.querySelector(".source-facts-intro")?.textContent.includes("代码清单"), "plain-language source introduction is missing");
+    assert(document.querySelector(".relationships-guide")?.textContent.includes("不同模块怎样合作"), "plain-language relationship guide is missing");
     assert(select.options.length === 4, "source module selector must expose the four scoped files");
     assert(document.querySelectorAll("#module-grid .module-card").length === 7, "seven-module view changed");
 

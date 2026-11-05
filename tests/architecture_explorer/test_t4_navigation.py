@@ -203,6 +203,18 @@ def test_offline_ui_wires_read_only_breadcrumb_context_menu_and_local_state_asse
     assert 'navigationPath: ["top-level"]' in state
 
 
+def test_relationship_section_explains_evidence_and_runtime_limit_in_plain_language() -> None:
+    page = (REPOSITORY / "architecture-explorer/web/index.html").read_text(encoding="utf-8")
+    relationship_section = page.split('<section class="relationships"', 1)[1].split(
+        "</section>", 1
+    )[0]
+
+    assert (
+        "看看不同模块怎样合作。这里展示有证据支持的模块协作方式；"
+        "点击关系可以了解依据。已审核不等于某次运行真的执行过。"
+    ) in relationship_section
+
+
 def test_return_navigation_is_after_history_and_uses_bottom_alignment() -> None:
     page = (REPOSITORY / "architecture-explorer/web/index.html").read_text(encoding="utf-8")
     styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")

@@ -276,10 +276,16 @@ h2 {
 }
 
 .relationships { margin-top: 64px; }
+.relationships-guide, .source-facts-intro { max-width: 850px; color: #444; line-height: 1.75; }
 
 .history-and-auxiliary, .source-facts { margin-top: 64px; border: 1px solid #dce4d8; border-radius: 20px; background: #fbfcfa; }
 .history-and-auxiliary > summary, .source-facts > summary { display: flex; justify-content: space-between; gap: 18px; padding: 22px 24px; color: #2f4630; font-weight: 750; cursor: pointer; }
 .source-facts-content { padding: 0 24px 24px; }
+.source-facts-help { margin-top: 12px; padding: 12px 14px; border: 1px solid #e1e6de; border-radius: 12px; background: #fff; }
+.source-facts-help > summary { color: #2f4630; font-weight: 700; cursor: pointer; }
+.source-facts-glossary { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 10px 18px; margin: 18px 0 4px; }
+.source-facts-glossary dt { font-weight: 750; }
+.source-facts-glossary dd { margin: 0; color: #444; line-height: 1.65; }
 .source-facts-notice { padding: 14px 16px; border-left: 4px solid #d6a1b4; background: #fff4f7; color: #5d4650; line-height: 1.6; }
 .source-facts label { display: block; margin: 20px 0 8px; font-weight: 700; }
 .source-facts select { width: 100%; padding: 11px 12px; border: 1px solid #b7c8af; border-radius: 10px; background: #fff; color: #233024; }
