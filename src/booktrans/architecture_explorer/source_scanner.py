@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import ast
 from copy import deepcopy
-import hashlib
-import json
 from pathlib import Path
-import subprocess
 from typing import Any
 
 from .candidate_scanner import validated_source_path
 from .generator import ExplorerInputError
+from .source_primitives import (
+    build_static_evidence,
+    canonical_bytes as _canonical_bytes,
+    git_output as _git,
+    read_stable_utf8,
+    sha256_bytes as _sha256,
+)
 
 
 SCANNER_VERSION = "architecture-explorer-t6-1/1.0"
@@ -28,61 +32,9 @@ LIMITATIONS = (
 _WORKER_WRAPPER = "scripts/production/run_qwen_deterministic_worker.py"
 
 
-def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-
-
-def _sha256(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def _git(repository: Path, *args: str) -> str:
-    completed = subprocess.run(
-        ["git", "-C", str(repository), *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip()
-        raise ExplorerInputError(f"Git metadata unavailable: {detail}")
-    return completed.stdout
-
-
-def _stat_signature(path: Path) -> tuple[int, int, int, int, int]:
-    stat = path.stat(follow_symlinks=False)
-    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
-
-
 def _read_stable_utf8(repository: Path, relative: str) -> tuple[str, str, int]:
     path = validated_source_path(repository, relative)
-    before_signature = _stat_signature(path)
-    before_resolved = path.resolve(strict=True)
-    try:
-        raw = path.read_bytes()
-    except OSError as error:
-        raise ExplorerInputError(f"T6-1 scan input could not be read: {relative}") from error
-    try:
-        after_signature = _stat_signature(path)
-        after_resolved = path.resolve(strict=True)
-    except (FileNotFoundError, OSError) as error:
-        raise ExplorerInputError(f"T6-1 scan input changed during scan: {relative}") from error
-    if (
-        before_signature != after_signature
-        or before_resolved != after_resolved
-        or len(raw) != after_signature[2]
-    ):
-        raise ExplorerInputError(f"T6-1 scan input changed during scan: {relative}")
-    try:
-        return raw.decode("utf-8"), _sha256(raw), len(raw)
-    except UnicodeDecodeError as error:
-        raise ExplorerInputError(f"T6-1 scan input is not UTF-8: {relative}") from error
+    return read_stable_utf8(path, relative, contract="T6-1")
 
 
 def _tracked_python_paths(repository: Path) -> list[str]:
@@ -123,42 +75,6 @@ def _snippet(text: str, node: ast.AST) -> str:
     return value
 
 
-def _evidence(
-    *,
-    relative: str,
-    file_sha256: str,
-    evidence_kind: str,
-    symbol: str,
-    structural_anchor: str,
-    syntax_position: str,
-    snippet: str,
-    line_start: int,
-    line_end: int,
-) -> dict[str, Any]:
-    normalized_hash = _sha256(" ".join(snippet.split()).encode("utf-8"))
-    identity = {
-        "path": relative,
-        "evidence_kind": evidence_kind,
-        "symbol": symbol,
-        "structural_anchor": structural_anchor,
-        "syntax_position": syntax_position,
-        "normalized_snippet_sha256": normalized_hash,
-    }
-    return {
-        "evidence_id": f"evidence:sha256:{_sha256(_canonical_bytes(identity))}",
-        "source_role": "automatic_source_fact",
-        "evidence_kind": evidence_kind,
-        "path": relative,
-        "symbol": symbol,
-        "structural_anchor": structural_anchor,
-        "syntax_position": syntax_position,
-        "current_location": {"line_start": line_start, "line_end": line_end},
-        "snippet": snippet,
-        "normalized_snippet_sha256": normalized_hash,
-        "file_sha256": file_sha256,
-    }
-
-
 def _node_evidence(
     text: str,
     relative: str,
@@ -170,8 +86,9 @@ def _node_evidence(
     structural_anchor: str,
     syntax_position: str,
 ) -> dict[str, Any]:
-    return _evidence(
-        relative=relative,
+    return build_static_evidence(
+        path=relative,
+        source_role="automatic_source_fact",
         file_sha256=file_sha256,
         evidence_kind=evidence_kind,
         symbol=symbol,
