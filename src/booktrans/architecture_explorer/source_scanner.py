@@ -250,6 +250,7 @@ if (@($parseErrors).Count -eq 0) {
         )) {
             return $false
         }
+        if (Test-T6ScriptScope $node $ast) { return $true }
         foreach ($element in @($node.CommandElements)) {
             if (
                 $element -is [System.Management.Automation.Language.StringConstantExpressionAst] -and

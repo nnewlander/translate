@@ -24,8 +24,8 @@ PowerShell 静态事实来源，以及“生产调度与控制”的未审核候
 - `Join-Path` 只有在绑定之前没有发现当前脚本中的命令解析污染时才可能为 `known`。
   有界污染集合包括同名函数、Alias 创建/修改/删除、显式
   `Function:\Join-Path`/`Alias:\Join-Path` provider 修改、`Import-Module`、
-  `Invoke-Expression` 以及 dot-source。污染后的绑定保留候选路径，但
-  `resolution=unknown`。
+  `Invoke-Expression`、dot-source，以及绑定前发生且 provider 无法排除的根脚本
+  Item 修改命令。污染后的绑定保留候选路径，但 `resolution=unknown`。
 - dot-source 按源码顺序只考虑此前已经建立的同一规范变量绑定；未来赋值不回溯，
   此前存在多个赋值或任何不合格赋值时保持 `unknown`。
 - 白名单函数名同样按大小写不敏感规则匹配；只有无条件的根脚本函数定义且不存在
@@ -88,7 +88,7 @@ $python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
 
 该命令只构建离线 Explorer；不会执行 Supervisor、Worker 或任何生产任务。
 
-当前扫描器有意不解释一般值流、间接命令调用、任意动态 provider 路径、作用域跨越
-调用、运行时模块内容、任意脚本块的执行可达性或外部会话预先存在的命令覆盖。
+当前扫描器有意不解释一般值流、间接命令调用、嵌套作用域中的动态 provider 路径、
+作用域跨越调用、运行时模块内容、任意脚本块的执行可达性或外部会话预先存在的命令覆盖。
 它只对上文列出的源码形状做失效判定；这些限制不会扩展为通用 PowerShell 调用图，
 `known` 也仍只表示在该有界源码契约内关系明确，不表示生产运行实际发生。

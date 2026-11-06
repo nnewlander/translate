@@ -620,6 +620,33 @@ def test_supervisor_join_path_function_provider_change_keeps_binding_unknown(
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
 
 
+def test_supervisor_dynamic_item_path_before_join_path_keeps_binding_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$providerPath = 'Function:\\Join-Path'\n"
+        "Set-Item $providerPath -Value { return 'alternate' }\n"
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
 def test_supervisor_import_before_join_path_keeps_binding_unknown(
     source_repository: Path,
 ) -> None:
