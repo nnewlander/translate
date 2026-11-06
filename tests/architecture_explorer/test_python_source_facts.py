@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -16,6 +17,10 @@ from booktrans.architecture_explorer.source_scanner import scan_python_source_fa
 PROJECT = Path(__file__).resolve().parents[2]
 MODULE_MAP = PROJECT / "architecture-explorer/modules.json"
 WEB_ASSETS = PROJECT / "architecture-explorer/web"
+SUPERVISOR_PATH = "scripts/production/production_campaign_supervisor.ps1"
+SUPERVISOR_VERIFICATION_PATH = (
+    "architecture-explorer/verified-sources/production-campaign-supervisor.v1.json"
+)
 
 
 def _git(repository: Path, *args: str) -> None:
@@ -32,6 +37,27 @@ def _write(repository: Path, relative: str, source: str) -> None:
     path = repository / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding="utf-8")
+    if relative == SUPERVISOR_PATH:
+        verification_path = repository / SUPERVISOR_VERIFICATION_PATH
+        verification_path.parent.mkdir(parents=True, exist_ok=True)
+        verification_path.write_text(
+            json.dumps(
+                {
+                    "schema": "architecture-explorer.verified-source.v1",
+                    "path": SUPERVISOR_PATH,
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+
+def _write_verified_supervisor(repository: Path, source: str) -> None:
+    _write(repository, SUPERVISOR_PATH, source)
+    _git(repository, "add", SUPERVISOR_PATH, SUPERVISOR_VERIFICATION_PATH)
 
 
 @pytest.fixture()
@@ -114,6 +140,7 @@ def test_fixed_source_scan_is_stable_shallow_and_does_not_assign_architecture(
         "Dynamic imports, runtime calls, and a complete call graph are not collected.",
         "Files outside the declared scope are unexamined, not historical, inactive, or invalid.",
         "PowerShell facts are limited to the single production Supervisor; no general PowerShell call graph is built.",
+        "PowerShell known facts require an exact verified Supervisor source SHA-256 match.",
         "Dynamic or ambiguous PowerShell paths remain unknown and do not prove script execution or architecture collaboration.",
     ]
 
@@ -320,6 +347,45 @@ def test_supervisor_powershell_parse_errors_remain_unknown(
     assert supervisor["entries"] == []
     assert supervisor["script_bindings"] == []
     assert supervisor["dot_sources"] == []
+
+
+def test_supervisor_source_version_mismatch_downgrades_all_ast_facts(
+    source_repository: Path,
+) -> None:
+    source = (
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n"
+        "function Refresh-State { return 'static' }\n"
+    )
+    _write_verified_supervisor(source_repository, source)
+
+    verified = scan_python_source_facts(source_repository)["powershell_scripts"][0]
+
+    assert verified["source_version"]["status"] == "verified"
+    assert verified["script_bindings"][0]["resolution"] == "known"
+    assert verified["dot_sources"][0]["resolution"] == "known"
+    assert verified["entries"][0]["resolution"] == "known"
+
+    (source_repository / SUPERVISOR_PATH).write_text(
+        source + "# unverified change\n",
+        encoding="utf-8",
+    )
+    _git(source_repository, "add", SUPERVISOR_PATH)
+
+    mismatch = scan_python_source_facts(source_repository)["powershell_scripts"][0]
+
+    assert mismatch["source_version"]["status"] == "mismatch"
+    assert all(
+        item["resolution"] == "unknown"
+        for collection in ("script_bindings", "dot_sources", "entries")
+        for item in mismatch[collection]
+    )
+    assert all(
+        item.get("target_path") is None
+        for collection in ("script_bindings", "dot_sources")
+        for item in mismatch[collection]
+    )
 
 
 def test_supervisor_conditional_binding_does_not_make_dot_source_known(
@@ -565,6 +631,31 @@ def test_supervisor_set_variable_wildcard_name_invalidates_static_binding(
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
 
 
+def test_supervisor_nested_set_variable_splat_invalidates_static_binding(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        SUPERVISOR_PATH,
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        "& {\n"
+        "    $parameters = @{ Name = 'workerScript'; Value = 'dynamic'; Scope = 'Script' }\n"
+        "    Set-Variable @parameters\n"
+        "}\n"
+        ". $workerScript\n",
+    )
+    _git(source_repository, "add", SUPERVISOR_PATH)
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
 def test_supervisor_join_path_function_shadow_keeps_binding_unknown(
     source_repository: Path,
 ) -> None:
@@ -675,6 +766,31 @@ def test_supervisor_global_join_path_alias_keeps_binding_unknown(
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
 
 
+def test_supervisor_nested_alias_splat_keeps_binding_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        SUPERVISOR_PATH,
+        "& {\n"
+        "    $parameters = @{ Name = 'Join-Path'; Value = 'Write-Output'; Scope = 'Global' }\n"
+        "    Set-Alias @parameters\n"
+        "}\n"
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n",
+    )
+    _git(source_repository, "add", SUPERVISOR_PATH)
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
 def test_supervisor_join_path_function_provider_change_keeps_binding_unknown(
     source_repository: Path,
 ) -> None:
@@ -717,6 +833,32 @@ def test_supervisor_nested_global_join_path_provider_keeps_binding_unknown(
         "add",
         "scripts/production/production_campaign_supervisor.ps1",
     )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
+def test_supervisor_nested_provider_splat_keeps_binding_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        SUPERVISOR_PATH,
+        "& {\n"
+        "    $parameters = @{ Path = 'Function:\\global:Join-Path'; "
+        "Value = { return 'alternate' } }\n"
+        "    Set-Item @parameters\n"
+        "}\n"
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n",
+    )
+    _git(source_repository, "add", SUPERVISOR_PATH)
 
     result = scan_python_source_facts(source_repository)
 

@@ -451,24 +451,23 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         ]
     ) == 0
 
-    assert review_main(
-        [
-            "build",
-            "--repository", str(repository),
-            "--snapshot", str(SNAPSHOT),
-            "--mapping", str(MODULE_MAP),
-            "--candidate", str(CANDIDATE),
-            "--review-mapping", str(REVIEW_MAP),
-            "--review-source", str(REVIEW_SOURCE),
-            "--review-state", "output/review-state.json",
-            "--navigation", str(NAVIGATION),
-            "--candidate-fragment", str(PRODUCTION_FRAGMENT),
-            "--candidate-fragment", str(DOCUMENT_FRAGMENT),
-            "--candidate-fragment", str(SCOPE_FRAGMENT),
-            "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
-            "--output-directory", "output/site",
-        ]
-    ) == 0
+    build_args = [
+        "build",
+        "--repository", str(repository),
+        "--snapshot", str(SNAPSHOT),
+        "--mapping", str(MODULE_MAP),
+        "--candidate", str(CANDIDATE),
+        "--review-mapping", str(REVIEW_MAP),
+        "--review-source", str(REVIEW_SOURCE),
+        "--review-state", "output/review-state.json",
+        "--navigation", str(NAVIGATION),
+        "--candidate-fragment", str(PRODUCTION_FRAGMENT),
+        "--candidate-fragment", str(DOCUMENT_FRAGMENT),
+        "--candidate-fragment", str(SCOPE_FRAGMENT),
+        "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
+        "--output-directory", "output/site",
+    ]
+    assert review_main(build_args) == 0
 
     data = json.loads(
         (repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
@@ -480,6 +479,15 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         item["path"] for item in data["generation_inputs"]["candidate_fragments"]
     ] == [PRODUCTION_FRAGMENT.name, DOCUMENT_FRAGMENT.name, SCOPE_FRAGMENT.name]
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
+
+    supervisor = repository / "scripts/production/production_campaign_supervisor.ps1"
+    supervisor.write_text(
+        supervisor.read_text(encoding="utf-8") + "\n# unverified source change\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ExplorerInputError, match="unknown source evidence"):
+        review_main(build_args)
 
 
 def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(
