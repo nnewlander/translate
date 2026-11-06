@@ -4,12 +4,34 @@
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   const card = (id) => document.querySelector(`[data-module-id="${id}"]`);
   const title = () => document.querySelector(".hero h1")?.textContent;
+  const assertCandidateTypography = () => {
+    const candidateCards = Array.from(document.querySelectorAll("#module-grid .module-card"));
+    assert(candidateCards.length > 0, "candidate cards missing");
+    for (const candidateCard of candidateCards) {
+      const professional = candidateCard.querySelector(".module-responsibility");
+      const plain = candidateCard.querySelector(".candidate-plain-explanation");
+      assert(professional && plain, "candidate text layers missing");
+      const professionalStyle = getComputedStyle(professional);
+      const plainStyle = getComputedStyle(plain);
+      assert(professionalStyle.fontSize === "16px", "candidate professional text must be 16px");
+      assert(plainStyle.fontSize === "14px", "candidate plain text must be 14px");
+      assert(plainStyle.color === "rgb(74, 77, 73)", "candidate plain text must use soft dark gray");
+      assert(parseFloat(professionalStyle.lineHeight) >= 26, "candidate professional line height is too tight");
+      assert(parseFloat(plainStyle.lineHeight) >= 22, "candidate plain line height is too tight");
+      assert(parseFloat(professionalStyle.marginBottom) >= 14, "candidate text layers are too close");
+      assert(candidateCard.scrollWidth <= candidateCard.clientWidth + 1, "candidate card overflows horizontally");
+      assert(professional.scrollWidth <= professional.clientWidth + 1, "professional text is clipped");
+      assert(plain.scrollWidth <= plain.clientWidth + 1, "plain text is clipped");
+    }
+    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "page overflows horizontally");
+  };
   try {
     if (title() !== "顶层架构") document.querySelector("#back-button").click();
     card("translation-execution").click();
     assert(title() === "翻译执行与模型接入", "translation drilldown did not open");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "translation candidate count changed");
+    assertCandidateTypography();
     assert(card("translation-routing-and-acquisition").textContent.includes("Worker/pipeline") && card("translation-routing-and-acquisition").textContent.includes("RAW 投影"), "Worker orchestration boundary missing");
     assert(card("translation-provider-adapters").textContent.includes("Provider") && card("translation-provider-adapters").textContent.includes("不负责 Worker 的流程编排"), "Provider adapter boundary missing");
     assert(card("translation-provider-adapters").textContent.includes("组件状态：未审核"), "provider adapter is not visibly unreviewed");
@@ -27,6 +49,7 @@
     assert(title() === "质量判断与受限修复", "quality drilldown did not open");
     children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "quality candidate count changed");
+    assertCandidateTypography();
     assert(card("quality-deterministic-qa").textContent.includes("固定量规"), "deterministic QA explanation missing");
     assert(card("quality-semantic-review-and-repair").textContent.includes("组件状态：未审核"), "semantic repair is not visibly unreviewed");
     collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));

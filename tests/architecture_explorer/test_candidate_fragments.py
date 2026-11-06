@@ -572,8 +572,11 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
 
 
-def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(
+@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (390, 844)])
+def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typography(
     tmp_path: Path,
+    viewport_width: int,
+    viewport_height: int,
 ) -> None:
     browser_candidates = (
         Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
@@ -621,6 +624,7 @@ def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(
             "--no-first-run",
             "--no-default-browser-check",
             "--allow-file-access-from-files",
+            f"--window-size={viewport_width},{viewport_height}",
             f"--user-data-dir={tmp_path / 'browser-profile'}",
             "--virtual-time-budget=2000",
             "--dump-dom",

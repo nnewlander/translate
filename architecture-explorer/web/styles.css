@@ -247,6 +247,8 @@ h2 {
 .module-card .module-plain-explanation { margin-bottom: 24px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
 .candidate-node-type { margin-top: 12px; color: #526b49; font-size: 0.78rem; font-weight: 750; letter-spacing: 0.08em; }
 .candidate-plain-explanation { margin: 0 0 18px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
+.module-card .candidate-node-type ~ .module-responsibility { margin-bottom: 14px; font-size: 16px; line-height: 1.7; }
+.module-card .candidate-plain-explanation { margin-bottom: 20px; color: #4a4d49; font-size: 14px; line-height: 1.65; }
 .candidate-evidence-count { margin: 0 0 16px; color: #526b49; font-size: 0.82rem; font-weight: 700; }
 
 .statuses { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
