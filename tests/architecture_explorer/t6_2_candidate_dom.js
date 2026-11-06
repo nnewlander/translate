@@ -29,6 +29,11 @@
     assert(detail.textContent.includes("src/booktrans/ooxml/extractor.py") && detail.textContent.includes("Evidence ID"), "candidate evidence is not locatable");
     document.querySelector("#relationship-detail").close();
 
+    card("document-translation-view").click();
+    detail = document.querySelector("#detail-content");
+    assert(detail.textContent.includes("候选组件") && detail.textContent.includes("组件状态：未审核"), "candidate component detail type changed");
+    document.querySelector("#relationship-detail").close();
+
     collaborations[0].click();
     detail = document.querySelector("#detail-content");
     assert(detail.textContent.includes("候选协作") && detail.textContent.includes("静态 import"), "collaboration detail explanation missing");

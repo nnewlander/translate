@@ -345,13 +345,14 @@
 
   const showModuleDetail = (module) => {
     const isCandidate = module.review_status === "candidate";
+    const candidateKind = module.node_type === "component" ? "组件" : "职责";
     const related = relationshipsForModule(module.id);
     detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
-    detailContent.append(text("p", isCandidate ? "候选逻辑职责" : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
+    detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
-    statuses.append(text("span", isCandidate ? "职责状态：未审核" : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
+    statuses.append(text("span", isCandidate ? `${candidateKind}状态：未审核` : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
     if (isCandidate) {
       statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
