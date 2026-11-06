@@ -19,7 +19,7 @@ from .source_primitives import (
 )
 
 
-SCANNER_VERSION = "architecture-explorer-t6-4/1.1"
+SCANNER_VERSION = "architecture-explorer-t6-4/1.2"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
@@ -93,6 +93,19 @@ function Test-T6ConditionalContext($node) {
     return $false
 }
 
+function Convert-T6VariableIdentity($node) {
+    $path = $node.VariablePath
+    $userPath = $path.UserPath
+    $separator = $userPath.IndexOf(':')
+    $name = if ($separator -ge 0) { $userPath.Substring($separator + 1) } else { $userPath }
+    $supported = $path.IsUnqualified -or $path.IsScript -or $path.IsLocal -or $path.IsPrivate
+    [pscustomobject][ordered]@{
+        name = $name
+        scope = $(if ($supported) { 'script' } else { 'unsupported' })
+        supported = [bool]$supported
+    }
+}
+
 $result = [ordered]@{
     parse_errors = @($parseErrors | ForEach-Object {
         [pscustomobject][ordered]@{
@@ -112,8 +125,12 @@ if (@($parseErrors).Count -eq 0) {
         $entryNames -contains $node.Name
     }, $true))
     foreach ($node in $functions) {
+        $known = (Test-T6ScriptScope $node $ast) -and
+            -not (Test-T6ConditionalContext $node)
         $result.entries += [pscustomobject][ordered]@{
             symbol = $node.Name
+            resolution = $(if ($known) { 'known' } else { 'unknown' })
+            start_offset = $node.Extent.StartOffset
             text = $node.Extent.Text
             line_start = $node.Extent.StartLineNumber
             line_end = $node.Extent.EndLineNumber
@@ -128,6 +145,7 @@ if (@($parseErrors).Count -eq 0) {
     foreach ($node in $assignments) {
         if (-not (Test-T6ScriptScope $node $ast)) { continue }
         $conditional = Test-T6ConditionalContext $node
+        $identity = Convert-T6VariableIdentity $node.Left
         $joins = @($node.Right.FindAll({
             param($child)
             $child -is [System.Management.Automation.Language.CommandAst] -and
@@ -147,20 +165,24 @@ if (@($parseErrors).Count -eq 0) {
                 $candidates += $elements[2].Value
             }
         }
-        if ($candidates.Count -gt 0) {
-            $known = $joins.Count -eq 1 -and
-                $candidates.Count -eq 1 -and
-                $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim() -and
-                -not $conditional
-            $result.bindings += [pscustomobject][ordered]@{
-                variable = $node.Left.VariablePath.UserPath
-                resolution = $(if ($known) { 'known' } else { 'unknown' })
-                target_path = $(if ($known) { $candidates[0] } else { $null })
-                candidate_paths = @($candidates)
-                text = $node.Extent.Text
-                line_start = $node.Extent.StartLineNumber
-                line_end = $node.Extent.EndLineNumber
-            }
+        $known = $joins.Count -eq 1 -and
+            $candidates.Count -eq 1 -and
+            $node.Operator -eq [System.Management.Automation.Language.TokenKind]::Equals -and
+            $identity.supported -and
+            $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim() -and
+            -not $conditional
+        $result.bindings += [pscustomobject][ordered]@{
+            variable = $node.Left.VariablePath.UserPath
+            variable_name = $identity.name
+            variable_scope = $identity.scope
+            operator = [string]$node.Operator
+            resolution = $(if ($known) { 'known' } else { 'unknown' })
+            target_path = $(if ($known) { $candidates[0] } else { $null })
+            candidate_paths = @($candidates)
+            start_offset = $node.Extent.StartOffset
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
         }
     }
 
@@ -173,14 +195,19 @@ if (@($parseErrors).Count -eq 0) {
         if (-not (Test-T6ScriptScope $node $ast)) { continue }
         $elements = @($node.CommandElements)
         $variable = $null
+        $identity = $null
         if (
             $elements.Count -eq 1 -and
             $elements[0] -is [System.Management.Automation.Language.VariableExpressionAst]
         ) {
             $variable = $elements[0].VariablePath.UserPath
+            $identity = Convert-T6VariableIdentity $elements[0]
         }
         $result.dot_sources += [pscustomobject][ordered]@{
             variable = $variable
+            variable_name = $(if ($null -ne $identity) { $identity.name } else { $null })
+            variable_scope = $(if ($null -ne $identity) { $identity.scope } else { 'unsupported' })
+            start_offset = $node.Extent.StartOffset
             text = $node.Extent.Text
             line_start = $node.Extent.StartLineNumber
             line_end = $node.Extent.EndLineNumber
@@ -576,31 +603,65 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
     if not all(isinstance(value, list) for value in (raw_entries, raw_bindings, raw_dot_sources)):
         raise ExplorerInputError("PowerShell AST parser omitted source fact collections")
 
+    entry_names = {name.casefold() for name in _SUPERVISOR_ENTRIES}
     entries = []
+    entries_by_symbol: dict[str, list[dict[str, Any]]] = {}
     for record in raw_entries:
         symbol = str(record["symbol"])
-        if symbol not in _SUPERVISOR_ENTRIES:
+        symbol_key = symbol.casefold()
+        if symbol_key not in entry_names:
             continue
-        entries.append(
-            {
-                "kind": "function_entry",
-                "symbol": symbol,
-                "resolution": "known",
-                "evidence": _powershell_evidence(
-                    record,
-                    file_sha256=file_sha256,
-                    evidence_kind="powershell_function_entry",
-                    symbol=symbol,
-                    structural_anchor=f"powershell:function:{symbol}",
-                    syntax_position=f"supervisor/function:{symbol}",
-                ),
-            }
-        )
+        fact = {
+            "kind": "function_entry",
+            "symbol": symbol,
+            "resolution": (
+                "known" if record.get("resolution") == "known" else "unknown"
+            ),
+            "source_order": int(record.get("start_offset", 0)),
+            "evidence": _powershell_evidence(
+                record,
+                file_sha256=file_sha256,
+                evidence_kind="powershell_function_entry",
+                symbol=symbol,
+                structural_anchor=f"powershell:function:{symbol}",
+                syntax_position=f"supervisor/function:{symbol}",
+            ),
+        }
+        entries.append(fact)
+        entries_by_symbol.setdefault(symbol_key, []).append(fact)
+
+    for matching_entries in entries_by_symbol.values():
+        if len(matching_entries) > 1:
+            for entry in matching_entries:
+                entry["resolution"] = "unknown"
+
+    def variable_key(record: dict[str, Any]) -> str | None:
+        name = record.get("variable_name")
+        scope = record.get("variable_scope")
+        if not isinstance(name, str) or not isinstance(scope, str):
+            return None
+        return f"{scope}:{name.casefold()}"
+
+    relevant_variable_keys = {
+        key
+        for record in raw_dot_sources
+        if (key := variable_key(record)) is not None
+    }
+    relevant_variable_keys.update(
+        key
+        for record in raw_bindings
+        if record.get("candidate_paths") and (key := variable_key(record)) is not None
+    )
 
     bindings = []
     bindings_by_variable: dict[str, list[dict[str, Any]]] = {}
     for record in raw_bindings:
+        record_key = variable_key(record)
+        if record_key not in relevant_variable_keys:
+            continue
         variable = str(record["variable"])
+        variable_name = str(record.get("variable_name", variable))
+        variable_scope = str(record.get("variable_scope", "unsupported"))
         candidate_paths = sorted(
             {str(item).replace("\\", "/") for item in record.get("candidate_paths", [])}
         )
@@ -613,9 +674,14 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         fact = {
             "kind": "script_binding",
             "variable": variable,
+            "variable_name": variable_name,
+            "variable_scope": variable_scope,
+            "operator": str(record.get("operator", "")),
+            "source_order": int(record.get("start_offset", 0)),
             "resolution": resolution,
             "target_path": target_path,
             "candidate_paths": candidate_paths,
+            "_statement_known": resolution == "known",
             "evidence": _powershell_evidence(
                 record,
                 file_sha256=file_sha256,
@@ -626,28 +692,38 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             ),
         }
         bindings.append(fact)
-        bindings_by_variable.setdefault(variable.casefold(), []).append(fact)
-
-    for matching_bindings in bindings_by_variable.values():
-        if len(matching_bindings) > 1:
-            for binding in matching_bindings:
-                binding["resolution"] = "unknown"
-                binding["target_path"] = None
+        bindings_by_variable.setdefault(record_key, []).append(fact)
 
     dot_sources = []
     for record in raw_dot_sources:
         variable = record.get("variable")
+        variable_name = record.get("variable_name")
+        variable_scope = record.get("variable_scope")
+        dot_variable_key = (
+            f"{variable_scope}:{variable_name.casefold()}"
+            if isinstance(variable_scope, str) and isinstance(variable_name, str)
+            else None
+        )
+        source_order = int(record.get("start_offset", 0))
         matching_bindings = (
-            bindings_by_variable.get(variable.casefold(), [])
-            if isinstance(variable, str)
+            bindings_by_variable.get(dot_variable_key, [])
+            if dot_variable_key is not None and variable_scope == "script"
             else []
         )
-        binding = matching_bindings[0] if len(matching_bindings) == 1 else None
-        resolution = "known" if binding and binding["resolution"] == "known" else "unknown"
+        prior_bindings = [
+            binding
+            for binding in matching_bindings
+            if binding["source_order"] < source_order
+        ]
+        binding = prior_bindings[0] if len(prior_bindings) == 1 else None
+        resolution = (
+            "known" if binding and binding["_statement_known"] else "unknown"
+        )
         dot_sources.append(
             {
                 "kind": "dot_source",
                 "symbol": f"${variable}" if isinstance(variable, str) else "unknown",
+                "source_order": source_order,
                 "resolution": resolution,
                 "target_path": binding["target_path"] if resolution == "known" else None,
                 "evidence": _powershell_evidence(
@@ -660,6 +736,14 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
                 ),
             }
         )
+
+    for matching_bindings in bindings_by_variable.values():
+        if len(matching_bindings) > 1:
+            for binding in matching_bindings:
+                binding["resolution"] = "unknown"
+                binding["target_path"] = None
+        for binding in matching_bindings:
+            del binding["_statement_known"]
 
     return [
         {

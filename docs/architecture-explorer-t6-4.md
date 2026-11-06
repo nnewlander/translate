@@ -10,8 +10,19 @@ PowerShell 静态事实来源，以及“生产调度与控制”的未审核候
   `scripts/production/production_campaign_supervisor.ps1`。
 - Windows PowerShell Parser AST 识别固定白名单中的关键函数入口、
   `Join-Path $Root` 的明确 `.py`/`.ps1` 脚本绑定，以及 dot-source。
-- 带参数覆盖、条件控制流、函数局部作用域、大小写变体多重赋值或其他不能静态唯一确定的绑定保留为
-  `resolution=unknown`；解析错误记录为 `parse_status=parse-error`，不产生伪事实。
+- 变量身份按 PowerShell 的大小写不敏感规则归一化；在根脚本中，无限定变量和
+  `script:`、`local:`、`private:` 限定变量视为同一脚本变量。其他作用域限定保持
+  `resolution=unknown`。
+- 只有根脚本中、无条件、普通 `=`、且 RHS 恰好是唯一受支持的
+  `Join-Path $Root 'scripts\production\*.py|*.ps1'` 的赋值，才有资格成为
+  `known`。`+=` 等复合赋值、动态 RHS、非 `Join-Path` RHS 和条件赋值都会作为
+  竞争赋值保留，并使相关绑定无法冒充唯一静态绑定。
+- dot-source 按源码顺序只考虑此前已经建立的同一规范变量绑定；未来赋值不回溯，
+  此前存在多个赋值或任何不合格赋值时保持 `unknown`。
+- 白名单函数名同样按大小写不敏感规则匹配；只有无条件的根脚本函数定义且不存在
+  同名竞争定义时才是 `known`。嵌套、条件或重复定义均为 `unknown`。
+- 函数局部赋值不会污染根脚本绑定；解析错误记录为
+  `parse_status=parse-error`，不产生伪事实。
 - 不读取或扫描绑定指向的专项脚本，不构建通用 PowerShell 调用图，
   不把绑定、dot-source 或函数声明解释为运行事实或正式架构协作。
 
@@ -67,3 +78,7 @@ $python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
 ```
 
 该命令只构建离线 Explorer；不会执行 Supervisor、Worker 或任何生产任务。
+
+当前扫描器有意不解释间接变量、provider 路径、作用域跨越调用、运行时模块导入、
+别名/函数对 `Join-Path` 的重定义，以及任意脚本块的执行可达性；这些超出受支持子集的
+语义保持 `unknown`，也不会扩展为通用 PowerShell 调用图。
