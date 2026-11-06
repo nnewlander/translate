@@ -536,6 +536,35 @@ def test_supervisor_dynamic_set_variable_name_invalidates_static_binding(
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
 
 
+def test_supervisor_set_variable_wildcard_name_invalidates_static_binding(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        "Set-Variable -Name 'worker*' -Value 'dynamic'\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["candidate_paths"] == [
+        "scripts/production/run_qwen_deterministic_worker.py"
+    ]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
 def test_supervisor_join_path_function_shadow_keeps_binding_unknown(
     source_repository: Path,
 ) -> None:
@@ -560,6 +589,32 @@ def test_supervisor_join_path_function_shadow_keeps_binding_unknown(
     assert binding["candidate_paths"] == [
         "scripts/production/run_qwen_deterministic_worker.py"
     ]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
+def test_supervisor_nested_global_join_path_function_keeps_binding_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "& { function global:Join-Path { return 'alternate' } }\n"
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
     assert binding["resolution"] == "unknown"
     assert binding["target_path"] is None
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
@@ -594,6 +649,32 @@ def test_supervisor_join_path_alias_change_keeps_binding_unknown(
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
 
 
+def test_supervisor_global_join_path_alias_keeps_binding_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "Set-Alias -Name Join-Path -Value Write-Output -Scope Global\n"
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
 def test_supervisor_join_path_function_provider_change_keeps_binding_unknown(
     source_repository: Path,
 ) -> None:
@@ -601,6 +682,32 @@ def test_supervisor_join_path_function_provider_change_keeps_binding_unknown(
         source_repository,
         "scripts/production/production_campaign_supervisor.ps1",
         "Set-Item Function:\\Join-Path -Value { return 'alternate' }\n"
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
+def test_supervisor_nested_global_join_path_provider_keeps_binding_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "& { Set-Item Function:\\global:Join-Path -Value { return 'alternate' } }\n"
         "$workerScript = Join-Path $Root "
         "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
         ". $workerScript\n",
@@ -671,6 +778,68 @@ def test_supervisor_import_before_join_path_keeps_binding_unknown(
     assert binding["resolution"] == "unknown"
     assert binding["target_path"] is None
     assert supervisor["dot_sources"][0]["resolution"] == "unknown"
+
+
+def test_supervisor_invoke_expression_between_binding_and_use_invalidates_dot_source(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        "Invoke-Expression '$workerScript = Get-ConfiguredWorkerScript'\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "known"
+    assert binding["target_path"] == (
+        "scripts/production/run_qwen_deterministic_worker.py"
+    )
+    dot_source = supervisor["dot_sources"][0]
+    assert dot_source["resolution"] == "unknown"
+    assert dot_source["target_path"] is None
+
+
+def test_supervisor_prior_dot_source_invalidates_later_binding_use(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        ". { $workerScript = Get-ConfiguredWorkerScript }\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["resolution"] == "known"
+    assert binding["target_path"] == (
+        "scripts/production/run_qwen_deterministic_worker.py"
+    )
+    assert [item["resolution"] for item in supervisor["dot_sources"]] == [
+        "unknown",
+        "unknown",
+    ]
+    assert supervisor["dot_sources"][1]["target_path"] is None
 
 
 def test_supervisor_dot_source_before_join_path_keeps_later_binding_unknown(
@@ -829,11 +998,13 @@ def test_supervisor_root_scope_qualifiers_share_case_insensitive_variable_identi
         "$local:workerscript",
         "$private:WORKERSCRIPT",
     ]
-    assert all(item["resolution"] == "known" for item in supervisor["dot_sources"])
-    assert all(
-        item["target_path"] == "scripts/production/run_qwen_deterministic_worker.py"
-        for item in supervisor["dot_sources"]
+    first_dot_source, second_dot_source = supervisor["dot_sources"]
+    assert first_dot_source["resolution"] == "known"
+    assert first_dot_source["target_path"] == (
+        "scripts/production/run_qwen_deterministic_worker.py"
     )
+    assert second_dot_source["resolution"] == "unknown"
+    assert second_dot_source["target_path"] is None
 
 
 def test_supervisor_dynamic_override_invalidates_prior_static_binding(

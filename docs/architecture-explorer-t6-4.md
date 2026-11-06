@@ -20,12 +20,16 @@ PowerShell 静态事实来源，以及“生产调度与控制”的未审核候
 - 根脚本直接赋值之外，扫描器只把下列明确写入识别为保守失效信号：嵌套作用域的
   `$script:` 赋值、`foreach` 迭代变量、直接变量解构，以及 `Set-Variable`/`sv`。
   `Set-Variable` 名称或影响作用域无法静态确定时，所有相关绑定均降级为 `unknown`；
-  扫描器不尝试推导这些写入的值。
+  名称包含 `*`、`?`、`[` 时也按未知目标处理，因为项目使用的 Windows PowerShell
+  5.1 实测会对这类名称执行通配匹配。扫描器不尝试推导这些写入的值。
 - `Join-Path` 只有在绑定之前没有发现当前脚本中的命令解析污染时才可能为 `known`。
-  有界污染集合包括同名函数、Alias 创建/修改/删除、显式
-  `Function:\Join-Path`/`Alias:\Join-Path` provider 修改、`Import-Module`、
-  `Invoke-Expression`、dot-source，以及绑定前发生且 provider 无法排除的根脚本
-  Item 修改命令。污染后的绑定保留候选路径，但 `resolution=unknown`。
+  有界污染集合包括 script/global 同名函数、script/global Alias 创建/修改/删除、显式
+  Function/Alias provider 修改、`Import-Module`、`Invoke-Expression`、dot-source，
+  以及绑定前发生且 provider 无法排除的根脚本 Item 修改命令。污染后的绑定保留
+  候选路径，但 `resolution=unknown`。
+- `Invoke-Expression` 或 dot-source 出现在已知绑定与后续 dot-source 使用点之间时，
+  赋值语句本身仍是明确静态事实，但后续使用点降级为 `unknown`；扫描器不推断动态
+  内容具体改写了哪个变量。
 - dot-source 按源码顺序只考虑此前已经建立的同一规范变量绑定；未来赋值不回溯，
   此前存在多个赋值或任何不合格赋值时保持 `unknown`。
 - 白名单函数名同样按大小写不敏感规则匹配；只有无条件的根脚本函数定义且不存在

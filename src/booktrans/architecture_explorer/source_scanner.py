@@ -19,7 +19,7 @@ from .source_primitives import (
 )
 
 
-SCANNER_VERSION = "architecture-explorer-t6-4/1.3"
+SCANNER_VERSION = "architecture-explorer-t6-4/1.4"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
@@ -142,6 +142,16 @@ function Test-T6CommandAffectsScriptScope($node, $scopeNode, $root) {
         ($null -ne $scopeNode -and $null -eq $explicitScope)
 }
 
+function Test-T6CommandAffectsCommandLookup($node, $scopeNode, $root) {
+    if (
+        $scopeNode -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $scopeNode.Value -eq 'Global'
+    ) {
+        return $true
+    }
+    return Test-T6CommandAffectsScriptScope $node $scopeNode $root
+}
+
 function New-T6ExtentHazard($node, [bool]$sourceOrderKnown) {
     [pscustomobject][ordered]@{
         source_order_known = $sourceOrderKnown
@@ -182,6 +192,7 @@ $result = [ordered]@{
     bindings = @()
     write_hazards = @()
     global_write_hazards = @()
+    runtime_value_hazards = @()
     command_resolution_hazards = @()
     dot_sources = @()
 }
@@ -217,7 +228,8 @@ if (@($parseErrors).Count -eq 0) {
     foreach ($node in $joinPathFunctions) {
         $rootScope = Test-T6ScriptScope $node $ast
         $scriptQualified = $node.Name -like 'script:*'
-        if (-not $rootScope -and -not $scriptQualified) { continue }
+        $globalQualified = $node.Name -like 'global:*'
+        if (-not $rootScope -and -not $scriptQualified -and -not $globalQualified) { continue }
         $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
     }
 
@@ -233,7 +245,7 @@ if (@($parseErrors).Count -eq 0) {
         $nameNode = Get-T6CommandArgument $elements 'Name' 1
         $scopeNode = Get-T6CommandArgument $elements 'Scope' -1
         $rootScope = Test-T6ScriptScope $node $ast
-        if (-not (Test-T6CommandAffectsScriptScope $node $scopeNode $ast)) { continue }
+        if (-not (Test-T6CommandAffectsCommandLookup $node $scopeNode $ast)) { continue }
         $staticName = $nameNode -is [System.Management.Automation.Language.StringConstantExpressionAst]
         if ($staticName -and $nameNode.Value -ne 'Join-Path') { continue }
         $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
@@ -254,7 +266,7 @@ if (@($parseErrors).Count -eq 0) {
         foreach ($element in @($node.CommandElements)) {
             if (
                 $element -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
-                $element.Value -match '^(function|alias):[\\/]*join-path$'
+                $element.Value -match '^(function|alias):[\\/]*(global:|script:)?join-path$'
             ) {
                 return $true
             }
@@ -274,6 +286,9 @@ if (@($parseErrors).Count -eq 0) {
     foreach ($node in $sessionMutationCommands) {
         $rootScope = Test-T6ScriptScope $node $ast
         $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+        if ($node.GetCommandName() -in @('Invoke-Expression', 'iex')) {
+            $result.runtime_value_hazards += New-T6ExtentHazard $node $rootScope
+        }
     }
 
     $assignments = @($ast.FindAll({
@@ -371,6 +386,10 @@ if (@($parseErrors).Count -eq 0) {
             $result.global_write_hazards += New-T6ExtentHazard $node $rootScope
             continue
         }
+        if ($nameNode.Value.IndexOfAny([char[]]'*?[') -ge 0) {
+            $result.global_write_hazards += New-T6ExtentHazard $node $rootScope
+            continue
+        }
         $userPath = $nameNode.Value.TrimStart('$')
         $separator = $userPath.IndexOf(':')
         $variableName = if ($separator -ge 0) {
@@ -402,6 +421,7 @@ if (@($parseErrors).Count -eq 0) {
     foreach ($node in $dotCommands) {
         if (-not (Test-T6ScriptScope $node $ast)) { continue }
         $result.command_resolution_hazards += New-T6ExtentHazard $node $true
+        $result.runtime_value_hazards += New-T6ExtentHazard $node $true
         $elements = @($node.CommandElements)
         $variable = $null
         $identity = $null
@@ -810,6 +830,7 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
     raw_bindings = structure.get("bindings")
     raw_write_hazards = structure.get("write_hazards")
     raw_global_write_hazards = structure.get("global_write_hazards")
+    raw_runtime_value_hazards = structure.get("runtime_value_hazards")
     raw_command_resolution_hazards = structure.get("command_resolution_hazards")
     raw_dot_sources = structure.get("dot_sources")
     if not all(
@@ -819,6 +840,7 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             raw_bindings,
             raw_write_hazards,
             raw_global_write_hazards,
+            raw_runtime_value_hazards,
             raw_command_resolution_hazards,
             raw_dot_sources,
         )
@@ -957,10 +979,19 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             if hazard.get("source_order_known") is not True
             or int(hazard.get("start_offset", 0)) < source_order
         ]
+        prior_runtime_value_hazards = [
+            hazard
+            for hazard in raw_runtime_value_hazards
+            if hazard.get("source_order_known") is not True
+            or int(hazard.get("start_offset", 0)) < source_order
+        ]
         binding = prior_bindings[0] if len(prior_bindings) == 1 else None
         resolution = (
             "known"
-            if binding and binding["_statement_known"] and not prior_global_hazards
+            if binding
+            and binding["_statement_known"]
+            and not prior_global_hazards
+            and not prior_runtime_value_hazards
             else "unknown"
         )
         dot_sources.append(
