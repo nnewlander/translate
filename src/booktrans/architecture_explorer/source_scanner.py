@@ -19,7 +19,7 @@ from .source_primitives import (
 )
 
 
-SCANNER_VERSION = "architecture-explorer-t6-4/1.2"
+SCANNER_VERSION = "architecture-explorer-t6-4/1.3"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
@@ -106,6 +106,70 @@ function Convert-T6VariableIdentity($node) {
     }
 }
 
+function Get-T6CommandArgument($elements, [string]$parameterName, [int]$position) {
+    for ($index = 1; $index -lt $elements.Count; $index++) {
+        $element = $elements[$index]
+        if (
+            $element -is [System.Management.Automation.Language.CommandParameterAst] -and
+            $element.ParameterName -eq $parameterName
+        ) {
+            if ($null -ne $element.Argument) { return $element.Argument }
+            if ($index + 1 -lt $elements.Count) { return $elements[$index + 1] }
+            return $null
+        }
+    }
+    if (
+        $position -ge 1 -and
+        $position -lt $elements.Count -and
+        -not ($elements[$position] -is [System.Management.Automation.Language.CommandParameterAst])
+    ) {
+        return $elements[$position]
+    }
+    return $null
+}
+
+function Test-T6CommandAffectsScriptScope($node, $scopeNode, $root) {
+    $rootScope = Test-T6ScriptScope $node $root
+    $explicitScope = if (
+        $scopeNode -is [System.Management.Automation.Language.StringConstantExpressionAst]
+    ) { $scopeNode.Value } else { $null }
+    if ($rootScope) {
+        return $null -eq $scopeNode -or
+            $null -eq $explicitScope -or
+            $explicitScope -in @('Script', 'Local', 'Private')
+    }
+    return $explicitScope -eq 'Script' -or
+        ($null -ne $scopeNode -and $null -eq $explicitScope)
+}
+
+function New-T6ExtentHazard($node, [bool]$sourceOrderKnown) {
+    [pscustomobject][ordered]@{
+        source_order_known = $sourceOrderKnown
+        start_offset = $node.Extent.StartOffset
+        text = $node.Extent.Text
+        line_start = $node.Extent.StartLineNumber
+        line_end = $node.Extent.EndLineNumber
+    }
+}
+
+function New-T6WriteHazard($variableNode, [string]$operator, $node, [bool]$sourceOrderKnown) {
+    $identity = Convert-T6VariableIdentity $variableNode
+    [pscustomobject][ordered]@{
+        variable = $variableNode.VariablePath.UserPath
+        variable_name = $identity.name
+        variable_scope = $identity.scope
+        operator = $operator
+        source_order_known = $sourceOrderKnown
+        resolution = 'unknown'
+        target_path = $null
+        candidate_paths = @()
+        start_offset = $node.Extent.StartOffset
+        text = $node.Extent.Text
+        line_start = $node.Extent.StartLineNumber
+        line_end = $node.Extent.EndLineNumber
+    }
+}
+
 $result = [ordered]@{
     parse_errors = @($parseErrors | ForEach-Object {
         [pscustomobject][ordered]@{
@@ -116,6 +180,9 @@ $result = [ordered]@{
     })
     entries = @()
     bindings = @()
+    write_hazards = @()
+    global_write_hazards = @()
+    command_resolution_hazards = @()
     dot_sources = @()
 }
 if (@($parseErrors).Count -eq 0) {
@@ -137,15 +204,87 @@ if (@($parseErrors).Count -eq 0) {
         }
     }
 
+    $joinPathFunctions = @($ast.FindAll({
+        param($node)
+        if (-not ($node -is [System.Management.Automation.Language.FunctionDefinitionAst])) {
+            return $false
+        }
+        $name = $node.Name
+        $separator = $name.IndexOf(':')
+        $baseName = if ($separator -ge 0) { $name.Substring($separator + 1) } else { $name }
+        return $baseName -eq 'Join-Path'
+    }, $true))
+    foreach ($node in $joinPathFunctions) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        $scriptQualified = $node.Name -like 'script:*'
+        if (-not $rootScope -and -not $scriptQualified) { continue }
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
+    $aliasCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -in @(
+            'Set-Alias', 'New-Alias', 'Remove-Alias', 'sal', 'nal', 'ral'
+        )
+    }, $true))
+    foreach ($node in $aliasCommands) {
+        $elements = @($node.CommandElements)
+        $nameNode = Get-T6CommandArgument $elements 'Name' 1
+        $scopeNode = Get-T6CommandArgument $elements 'Scope' -1
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (-not (Test-T6CommandAffectsScriptScope $node $scopeNode $ast)) { continue }
+        $staticName = $nameNode -is [System.Management.Automation.Language.StringConstantExpressionAst]
+        if ($staticName -and $nameNode.Value -ne 'Join-Path') { continue }
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
+    $providerMutationCommands = @($ast.FindAll({
+        param($node)
+        if (-not ($node -is [System.Management.Automation.Language.CommandAst])) {
+            return $false
+        }
+        if ($node.GetCommandName() -notin @(
+            'Set-Item', 'New-Item', 'Remove-Item', 'Rename-Item',
+            'Move-Item', 'Copy-Item', 'si', 'ni', 'ri', 'rni', 'mi', 'cpi'
+        )) {
+            return $false
+        }
+        foreach ($element in @($node.CommandElements)) {
+            if (
+                $element -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                $element.Value -match '^(function|alias):[\\/]*join-path$'
+            ) {
+                return $true
+            }
+        }
+        return $false
+    }, $true))
+    foreach ($node in $providerMutationCommands) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
+    $sessionMutationCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -in @('Import-Module', 'ipmo', 'Invoke-Expression', 'iex')
+    }, $true))
+    foreach ($node in $sessionMutationCommands) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
     $assignments = @($ast.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
         $node.Left -is [System.Management.Automation.Language.VariableExpressionAst]
     }, $true))
     foreach ($node in $assignments) {
-        if (-not (Test-T6ScriptScope $node $ast)) { continue }
-        $conditional = Test-T6ConditionalContext $node
         $identity = Convert-T6VariableIdentity $node.Left
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (-not $rootScope -and -not $node.Left.VariablePath.IsScript) { continue }
+        $conditional = Test-T6ConditionalContext $node
         $joins = @($node.Right.FindAll({
             param($child)
             $child -is [System.Management.Automation.Language.CommandAst] -and
@@ -169,6 +308,7 @@ if (@($parseErrors).Count -eq 0) {
             $candidates.Count -eq 1 -and
             $node.Operator -eq [System.Management.Automation.Language.TokenKind]::Equals -and
             $identity.supported -and
+            $rootScope -and
             $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim() -and
             -not $conditional
         $result.bindings += [pscustomobject][ordered]@{
@@ -176,9 +316,76 @@ if (@($parseErrors).Count -eq 0) {
             variable_name = $identity.name
             variable_scope = $identity.scope
             operator = [string]$node.Operator
+            source_order_known = [bool]$rootScope
             resolution = $(if ($known) { 'known' } else { 'unknown' })
             target_path = $(if ($known) { $candidates[0] } else { $null })
             candidate_paths = @($candidates)
+            start_offset = $node.Extent.StartOffset
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+
+    $destructuringAssignments = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [System.Management.Automation.Language.ArrayLiteralAst]
+    }, $true))
+    foreach ($node in $destructuringAssignments) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        foreach ($variableNode in @($node.Left.Elements)) {
+            if (-not ($variableNode -is [System.Management.Automation.Language.VariableExpressionAst])) {
+                continue
+            }
+            if (-not $rootScope -and -not $variableNode.VariablePath.IsScript) { continue }
+            $result.write_hazards += New-T6WriteHazard `
+                $variableNode 'Destructuring' $node $rootScope
+        }
+    }
+
+    $foreachStatements = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.ForEachStatementAst]
+    }, $true))
+    foreach ($node in $foreachStatements) {
+        $variableNode = $node.Variable
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (-not $rootScope -and -not $variableNode.VariablePath.IsScript) { continue }
+        $result.write_hazards += New-T6WriteHazard $variableNode 'ForEach' $node $rootScope
+    }
+
+    $setVariableCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -in @('Set-Variable', 'sv')
+    }, $true))
+    foreach ($node in $setVariableCommands) {
+        $elements = @($node.CommandElements)
+        $nameNode = Get-T6CommandArgument $elements 'Name' 1
+        $scopeNode = Get-T6CommandArgument $elements 'Scope' -1
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (-not (Test-T6CommandAffectsScriptScope $node $scopeNode $ast)) { continue }
+        if (-not ($nameNode -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
+            $result.global_write_hazards += New-T6ExtentHazard $node $rootScope
+            continue
+        }
+        $userPath = $nameNode.Value.TrimStart('$')
+        $separator = $userPath.IndexOf(':')
+        $variableName = if ($separator -ge 0) {
+            $userPath.Substring($separator + 1)
+        } else {
+            $userPath
+        }
+        $result.write_hazards += [pscustomobject][ordered]@{
+            variable = $userPath
+            variable_name = $variableName
+            variable_scope = 'script'
+            operator = 'SetVariable'
+            source_order_known = [bool]$rootScope
+            resolution = 'unknown'
+            target_path = $null
+            candidate_paths = @()
             start_offset = $node.Extent.StartOffset
             text = $node.Extent.Text
             line_start = $node.Extent.StartLineNumber
@@ -193,6 +400,7 @@ if (@($parseErrors).Count -eq 0) {
     }, $true))
     foreach ($node in $dotCommands) {
         if (-not (Test-T6ScriptScope $node $ast)) { continue }
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $true
         $elements = @($node.CommandElements)
         $variable = $null
         $identity = $null
@@ -599,9 +807,23 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         ]
     raw_entries = structure.get("entries")
     raw_bindings = structure.get("bindings")
+    raw_write_hazards = structure.get("write_hazards")
+    raw_global_write_hazards = structure.get("global_write_hazards")
+    raw_command_resolution_hazards = structure.get("command_resolution_hazards")
     raw_dot_sources = structure.get("dot_sources")
-    if not all(isinstance(value, list) for value in (raw_entries, raw_bindings, raw_dot_sources)):
+    if not all(
+        isinstance(value, list)
+        for value in (
+            raw_entries,
+            raw_bindings,
+            raw_write_hazards,
+            raw_global_write_hazards,
+            raw_command_resolution_hazards,
+            raw_dot_sources,
+        )
+    ):
         raise ExplorerInputError("PowerShell AST parser omitted source fact collections")
+    raw_bindings = [*raw_bindings, *raw_write_hazards]
 
     entry_names = {name.casefold() for name in _SUPERVISOR_ENTRIES}
     entries = []
@@ -665,7 +887,18 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         candidate_paths = sorted(
             {str(item).replace("\\", "/") for item in record.get("candidate_paths", [])}
         )
-        resolution = "known" if record.get("resolution") == "known" else "unknown"
+        source_order = int(record.get("start_offset", 0))
+        prior_command_hazards = [
+            hazard
+            for hazard in raw_command_resolution_hazards
+            if hazard.get("source_order_known") is not True
+            or int(hazard.get("start_offset", 0)) < source_order
+        ]
+        resolution = (
+            "known"
+            if record.get("resolution") == "known" and not prior_command_hazards
+            else "unknown"
+        )
         target_path = (
             str(record["target_path"]).replace("\\", "/")
             if resolution == "known" and isinstance(record.get("target_path"), str)
@@ -677,7 +910,8 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             "variable_name": variable_name,
             "variable_scope": variable_scope,
             "operator": str(record.get("operator", "")),
-            "source_order": int(record.get("start_offset", 0)),
+            "source_order": source_order,
+            "source_order_known": record.get("source_order_known") is True,
             "resolution": resolution,
             "target_path": target_path,
             "candidate_paths": candidate_paths,
@@ -713,11 +947,20 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         prior_bindings = [
             binding
             for binding in matching_bindings
-            if binding["source_order"] < source_order
+            if not binding["source_order_known"]
+            or binding["source_order"] < source_order
+        ]
+        prior_global_hazards = [
+            hazard
+            for hazard in raw_global_write_hazards
+            if hazard.get("source_order_known") is not True
+            or int(hazard.get("start_offset", 0)) < source_order
         ]
         binding = prior_bindings[0] if len(prior_bindings) == 1 else None
         resolution = (
-            "known" if binding and binding["_statement_known"] else "unknown"
+            "known"
+            if binding and binding["_statement_known"] and not prior_global_hazards
+            else "unknown"
         )
         dot_sources.append(
             {
@@ -738,7 +981,7 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         )
 
     for matching_bindings in bindings_by_variable.values():
-        if len(matching_bindings) > 1:
+        if len(matching_bindings) > 1 or raw_global_write_hazards:
             for binding in matching_bindings:
                 binding["resolution"] = "unknown"
                 binding["target_path"] = None
