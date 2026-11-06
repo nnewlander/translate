@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 from .generator import ExplorerInputError, validate_cli_output_path, write_json, write_site
-from .review_mapping import import_review_mapping, publish_reviewed_explorer
-from .navigation import apply_navigation
+from .candidate_fragments import apply_candidate_fragments
 from .continuity import update_review_state
+from .navigation import apply_navigation
+from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .review_source import (
     TRUSTED_COMMENT_ID,
@@ -60,6 +62,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--review-source", type=Path)
     build.add_argument("--review-state", type=Path)
     build.add_argument("--navigation", type=Path)
+    build.add_argument("--candidate-fragment", type=Path, action="append", default=[])
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
     return parser
@@ -126,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         inputs=tuple(
             path for path in (
                 args.snapshot, args.mapping, args.candidate, args.review_mapping, args.review_source,
-                args.navigation, args.web_assets, review_state_path
+                args.navigation, args.web_assets, review_state_path, *args.candidate_fragment
             ) if path is not None
         ),
         output_files=("explorer-data.json", "explorer-data.js", "index.html", "t4-state.js", "app.js", "styles.css"),
@@ -143,6 +146,18 @@ def main(argv: list[str] | None = None) -> int:
     data = attach_python_source_facts(data, scan_python_source_facts(args.repository))
     if args.navigation is not None:
         data = apply_navigation(data, _object(args.navigation))
+    if args.candidate_fragment:
+        data = apply_candidate_fragments(
+            data,
+            [_object(path) for path in args.candidate_fragment],
+        )
+        data["generation_inputs"]["candidate_fragments"] = [
+            {
+                "path": path.name,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+            for path in args.candidate_fragment
+        ]
     write_site(data, output, args.web_assets)
     relation = data["architecture"]["relationships"][0]
     print(f"site={output / 'index.html'}")

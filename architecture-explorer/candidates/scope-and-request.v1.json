@@ -1,0 +1,53 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "scope-and-request",
+  "name": "工作范围与请求构造",
+  "coverage_note": "本层只展示有 T6-1 静态源码事实支持的未审核候选，不表示文件归属或源码覆盖已经审核。",
+  "nodes": [
+    {
+      "id": "scope-logical-work-order-selection",
+      "node_type": "responsibility",
+      "name": "逻辑工作单元选择",
+      "professional_description": "候选职责：把已确定的物理内容范围投影为有稳定顺序的逻辑翻译工作单元。",
+      "plain_explanation": "像先圈定本次真正要处理的工单，并按既定顺序排好队。源码引用支持这项候选解释，但选择职责尚未审核。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:74492c3c57322fe5f87466e4bf44cc5cb2fe23659c5de2b32268c9236dcb066b",
+        "evidence:sha256:3b5cdacfbbe5fd5727f74bfa6524cef8837e61cfc5761933a4a2258f5944b942",
+        "evidence:sha256:cedc9d2ddffaf1bcf614b2733d67d06660a64c61f5313cffa4521f390333b3f1",
+        "evidence:sha256:41f956112f69aac07e47fbca948ce96078616c3da2e224a3727b950f88cdb792"
+      ]
+    },
+    {
+      "id": "scope-request-context-assembly",
+      "node_type": "component",
+      "name": "请求上下文与证据组装",
+      "professional_description": "候选组件：围绕 CalibrationRequest 汇集选中块、翻译视图以及精确脚注和 PDF 证据接口。",
+      "plain_explanation": "像为每张工单准备资料袋，把原文位置、翻译视图和所需证据放在一起。这里只能确认这些类型被源码直接引用，具体职责仍未审核。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b451391943f86f0d74739924ea6f99e731ba30b3678e17990ca978c619c684ee",
+        "evidence:sha256:72c94106eed7743bfc363efe53e46d8d6f16638af280baa4ffb716cd2be32f80",
+        "evidence:sha256:d318301b59d68b08b833a9427fa7da1418964f2385abfb134b6da047d0e51cbf",
+        "evidence:sha256:e1d64b0e61d7b5cb8e6b36d42b2e76cd513ae6afa0e6e021ed971773a2c2c2e1",
+        "evidence:sha256:85e2502ab43c4c114d44f77cd83341cb66b4778ca6af5f223b16535f3facde4a"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:scope-selection-to-request",
+      "source_node_id": "scope-logical-work-order-selection",
+      "target_node_id": "scope-request-context-assembly",
+      "name": "选定工作单元后准备请求材料",
+      "professional_description": "候选协作：逻辑工作单元范围为请求上下文及精确证据组装提供目标边界。",
+      "plain_explanation": "像先确定要办哪些工单，再为这些工单逐一配齐资料袋。现有 import 只能支持这项未审核候选，不能证明运行时流程。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:74492c3c57322fe5f87466e4bf44cc5cb2fe23659c5de2b32268c9236dcb066b",
+        "evidence:sha256:b451391943f86f0d74739924ea6f99e731ba30b3678e17990ca978c619c684ee",
+        "evidence:sha256:e1d64b0e61d7b5cb8e6b36d42b2e76cd513ae6afa0e6e021ed971773a2c2c2e1"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "document-understanding",
+  "name": "文档理解与定位",
+  "coverage_note": "本层只展示有 T6-1 静态源码事实支持的未审核候选，不表示文件归属或源码覆盖已经审核。",
+  "nodes": [
+    {
+      "id": "document-package-extraction",
+      "node_type": "responsibility",
+      "name": "DOCX 内容提取",
+      "professional_description": "候选职责：读取 DOCX 包及其 XML 部件，并形成带稳定定位信息的文档中间事实。",
+      "plain_explanation": "像档案拆包员把原书拆成可识别的材料，并为内容贴上位置标签。源码引用支持这项候选解释，但职责边界仍未审核。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:44990231f67c4fefc181bd2bb0f77346fb68e03787c80b81ccba602fb8b999f1",
+        "evidence:sha256:4d18a9ca35dfe8b299d91fee47450bacee343beb9a03a7790801cef443170951",
+        "evidence:sha256:7aecacaf036fddd03174420f483f628ca5d44ad93188b0a2d3ff9ebab0dc1dcb"
+      ]
+    },
+    {
+      "id": "document-translation-view",
+      "node_type": "component",
+      "name": "可翻译视图构造",
+      "professional_description": "候选组件：结合文档中间表示、源码定位器与翻译视图模型，组织可供后续处理的结构化视图。",
+      "plain_explanation": "像从带坐标的完整档案中整理出翻译工作台，让后续步骤知道内容和原位置。这里展示的是未审核候选，不是正式源码归属。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6c7798cace323d9d700361e4867373f36e0f5ddeb75a57b58464f4ae51e80386",
+        "evidence:sha256:5e68b55b5455a84270458056423101f17a435d333ba57e6c1d8830360f46c82d",
+        "evidence:sha256:87ccce27dfb7634b20bda977315db48097cf60665b0e26e68ad198256d5ae009"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:document-extraction-to-view",
+      "source_node_id": "document-package-extraction",
+      "target_node_id": "document-translation-view",
+      "name": "提取事实交给视图构造",
+      "professional_description": "候选协作：可定位的文档中间事实为结构化翻译视图提供输入边界。",
+      "plain_explanation": "像档案拆包员把贴好位置标签的材料交给翻译工作台。静态 import 只支持这项协作候选，不证明运行时交接已经发生。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6c7798cace323d9d700361e4867373f36e0f5ddeb75a57b58464f4ae51e80386",
+        "evidence:sha256:5e68b55b5455a84270458056423101f17a435d333ba57e6c1d8830360f46c82d"
+      ]
+    }
+  ]
+}

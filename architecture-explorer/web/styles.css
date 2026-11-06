@@ -245,6 +245,9 @@ h2 {
 }
 .module-card .module-responsibility { margin-bottom: 12px; }
 .module-card .module-plain-explanation { margin-bottom: 24px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
+.candidate-node-type { margin-top: 12px; color: #526b49; font-size: 0.78rem; font-weight: 750; letter-spacing: 0.08em; }
+.candidate-plain-explanation { margin: 0 0 18px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
+.candidate-evidence-count { margin: 0 0 16px; color: #526b49; font-size: 0.82rem; font-weight: 700; }
 
 .statuses { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
@@ -307,6 +310,13 @@ h2 {
 .context-menu button:hover, .context-menu button:focus-visible { background: #eaf1e6; outline: none; }
 
 .relationship-list { display: grid; gap: 15px; }
+.candidate-collaborations { margin-top: 34px; padding: 22px; border: 1px solid #dce4d8; border-radius: 20px; background: #f9fbf8; }
+.candidate-collaborations h3 { margin: 0 0 15px; font-family: Georgia, "Songti SC", serif; }
+.candidate-collaboration-list { display: grid; gap: 13px; }
+.candidate-collaboration { width: 100%; padding: 18px; border: 1px solid #b7c8af; border-radius: 16px; background: #fff; color: #242424; font: inherit; text-align: left; cursor: pointer; }
+.candidate-collaboration:hover, .candidate-collaboration:focus-visible { border-color: #526b49; outline: 3px solid rgba(120, 148, 107, 0.16); }
+.candidate-collaboration h4 { margin: 13px 0 8px; color: #283b29; font-family: Georgia, "Songti SC", serif; font-size: 1.08rem; }
+.candidate-collaboration-professional { margin: 0 0 9px; line-height: 1.65; }
 
 .relationship-line {
   display: grid;
@@ -382,6 +392,9 @@ h2 {
 .evidence-group > h4 { margin: 0 0 8px; color: #283b29; font-family: Georgia, "Songti SC", serif; font-size: 1.14rem; }
 .group-description { margin: 0 0 18px; color: #4a4a4a; line-height: 1.65; }
 .evidence-card { margin-top: 14px; padding: 20px; border: 1px solid #e1e6de; border-radius: 17px; background: #fff; }
+.candidate-evidence-card { margin-top: 14px; padding: 18px; border: 1px solid #e1e6de; border-radius: 16px; background: #fff; }
+.candidate-evidence-card h4 { margin: 0 0 8px; }
+.candidate-evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
 .evidence-role { margin: 0 0 8px; color: #526b49; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; }
 .evidence-card h4 { margin: 0 0 8px; }
 .evidence-explanation { margin: 0; color: #2f2f2f; line-height: 1.7; }
