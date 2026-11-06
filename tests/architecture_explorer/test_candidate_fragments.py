@@ -572,7 +572,10 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
 
 
-@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (390, 844)])
+@pytest.mark.parametrize(
+    ("viewport_width", "viewport_height"),
+    [(1280, 900), (1440, 900), (390, 844)],
+)
 def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typography(
     tmp_path: Path,
     viewport_width: int,

@@ -29,6 +29,43 @@
       professionalToPlain: Math.round(plain.getBoundingClientRect().top - professional.getBoundingClientRect().bottom),
     };
   };
+  const assertStatusesShareRow = (moduleCard) => {
+    const container = moduleCard.querySelector(".statuses");
+    const badges = Array.from(container?.querySelectorAll(".status") || []);
+    assert(badges.length >= 2, "module status badges missing");
+    const tops = badges.map((badge) => Math.round(badge.getBoundingClientRect().top));
+    const widths = badges.map((badge) => Math.round(badge.getBoundingClientRect().width));
+    assert(
+      tops.every((top) => top === tops[0]),
+      `module status badges do not share a row when space is available (${container.clientWidth}px: ${widths.join("+")})`,
+    );
+  };
+  const assertStatusesWrapAsWholeBadges = () => {
+    const source = card("translation-execution");
+    const sourceBadgeHeight = source.querySelector(".status").getBoundingClientRect().height;
+    const fixture = document.createElement("div");
+    fixture.style.cssText = "position:fixed;left:-10000px;top:0;visibility:hidden";
+    const compactCard = source.cloneNode(true);
+    const narrowCard = source.cloneNode(true);
+    compactCard.style.width = "326px";
+    narrowCard.style.width = "250px";
+    fixture.append(compactCard, narrowCard);
+    document.body.append(fixture);
+    try {
+      assertStatusesShareRow(compactCard);
+      const container = narrowCard.querySelector(".statuses");
+      const badges = Array.from(container.querySelectorAll(".status"));
+      const containerRect = container.getBoundingClientRect();
+      const badgeRects = badges.map((badge) => badge.getBoundingClientRect());
+      assert(Math.round(badgeRects[1].top) > Math.round(badgeRects[0].top), "narrow status badges must wrap to another row");
+      assert(badgeRects.every((rect) => Math.abs(rect.height - sourceBadgeHeight) < 1), "status badge text must not wrap internally");
+      assert(badgeRects.every((rect) => rect.left >= containerRect.left && rect.right <= containerRect.right + 1), "narrow status badge overflows its card");
+      assert(badgeRects[0].bottom <= badgeRects[1].top, "wrapped status badges overlap");
+      assert(narrowCard.scrollWidth <= narrowCard.clientWidth + 1, "narrow module card overflows horizontally");
+    } finally {
+      fixture.remove();
+    }
+  };
   const assertCandidateMatchesTopStandard = (reference) => {
     const candidateCards = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(candidateCards.length > 0, "candidate cards missing");
@@ -52,12 +89,17 @@
       assert(candidateCard.scrollWidth <= candidateCard.clientWidth + 1, "candidate card overflows horizontally");
       assert(professional.scrollWidth <= professional.clientWidth + 1, "professional text is clipped");
       assert(plain.scrollWidth <= plain.clientWidth + 1, "plain text is clipped");
+      if (innerWidth >= 1280) assertStatusesShareRow(candidateCard);
     }
     assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "page overflows horizontally");
   };
   try {
     if (title() !== "顶层架构") document.querySelector("#back-button").click();
     const topLevelStandard = captureCardStandard(card("translation-execution"), ".module-plain-explanation");
+    if (innerWidth >= 1280) {
+      Array.from(document.querySelectorAll("#module-grid .module-card")).forEach(assertStatusesShareRow);
+    }
+    assertStatusesWrapAsWholeBadges();
     card("translation-execution").click();
     assert(title() === "翻译执行与模型接入", "translation drilldown did not open");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
