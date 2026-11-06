@@ -1,0 +1,51 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "quality-and-repair",
+  "name": "质量判断与受限修复",
+  "coverage_note": "本层只展示有 T6-1 静态源码事实支持的未审核候选，不表示文件归属、运行可达或源码覆盖已经审核。",
+  "nodes": [
+    {
+      "id": "quality-deterministic-qa",
+      "node_type": "responsibility",
+      "name": "确定性结构 QA",
+      "professional_description": "候选职责：以翻译请求、候选结果和结构化视图执行格式锚点及确定性诊断检查。",
+      "plain_explanation": "像先用固定量规检查译文的编号、标记和结构是否守规矩；源码引用支持这项候选解释，但不表示全部质量规则都已归入这里。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:c68c284a3c4858d995aa5092daa71ba4ae43a2f4c8984053595d0cd0e3f6c01d",
+        "evidence:sha256:54fc9bc45ff40e49f62d49b8f7d190ec34eb617c520d78f464d544ce1296178f",
+        "evidence:sha256:1ae25b2034070447e25666841fcc8f737a60a314ba17ba1ca1ba23c728a0b36c"
+      ]
+    },
+    {
+      "id": "quality-semantic-review-and-repair",
+      "node_type": "component",
+      "name": "语义审核与受限修复",
+      "professional_description": "候选组件：组织语义审核上下文，并依据修复资格与批准合同约束后续修复。",
+      "plain_explanation": "像质检员判断意思是否可靠，再由有明确返修单的工位处理允许修改的部分；静态依赖不能证明任何候选已经获准修复。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:f19f9875217cec5296d796fadb0001dfb0a24e115f7b4d325c9465c7623a6ca7",
+        "evidence:sha256:0ee42856d1485c346b3c98f00ac096209b4e6298692e507371c79a571d410c48",
+        "evidence:sha256:029772a522f363ad21e4ae2c4c527c8d4d2b0b17fcd4e5b5369947ab79bb8c33",
+        "evidence:sha256:58903418ad4171b5bb8ff334c4b683a2d5d4a353f3c54f4b22430e55c377c4b6"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:quality-qa-to-semantic-repair",
+      "source_node_id": "quality-deterministic-qa",
+      "target_node_id": "quality-semantic-review-and-repair",
+      "name": "确定性检查衔接语义审核与修复门禁",
+      "professional_description": "候选协作：确定性 QA 结果与语义审核、修复资格判断共同约束候选结果的后续处置。",
+      "plain_explanation": "像固定量规的检查单交给语义质检和返修门禁一起判断下一步；静态 import 只支持候选关系，不证明实际处理顺序。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6e5daf60a526a924bc3d776dd66d37cb52b12fcb6cb29dc834baebd692c0abe9",
+        "evidence:sha256:0ee42856d1485c346b3c98f00ac096209b4e6298692e507371c79a571d410c48",
+        "evidence:sha256:029772a522f363ad21e4ae2c4c527c8d4d2b0b17fcd4e5b5369947ab79bb8c33"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "translation-execution",
+  "name": "翻译执行与模型接入",
+  "coverage_note": "本层只展示有 T6-1 静态源码事实支持的未审核候选，不表示文件归属、运行可达或源码覆盖已经审核。",
+  "nodes": [
+    {
+      "id": "translation-routing-and-acquisition",
+      "node_type": "responsibility",
+      "name": "语义路由与候选获取",
+      "professional_description": "候选职责：Worker/pipeline 编排请求处理、选择 Provider 路由，并完成受翻译结果合同约束的 RAW 投影。",
+      "plain_explanation": "像翻译窗口里的调度员：Worker/pipeline 决定工单走哪个模型柜台、交接请求并统一收回 RAW 回执；具体模型怎么调用由 Provider 柜台处理。源码引用支持这项候选解释，但不证明某次请求实际走过该路线。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:d55785f6425c76a38557500a8aa1a213b233cfcfbe166e90ea493cec7ef8bad9",
+        "evidence:sha256:cf8b1f80bc34f3f0b0b6948f8f21e9a2a616e36256dee5f68910ea5363cf4358"
+      ]
+    },
+    {
+      "id": "translation-provider-adapters",
+      "node_type": "component",
+      "name": "Qwen 提供方适配",
+      "professional_description": "候选组件：Provider 模型适配层以共享请求与候选合同衔接 Qwen MT 和 Qwen Max。",
+      "plain_explanation": "像两个模型服务柜台都使用同一套收件单和回执格式：它们负责模型适配，不负责 Worker 的流程编排。这里只能确认静态依赖，组件边界仍未审核。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4c6239f3072f949608ab351042d81b259a40c381bfbc958085846107f1ccbd70",
+        "evidence:sha256:07e4f3494c3839e64f0654410bd555cc329c6792a9111e00b2723a74e20ef129"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:translation-routing-to-provider",
+      "source_node_id": "translation-routing-and-acquisition",
+      "target_node_id": "translation-provider-adapters",
+      "name": "路由决定衔接提供方适配",
+      "professional_description": "候选协作：Worker/pipeline 的路由决定把统一请求交给 Qwen MT 或 Qwen Max 的 Provider 适配层。",
+      "plain_explanation": "像分诊台把工单交给合适的模型柜台，再按统一格式收回结果；静态 import 只支持这项协作候选，不证明运行时调用已经发生。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:d55785f6425c76a38557500a8aa1a213b233cfcfbe166e90ea493cec7ef8bad9",
+        "evidence:sha256:7309f08c1b7add222fedd09d8d693cf01b1ee5d91e9e750a91bc4718dd52e3d2",
+        "evidence:sha256:f50a8261e2eaf46c0e23e4f77e961ecc0d7221c645ec523e8fd6632dd8ad19dd"
+      ]
+    }
+  ]
+}
