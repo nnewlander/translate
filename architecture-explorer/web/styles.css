@@ -244,16 +244,26 @@ h2 {
   line-height: 1.75;
 }
 .module-card .module-responsibility { margin-bottom: 12px; }
-.module-card .module-plain-explanation { margin-bottom: 24px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
-.candidate-node-type { margin-top: 12px; color: #526b49; font-size: 0.78rem; font-weight: 750; letter-spacing: 0.08em; }
+.module-card .module-plain-explanation,
+.module-card .candidate-plain-explanation { margin-bottom: 24px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
+.candidate-node-type {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  color: #526b49;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
 .candidate-plain-explanation { margin: 0 0 18px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
 .candidate-evidence-count { margin: 0 0 16px; color: #526b49; font-size: 0.82rem; font-weight: 700; }
 
-.statuses { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.statuses { display: flex; flex-wrap: wrap; gap: 8px 6px; margin-top: auto; }
 
 .status {
   display: inline-flex;
-  padding: 8px 11px;
+  flex: 0 0 auto;
+  padding: 8px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: #ffffff;
@@ -261,6 +271,7 @@ h2 {
   font-size: 0.85rem;
   font-weight: 650;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .approved { border-color: #b7c8af; background: #eaf1e6; color: #2f4630; }
@@ -428,6 +439,7 @@ h2 {
   .snapshot { margin-bottom: 50px; padding: 24px; }
   .module-grid { grid-template-columns: 1fr; gap: 17px; }
   .module-card { min-height: 0; padding: 26px; }
+  .candidate-node-type { top: 26px; right: 26px; }
   .relationship-line { grid-template-columns: 1fr auto 1fr; }
   .relation-type, .relation-status { grid-column: 1 / -1; justify-self: start; }
 }
