@@ -21,7 +21,6 @@ from .source_primitives import (
 
 SCANNER_VERSION = "architecture-explorer-t6-4/1.5"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
-VERIFIED_SOURCE_SCHEMA = "architecture-explorer.verified-source.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
     "scripts/architecture_explorer/",
@@ -33,14 +32,10 @@ LIMITATIONS = (
     "Dynamic imports, runtime calls, and a complete call graph are not collected.",
     "Files outside the declared scope are unexamined, not historical, inactive, or invalid.",
     "PowerShell facts are limited to the single production Supervisor; no general PowerShell call graph is built.",
-    "PowerShell known facts require an exact verified Supervisor source SHA-256 match.",
     "Dynamic or ambiguous PowerShell paths remain unknown and do not prove script execution or architecture collaboration.",
 )
 _WORKER_WRAPPER = "scripts/production/run_qwen_deterministic_worker.py"
 _SUPERVISOR = "scripts/production/production_campaign_supervisor.ps1"
-_SUPERVISOR_VERIFICATION = (
-    "architecture-explorer/verified-sources/production-campaign-supervisor.v1.json"
-)
 _SUPERVISOR_ENTRIES = (
     "Get-AutoRecoveryPolicy",
     "Invoke-AuthoritativeCursorDecision",
@@ -830,44 +825,11 @@ def _powershell_evidence(
     )
 
 
-def _supervisor_source_version(
-    repository: Path,
-    actual_sha256: str,
-) -> dict[str, str]:
-    text, manifest_sha256, _ = _read_stable_utf8(
-        repository,
-        _SUPERVISOR_VERIFICATION,
-    )
-    try:
-        manifest = json.loads(text)
-    except json.JSONDecodeError as error:
-        raise ExplorerInputError("Supervisor source verification manifest is invalid JSON") from error
-    if not isinstance(manifest, dict):
-        raise ExplorerInputError("Supervisor source verification manifest must be an object")
-    expected_sha256 = manifest.get("sha256")
-    if (
-        manifest.get("schema") != VERIFIED_SOURCE_SCHEMA
-        or manifest.get("path") != _SUPERVISOR
-        or not isinstance(expected_sha256, str)
-        or len(expected_sha256) != 64
-        or any(character not in "0123456789abcdef" for character in expected_sha256)
-    ):
-        raise ExplorerInputError("Supervisor source verification manifest is invalid")
-    return {
-        "status": "verified" if actual_sha256 == expected_sha256 else "mismatch",
-        "verification_path": _SUPERVISOR_VERIFICATION,
-        "verification_manifest_sha256": manifest_sha256,
-        "expected_sha256": expected_sha256,
-        "actual_sha256": actual_sha256,
-    }
-
-
 def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
     tracked = _git(repository, "ls-files", "--", _SUPERVISOR).splitlines()
     if _SUPERVISOR not in {item.replace("\\", "/") for item in tracked}:
         return []
     text, file_sha256, size_bytes = _read_stable_utf8(repository, _SUPERVISOR)
-    source_version = _supervisor_source_version(repository, file_sha256)
     structure = _powershell_ast(text)
     parse_errors = structure.get("parse_errors")
     if not isinstance(parse_errors, list):
@@ -880,7 +842,6 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
                 "size_bytes": size_bytes,
                 "parse_status": "parse-error",
                 "parse_errors": parse_errors,
-                "source_version": source_version,
                 "entries": [],
                 "script_bindings": [],
                 "dot_sources": [],
@@ -1080,12 +1041,6 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         for binding in matching_bindings:
             del binding["_statement_known"]
 
-    if source_version["status"] != "verified":
-        for fact in [*entries, *bindings, *dot_sources]:
-            fact["resolution"] = "unknown"
-            if "target_path" in fact:
-                fact["target_path"] = None
-
     return [
         {
             "path": _SUPERVISOR,
@@ -1093,7 +1048,6 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             "size_bytes": size_bytes,
             "parse_status": "parsed",
             "parse_errors": [],
-            "source_version": source_version,
             "entries": sorted(entries, key=lambda item: item["symbol"]),
             "script_bindings": sorted(bindings, key=lambda item: item["variable"]),
             "dot_sources": dot_sources,

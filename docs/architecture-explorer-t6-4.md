@@ -8,11 +8,6 @@ PowerShell 静态事实来源，以及“生产调度与控制”的未审核候
 
 - 唯一 PowerShell 输入是
   `scripts/production/production_campaign_supervisor.ps1`。
-- 经过核验的源码版本记录在
-  `architecture-explorer/verified-sources/production-campaign-supervisor.v1.json`。
-  扫描器复用稳定读取产生的实际文件 SHA-256：完全匹配时才允许 AST 事实进入
-  `known`；不匹配时仍解析真实 AST，但入口、绑定和 dot-source 全部降级为
-  `unknown`。验证清单缺失或格式无效时扫描明确失败，不沿用旧事实。
 - Windows PowerShell Parser AST 识别固定白名单中的关键函数入口、
   `Join-Path $Root` 的明确 `.py`/`.ps1` 脚本绑定，以及 dot-source。
 - 变量身份按 PowerShell 的大小写不敏感规则归一化；在根脚本中，无限定变量和
@@ -103,4 +98,3 @@ $python = (Resolve-Path '.\.venv\Scripts\python.exe').Path
 作用域跨越调用、运行时模块内容、任意脚本块的执行可达性或外部会话预先存在的命令覆盖。
 它只对上文列出的源码形状做失效判定；这些限制不会扩展为通用 PowerShell 调用图，
 `known` 也仍只表示在该有界源码契约内关系明确，不表示生产运行实际发生。
-源码 SHA-256 只是该契约的版本门禁，不能替代 PowerShell AST 解析或静态形状检查。

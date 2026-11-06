@@ -482,12 +482,18 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
 
     supervisor = repository / "scripts/production/production_campaign_supervisor.ps1"
     supervisor.write_text(
-        supervisor.read_text(encoding="utf-8") + "\n# unverified source change\n",
+        supervisor.read_text(encoding="utf-8") + "\n# unrelated source comment\n",
         encoding="utf-8",
     )
 
-    with pytest.raises(ExplorerInputError, match="unknown source evidence"):
-        review_main(build_args)
+    assert review_main(build_args) == 0
+    rebuilt = json.loads(
+        (repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
+    )
+    relationship = rebuilt["architecture"]["relationships"][0]
+    assert relationship["review_status"] == "current-reviewed"
+    assert relationship["source_continuity"]["status"] == "exact-match"
+    assert len(relationship["evidence_ids"]) == 13
 
 
 def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(

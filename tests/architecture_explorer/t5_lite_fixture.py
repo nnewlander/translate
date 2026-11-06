@@ -8,9 +8,6 @@ from booktrans.architecture_explorer.candidate_scanner import AUXILIARY_TEST_FIL
 
 
 PROJECT = Path(__file__).resolve().parents[2]
-SUPERVISOR_VERIFICATION = (
-    "architecture-explorer/verified-sources/production-campaign-supervisor.v1.json"
-)
 
 
 def git(repository: Path, *args: str) -> None:
@@ -41,7 +38,7 @@ def commit(repository: Path, message: str) -> None:
 def create_source_repository(root: Path) -> Path:
     repository = root / "source"
     repository.mkdir()
-    for relative in (*PRODUCTION_FILES, *AUXILIARY_TEST_FILES, SUPERVISOR_VERIFICATION):
+    for relative in (*PRODUCTION_FILES, *AUXILIARY_TEST_FILES):
         destination = repository / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(PROJECT / relative, destination)
