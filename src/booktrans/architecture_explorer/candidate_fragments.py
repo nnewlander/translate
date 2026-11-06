@@ -101,6 +101,10 @@ def apply_candidate_fragments(
             )
         fragment_parent_ids.add(parent_module_id)
         existing_drilldown = drilldown_by_parent.get(parent_module_id)
+        if existing_drilldown is not None and parent_module_id != "production-control":
+            raise ExplorerInputError(
+                f"Candidate fragment parent module must be unique: {parent_module_id}"
+            )
         existing_children = {
             child.get("id"): child
             for child in existing_drilldown.get("children", [])

@@ -233,7 +233,10 @@ def test_supervisor_powershell_ast_reports_only_static_entries_and_bindings(
         "$deterministicWorkerScript = Join-Path $Root "
         "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
         "$promptPath = Join-Path $Root 'scripts\\production\\production_worker_prompt.txt'\n"
+        "$ambiguousScript = Join-Path $Root 'scripts\\production\\first.ps1'\n"
+        "$ambiguousScript = Join-Path $Root 'scripts\\production\\second.ps1'\n"
         ". $controlPlaneAdapterScript\n"
+        ". $ambiguousScript\n"
         "function Start-DeterministicWorkerProcess { throw 'must never execute' }\n"
         "function Refresh-State { throw 'must never execute' }\n"
         "function Unrelated-Helper { throw 'outside the bounded entry set' }\n",
@@ -270,10 +273,13 @@ def test_supervisor_powershell_ast_reports_only_static_entries_and_bindings(
     assert bindings["stateScript"]["candidate_paths"] == [
         "scripts/production/rebuild_production_campaign_state.py"
     ]
-    assert supervisor["dot_sources"][0]["resolution"] == "known"
-    assert supervisor["dot_sources"][0]["target_path"] == (
+    dot_sources = {item["symbol"]: item for item in supervisor["dot_sources"]}
+    assert dot_sources["$controlPlaneAdapterScript"]["resolution"] == "known"
+    assert dot_sources["$controlPlaneAdapterScript"]["target_path"] == (
         "scripts/production/control_plane_decision_adapters.ps1"
     )
+    assert dot_sources["$ambiguousScript"]["resolution"] == "unknown"
+    assert dot_sources["$ambiguousScript"]["target_path"] is None
     for fact in [
         *supervisor["entries"],
         *supervisor["script_bindings"],

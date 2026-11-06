@@ -59,14 +59,7 @@ $ast = [System.Management.Automation.Language.Parser]::ParseInput(
     [ref]$parseErrors
 )
 $entryNames = @(
-    'Get-AutoRecoveryPolicy',
-    'Invoke-AuthoritativeCursorDecision',
-    'Invoke-AuthoritativeHandoffDecision',
-    'Invoke-ControlPlaneShadow',
-    'Invoke-CurrentExecutionProjection',
-    'Invoke-SupervisorRetryPolicy',
-    'Refresh-State',
-    'Start-DeterministicWorkerProcess'
+__ENTRY_NAMES__
 )
 $result = [ordered]@{
     parse_errors = @($parseErrors | ForEach-Object {
@@ -464,6 +457,8 @@ def _scan_module(repository: Path, relative: str) -> dict[str, Any]:
 
 def _powershell_ast(text: str) -> dict[str, Any]:
     encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    entry_names = "\n".join(f"    '{name}'" for name in _SUPERVISOR_ENTRIES)
+    query = _POWERSHELL_SOURCE_FACTS_QUERY.replace("__ENTRY_NAMES__", entry_names)
     try:
         completed = subprocess.run(
             [
@@ -472,7 +467,7 @@ def _powershell_ast(text: str) -> dict[str, Any]:
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                _POWERSHELL_SOURCE_FACTS_QUERY,
+                query,
             ],
             input=encoded,
             check=False,
@@ -567,7 +562,7 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
         )
 
     bindings = []
-    binding_by_variable: dict[str, dict[str, Any]] = {}
+    bindings_by_variable: dict[str, list[dict[str, Any]]] = {}
     for record in raw_bindings:
         variable = str(record["variable"])
         candidate_paths = sorted(
@@ -595,12 +590,15 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             ),
         }
         bindings.append(fact)
-        binding_by_variable[variable] = fact
+        bindings_by_variable.setdefault(variable, []).append(fact)
 
     dot_sources = []
     for record in raw_dot_sources:
         variable = record.get("variable")
-        binding = binding_by_variable.get(variable) if isinstance(variable, str) else None
+        matching_bindings = (
+            bindings_by_variable.get(variable, []) if isinstance(variable, str) else []
+        )
+        binding = matching_bindings[0] if len(matching_bindings) == 1 else None
         resolution = "known" if binding and binding["resolution"] == "known" else "unknown"
         dot_sources.append(
             {
