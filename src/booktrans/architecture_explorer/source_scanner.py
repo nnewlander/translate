@@ -19,7 +19,7 @@ from .source_primitives import (
 )
 
 
-SCANNER_VERSION = "architecture-explorer-t6-4/1.0"
+SCANNER_VERSION = "architecture-explorer-t6-4/1.1"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
@@ -61,6 +61,38 @@ $ast = [System.Management.Automation.Language.Parser]::ParseInput(
 $entryNames = @(
 __ENTRY_NAMES__
 )
+
+function Test-T6ScriptScope($node, $root) {
+    $ancestor = $node.Parent
+    while ($null -ne $ancestor) {
+        if ($ancestor -is [System.Management.Automation.Language.ScriptBlockAst]) {
+            return [object]::ReferenceEquals($ancestor, $root)
+        }
+        $ancestor = $ancestor.Parent
+    }
+    return $false
+}
+
+function Test-T6ConditionalContext($node) {
+    $conditionalTypes = @(
+        'IfStatementAst',
+        'SwitchStatementAst',
+        'ForEachStatementAst',
+        'ForStatementAst',
+        'WhileStatementAst',
+        'DoWhileStatementAst',
+        'DoUntilStatementAst',
+        'TryStatementAst',
+        'TrapStatementAst'
+    )
+    $ancestor = $node.Parent
+    while ($null -ne $ancestor) {
+        if ($conditionalTypes -contains $ancestor.GetType().Name) { return $true }
+        $ancestor = $ancestor.Parent
+    }
+    return $false
+}
+
 $result = [ordered]@{
     parse_errors = @($parseErrors | ForEach-Object {
         [pscustomobject][ordered]@{
@@ -94,6 +126,8 @@ if (@($parseErrors).Count -eq 0) {
         $node.Left -is [System.Management.Automation.Language.VariableExpressionAst]
     }, $true))
     foreach ($node in $assignments) {
+        if (-not (Test-T6ScriptScope $node $ast)) { continue }
+        $conditional = Test-T6ConditionalContext $node
         $joins = @($node.Right.FindAll({
             param($child)
             $child -is [System.Management.Automation.Language.CommandAst] -and
@@ -116,7 +150,8 @@ if (@($parseErrors).Count -eq 0) {
         if ($candidates.Count -gt 0) {
             $known = $joins.Count -eq 1 -and
                 $candidates.Count -eq 1 -and
-                $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim()
+                $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim() -and
+                -not $conditional
             $result.bindings += [pscustomobject][ordered]@{
                 variable = $node.Left.VariablePath.UserPath
                 resolution = $(if ($known) { 'known' } else { 'unknown' })
@@ -135,6 +170,7 @@ if (@($parseErrors).Count -eq 0) {
         $node.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot
     }, $true))
     foreach ($node in $dotCommands) {
+        if (-not (Test-T6ScriptScope $node $ast)) { continue }
         $elements = @($node.CommandElements)
         $variable = $null
         if (
@@ -590,13 +626,21 @@ def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
             ),
         }
         bindings.append(fact)
-        bindings_by_variable.setdefault(variable, []).append(fact)
+        bindings_by_variable.setdefault(variable.casefold(), []).append(fact)
+
+    for matching_bindings in bindings_by_variable.values():
+        if len(matching_bindings) > 1:
+            for binding in matching_bindings:
+                binding["resolution"] = "unknown"
+                binding["target_path"] = None
 
     dot_sources = []
     for record in raw_dot_sources:
         variable = record.get("variable")
         matching_bindings = (
-            bindings_by_variable.get(variable, []) if isinstance(variable, str) else []
+            bindings_by_variable.get(variable.casefold(), [])
+            if isinstance(variable, str)
+            else []
         )
         binding = matching_bindings[0] if len(matching_bindings) == 1 else None
         resolution = "known" if binding and binding["resolution"] == "known" else "unknown"

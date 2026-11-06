@@ -42,6 +42,8 @@ def _source_evidence_ids(explorer: dict[str, Any]) -> set[str]:
             if not isinstance(facts, list):
                 continue
             for fact in facts:
+                if not isinstance(fact, dict) or fact.get("resolution") != "known":
+                    continue
                 evidence = fact.get("evidence") if isinstance(fact, dict) else None
                 evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
                 if isinstance(evidence_id, str):

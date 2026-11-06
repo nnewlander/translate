@@ -273,6 +273,14 @@ def test_supervisor_powershell_ast_reports_only_static_entries_and_bindings(
     assert bindings["stateScript"]["candidate_paths"] == [
         "scripts/production/rebuild_production_campaign_state.py"
     ]
+    ambiguous_bindings = [
+        item
+        for item in supervisor["script_bindings"]
+        if item["variable"] == "ambiguousScript"
+    ]
+    assert len(ambiguous_bindings) == 2
+    assert all(item["resolution"] == "unknown" for item in ambiguous_bindings)
+    assert all(item["target_path"] is None for item in ambiguous_bindings)
     dot_sources = {item["symbol"]: item for item in supervisor["dot_sources"]}
     assert dot_sources["$controlPlaneAdapterScript"]["resolution"] == "known"
     assert dot_sources["$controlPlaneAdapterScript"]["target_path"] == (
@@ -312,6 +320,109 @@ def test_supervisor_powershell_parse_errors_remain_unknown(
     assert supervisor["entries"] == []
     assert supervisor["script_bindings"] == []
     assert supervisor["dot_sources"] == []
+
+
+def test_supervisor_conditional_binding_does_not_make_dot_source_known(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "if ($flag) {\n"
+        "    $workerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        "}\n"
+        ". $workerScript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    binding = supervisor["script_bindings"][0]
+    assert binding["variable"] == "workerScript"
+    assert binding["resolution"] == "unknown"
+    assert binding["target_path"] is None
+    assert binding["candidate_paths"] == [
+        "scripts/production/run_qwen_deterministic_worker.py"
+    ]
+    dot_source = supervisor["dot_sources"][0]
+    assert dot_source["symbol"] == "$workerScript"
+    assert dot_source["resolution"] == "unknown"
+    assert dot_source["target_path"] is None
+
+
+def test_supervisor_function_local_binding_does_not_pollute_script_dot_source(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$WorkerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        "function Set-LocalWorker {\n"
+        "    $WORKERSCRIPT = Join-Path $Root 'scripts\\production\\local_worker.py'\n"
+        "    . $WORKERSCRIPT\n"
+        "}\n"
+        ". $workerscript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    assert [item["target_path"] for item in supervisor["script_bindings"]] == [
+        "scripts/production/run_qwen_deterministic_worker.py"
+    ]
+    assert len(supervisor["dot_sources"]) == 1
+    dot_source = supervisor["dot_sources"][0]
+    assert dot_source["symbol"] == "$workerscript"
+    assert dot_source["resolution"] == "known"
+    assert dot_source["target_path"] == (
+        "scripts/production/run_qwen_deterministic_worker.py"
+    )
+
+
+def test_supervisor_variable_binding_ambiguity_is_case_insensitive(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$WorkerScript = Join-Path $Root 'scripts\\production\\first.py'\n"
+        "$workerscript = Join-Path $Root 'scripts\\production\\second.py'\n"
+        ". $workerscript\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    bindings = supervisor["script_bindings"]
+    assert len(bindings) == 2
+    assert {item["variable"] for item in bindings} == {"WorkerScript", "workerscript"}
+    assert all(item["resolution"] == "unknown" for item in bindings)
+    assert all(item["target_path"] is None for item in bindings)
+    assert {tuple(item["candidate_paths"]) for item in bindings} == {
+        ("scripts/production/first.py",),
+        ("scripts/production/second.py",),
+    }
+    dot_source = supervisor["dot_sources"][0]
+    assert dot_source["symbol"] == "$workerscript"
+    assert dot_source["resolution"] == "unknown"
+    assert dot_source["target_path"] is None
 
 
 def test_file_change_during_single_read_fails_conservatively(

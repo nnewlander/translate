@@ -10,7 +10,7 @@ PowerShell 静态事实来源，以及“生产调度与控制”的未审核候
   `scripts/production/production_campaign_supervisor.ps1`。
 - Windows PowerShell Parser AST 识别固定白名单中的关键函数入口、
   `Join-Path $Root` 的明确 `.py`/`.ps1` 脚本绑定，以及 dot-source。
-- 带参数覆盖、条件分支或其他不能静态唯一确定的绑定保留为
+- 带参数覆盖、条件控制流、函数局部作用域、大小写变体多重赋值或其他不能静态唯一确定的绑定保留为
   `resolution=unknown`；解析错误记录为 `parse_status=parse-error`，不产生伪事实。
 - 不读取或扫描绑定指向的专项脚本，不构建通用 PowerShell 调用图，
   不把绑定、dot-source 或函数声明解释为运行事实或正式架构协作。

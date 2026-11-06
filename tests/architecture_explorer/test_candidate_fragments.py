@@ -398,6 +398,22 @@ def test_candidate_fragment_rejects_dangling_source_evidence() -> None:
         apply_candidate_fragments(explorer, [fragment])
 
 
+def test_candidate_fragment_rejects_unresolved_powershell_evidence() -> None:
+    explorer = _explorer_with_source_facts()
+    fragment = _json(DOCUMENT_FRAGMENT)
+    supervisor = explorer["source_facts"]["powershell_scripts"][0]
+    unresolved = next(
+        item
+        for item in supervisor["script_bindings"]
+        if item["variable"] == "stateScript"
+    )
+    assert unresolved["resolution"] == "unknown"
+    fragment["nodes"][0]["evidence_ids"][0] = unresolved["evidence"]["evidence_id"]
+
+    with pytest.raises(ExplorerInputError, match="unknown source evidence"):
+        apply_candidate_fragments(explorer, [fragment])
+
+
 def test_candidate_fragments_reject_global_node_id_collisions() -> None:
     explorer = _explorer_with_source_facts()
     document = _json(DOCUMENT_FRAGMENT)
