@@ -32,6 +32,10 @@ DOCUMENT_FRAGMENT = (
     REPOSITORY / "architecture-explorer/candidates/document-understanding.v1.json"
 )
 SCOPE_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/scope-and-request.v1.json"
+TRANSLATION_FRAGMENT = (
+    REPOSITORY / "architecture-explorer/candidates/translation-execution.v1.json"
+)
+QUALITY_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/quality-and-repair.v1.json"
 
 
 def _json(path: Path) -> dict:
@@ -67,6 +71,39 @@ def _direct_import_evidence_id(
         if item["module"] == imported_module
     )
     return fact["evidence"]["evidence_id"]
+
+
+def test_translation_and_quality_fragments_add_unreviewed_candidate_drilldowns() -> None:
+    explorer = _explorer_with_source_facts()
+
+    result = apply_candidate_fragments(
+        explorer,
+        [_json(TRANSLATION_FRAGMENT), _json(QUALITY_FRAGMENT)],
+    )
+
+    drilldowns = {
+        item["parent_module_id"]: item
+        for item in result["navigation"]["drilldowns"]
+    }
+    translation = drilldowns["translation-execution"]
+    quality = drilldowns["quality-and-repair"]
+    assert [child["node_type"] for child in translation["children"]] == [
+        "responsibility",
+        "component",
+    ]
+    assert [child["node_type"] for child in quality["children"]] == [
+        "responsibility",
+        "component",
+    ]
+    assert len(translation["collaborations"]) == 1
+    assert len(quality["collaborations"]) == 1
+    assert all(
+        child["review_status"] == "candidate"
+        and child["source_assignment"]["status"] == "unverified"
+        for drilldown in (translation, quality)
+        for child in drilldown["children"]
+    )
+    assert result["architecture"] == explorer["architecture"]
 
 
 def test_candidate_fragment_adds_unreviewed_document_drilldown_without_changing_trust() -> None:
@@ -273,6 +310,13 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         "src/booktrans/ooxml/translation_view.py",
         "scripts/write_full_book_translation_scope.py",
         "src/booktrans/production_worker/selection.py",
+        "src/booktrans/production_worker/pipeline.py",
+        "src/booktrans/production_worker/qa.py",
+        "src/booktrans/production_worker/semantic_review_run.py",
+        "src/booktrans/providers/qwen_max.py",
+        "src/booktrans/providers/qwen_mt.py",
+        "src/booktrans/providers/repair_gate.py",
+        "src/booktrans/providers/router.py",
     ):
         destination = repository / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -303,6 +347,8 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
             "--navigation", str(NAVIGATION),
             "--candidate-fragment", str(DOCUMENT_FRAGMENT),
             "--candidate-fragment", str(SCOPE_FRAGMENT),
+            "--candidate-fragment", str(TRANSLATION_FRAGMENT),
+            "--candidate-fragment", str(QUALITY_FRAGMENT),
             "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
             "--output-directory", "output/site",
         ]
@@ -313,10 +359,21 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
     )
     assert [
         item["parent_module_id"] for item in data["navigation"]["drilldowns"]
-    ] == ["production-control", "document-understanding", "scope-and-request"]
+    ] == [
+        "production-control",
+        "document-understanding",
+        "scope-and-request",
+        "translation-execution",
+        "quality-and-repair",
+    ]
     assert [
         item["path"] for item in data["generation_inputs"]["candidate_fragments"]
-    ] == [DOCUMENT_FRAGMENT.name, SCOPE_FRAGMENT.name]
+    ] == [
+        DOCUMENT_FRAGMENT.name,
+        SCOPE_FRAGMENT.name,
+        TRANSLATION_FRAGMENT.name,
+        QUALITY_FRAGMENT.name,
+    ]
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
 
 
@@ -324,15 +381,20 @@ def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(
     tmp_path: Path,
 ) -> None:
     browser_candidates = (
-        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
         Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
     )
     browser = next((path for path in browser_candidates if path.is_file()), None)
     if browser is None:
         pytest.skip("Chrome or Edge headless browser is unavailable")
     data = apply_candidate_fragments(
         _explorer_with_source_facts(),
-        [_json(DOCUMENT_FRAGMENT), _json(SCOPE_FRAGMENT)],
+        [
+            _json(DOCUMENT_FRAGMENT),
+            _json(SCOPE_FRAGMENT),
+            _json(TRANSLATION_FRAGMENT),
+            _json(QUALITY_FRAGMENT),
+        ],
     )
     site = tmp_path / "site"
     write_site(data, site, REPOSITORY / "architecture-explorer/web")
@@ -340,10 +402,16 @@ def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(
         REPOSITORY / "tests/architecture_explorer/t6_2_candidate_dom.js",
         site / "t6_2_candidate_dom.js",
     )
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t6_3_candidate_dom.js",
+        site / "t6_3_candidate_dom.js",
+    )
     page = site / "index.html"
     page.write_text(
         page.read_text(encoding="utf-8").replace(
-            "</body>", '<script src="t6_2_candidate_dom.js"></script></body>'
+            "</body>",
+            '<script src="t6_2_candidate_dom.js"></script>'
+            '<script src="t6_3_candidate_dom.js"></script></body>',
         ),
         encoding="utf-8",
     )
@@ -372,3 +440,4 @@ def test_real_browser_shows_candidate_nodes_collaborations_and_evidence(
     )
     assert completed.returncode == 0, completed.stderr
     assert 'data-t6-candidate="pass"' in completed.stdout, completed.stdout
+    assert 'data-t6-three-candidate="pass"' in completed.stdout, completed.stdout
