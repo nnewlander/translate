@@ -8,8 +8,8 @@
       "id": "translation-routing-and-acquisition",
       "node_type": "responsibility",
       "name": "语义路由与候选获取",
-      "professional_description": "候选职责：依据请求语义选择提供方路线，并把提供方候选投影为受现有翻译结果合同约束的 RAW 结果。",
-      "plain_explanation": "像翻译窗口先判断工单该交给哪条模型通道，再按统一收件格式接回候选译文。源码引用支持这项候选解释，但不证明某次请求实际走过该路线。",
+      "professional_description": "候选职责：Worker/pipeline 编排请求处理、选择 Provider 路由，并完成受翻译结果合同约束的 RAW 投影。",
+      "plain_explanation": "像翻译窗口里的调度员：Worker/pipeline 决定工单走哪个模型柜台、交接请求并统一收回 RAW 回执；具体模型怎么调用由 Provider 柜台处理。源码引用支持这项候选解释，但不证明某次请求实际走过该路线。",
       "review_status": "candidate",
       "evidence_ids": [
         "evidence:sha256:d55785f6425c76a38557500a8aa1a213b233cfcfbe166e90ea493cec7ef8bad9",
@@ -20,8 +20,8 @@
       "id": "translation-provider-adapters",
       "node_type": "component",
       "name": "Qwen 提供方适配",
-      "professional_description": "候选组件：以共享提供方请求与候选合同衔接 Qwen MT 与 Qwen Max 的模型适配实现。",
-      "plain_explanation": "像两个模型服务柜台都使用同一套收件单和回执格式，让上游不用理解各自的接口细节。这里只能确认静态依赖，组件边界仍未审核。",
+      "professional_description": "候选组件：Provider 模型适配层以共享请求与候选合同衔接 Qwen MT 和 Qwen Max。",
+      "plain_explanation": "像两个模型服务柜台都使用同一套收件单和回执格式：它们负责模型适配，不负责 Worker 的流程编排。这里只能确认静态依赖，组件边界仍未审核。",
       "review_status": "candidate",
       "evidence_ids": [
         "evidence:sha256:4c6239f3072f949608ab351042d81b259a40c381bfbc958085846107f1ccbd70",
@@ -35,8 +35,8 @@
       "source_node_id": "translation-routing-and-acquisition",
       "target_node_id": "translation-provider-adapters",
       "name": "路由决定衔接提供方适配",
-      "professional_description": "候选协作：语义路线选择为 Qwen MT 或 Qwen Max 适配调用提供候选边界。",
-      "plain_explanation": "像分诊台把工单指向合适的模型柜台；静态 import 只支持这项协作候选，不证明运行时调用已经发生。",
+      "professional_description": "候选协作：Worker/pipeline 的路由决定把统一请求交给 Qwen MT 或 Qwen Max 的 Provider 适配层。",
+      "plain_explanation": "像分诊台把工单交给合适的模型柜台，再按统一格式收回结果；静态 import 只支持这项协作候选，不证明运行时调用已经发生。",
       "review_status": "candidate",
       "evidence_ids": [
         "evidence:sha256:d55785f6425c76a38557500a8aa1a213b233cfcfbe166e90ea493cec7ef8bad9",

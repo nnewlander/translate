@@ -25,6 +25,7 @@
       "plain_explanation": "像质检员判断意思是否可靠，再由有明确返修单的工位处理允许修改的部分；静态依赖不能证明任何候选已经获准修复。",
       "review_status": "candidate",
       "evidence_ids": [
+        "evidence:sha256:f19f9875217cec5296d796fadb0001dfb0a24e115f7b4d325c9465c7623a6ca7",
         "evidence:sha256:0ee42856d1485c346b3c98f00ac096209b4e6298692e507371c79a571d410c48",
         "evidence:sha256:029772a522f363ad21e4ae2c4c527c8d4d2b0b17fcd4e5b5369947ab79bb8c33",
         "evidence:sha256:58903418ad4171b5bb8ff334c4b683a2d5d4a353f3c54f4b22430e55c377c4b6"

@@ -37,6 +37,90 @@ TRANSLATION_FRAGMENT = (
 )
 QUALITY_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/quality-and-repair.v1.json"
 
+EXPECTED_T6_3_EVIDENCE_SEMANTICS = {
+    "translation-routing-and-acquisition": {
+        (
+            "src/booktrans/production_worker/pipeline.py",
+            "booktrans.providers.router",
+            "route_semantic_unit",
+        ),
+        (
+            "src/booktrans/production_worker/pipeline.py",
+            "booktrans.providers.translation_provider",
+            "project_plain_candidate_to_raw",
+        ),
+    },
+    "translation-provider-adapters": {
+        ("src/booktrans/providers/qwen_mt.py", "translation_provider", "TranslationProviderRequest"),
+        ("src/booktrans/providers/qwen_max.py", "translation_provider", "TranslationProviderRequest"),
+    },
+    "candidate-collaboration:translation-routing-to-provider": {
+        (
+            "src/booktrans/production_worker/pipeline.py",
+            "booktrans.providers.router",
+            "route_semantic_unit",
+        ),
+        ("src/booktrans/providers/router.py", "booktrans.providers.qwen_max", "QWEN_MAX"),
+        ("src/booktrans/providers/router.py", "booktrans.providers.qwen_mt", "QWEN_MT_PLUS"),
+    },
+    "quality-deterministic-qa": {
+        (
+            "src/booktrans/production_worker/pipeline.py",
+            "booktrans.production_worker.qa",
+            "qa_codes",
+        ),
+        (
+            "src/booktrans/production_worker/qa.py",
+            "booktrans.domain.calibration",
+            "TranslationResult",
+        ),
+        (
+            "src/booktrans/production_worker/qa.py",
+            "booktrans.harness.tagged_roundtrip",
+            "FormatAnchorQA",
+        ),
+    },
+    "quality-semantic-review-and-repair": {
+        (
+            "src/booktrans/production_worker/semantic_review_run.py",
+            "booktrans.production_worker.reviewer_context",
+            "ReviewerContextUnit",
+        ),
+        (
+            "src/booktrans/production_worker/semantic_review_run.py",
+            "booktrans.production_worker.group_repair",
+            "decide_semantic_group_repair_contract",
+        ),
+        (
+            "src/booktrans/production_worker/pipeline.py",
+            "booktrans.providers.repair_gate",
+            "decide_approved_repair_contract",
+        ),
+        (
+            "src/booktrans/providers/repair_gate.py",
+            "booktrans.providers.qwen_max",
+            "ApprovedRepairContract",
+        ),
+    },
+    "candidate-collaboration:quality-qa-to-semantic-repair": {
+        (
+            "src/booktrans/production_worker/semantic_review_run.py",
+            "booktrans.production_worker.qa",
+            "qa_codes",
+        ),
+        (
+            "src/booktrans/production_worker/semantic_review_run.py",
+            "booktrans.production_worker.group_repair",
+            "decide_semantic_group_repair_contract",
+        ),
+        (
+            "src/booktrans/production_worker/pipeline.py",
+            "booktrans.providers.repair_gate",
+            "decide_approved_repair_contract",
+        ),
+    },
+}
+
 
 def _json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -73,6 +157,37 @@ def _direct_import_evidence_id(
     return fact["evidence"]["evidence_id"]
 
 
+def _assert_candidate_evidence_semantics(
+    explorer: dict,
+    owner: dict,
+    expected: set[tuple[str, str, str]],
+) -> None:
+    facts_by_id = {
+        fact["evidence"]["evidence_id"]: (module["path"], fact)
+        for module in explorer["source_facts"]["modules"]
+        for fact in [*module["direct_imports"], *module["entries"]]
+    }
+    evidence_ids = owner.get(
+        "evidence_ids",
+        owner.get("source_assignment", {}).get("evidence_ids", []),
+    )
+    actual = [facts_by_id[evidence_id] for evidence_id in evidence_ids]
+    matches = {
+        (path, imported_module, symbol)
+        for path, imported_module, symbol in expected
+        if any(
+            source_path == path
+            and fact.get("module") == imported_module
+            and symbol in fact.get("names", [])
+            for source_path, fact in actual
+        )
+    }
+    assert len(actual) == len(expected) and matches == expected, (
+        f"semantic evidence mismatch for {owner['id']}: "
+        f"expected {sorted(expected)}, got {evidence_ids}"
+    )
+
+
 def test_translation_and_quality_fragments_add_unreviewed_candidate_drilldowns() -> None:
     explorer = _explorer_with_source_facts()
 
@@ -104,6 +219,86 @@ def test_translation_and_quality_fragments_add_unreviewed_candidate_drilldowns()
         for child in drilldown["children"]
     )
     assert result["architecture"] == explorer["architecture"]
+
+
+def test_translation_and_quality_candidates_keep_their_expected_source_semantics() -> None:
+    explorer = _explorer_with_source_facts()
+    result = apply_candidate_fragments(
+        explorer,
+        [_json(TRANSLATION_FRAGMENT), _json(QUALITY_FRAGMENT)],
+    )
+    drilldowns = {
+        item["parent_module_id"]: item
+        for item in result["navigation"]["drilldowns"]
+    }
+    owners = {
+        item["id"]: item
+        for parent in ("translation-execution", "quality-and-repair")
+        for collection in ("children", "collaborations")
+        for item in drilldowns[parent][collection]
+    }
+
+    for owner_id, expected in EXPECTED_T6_3_EVIDENCE_SEMANTICS.items():
+        _assert_candidate_evidence_semantics(result, owners[owner_id], expected)
+
+    assert (
+        drilldowns["translation-execution"]["collaborations"][0]["source_node_id"],
+        drilldowns["translation-execution"]["collaborations"][0]["target_node_id"],
+    ) == ("translation-routing-and-acquisition", "translation-provider-adapters")
+    assert (
+        drilldowns["quality-and-repair"]["collaborations"][0]["source_node_id"],
+        drilldowns["quality-and-repair"]["collaborations"][0]["target_node_id"],
+    ) == ("quality-deterministic-qa", "quality-semantic-review-and-repair")
+
+
+def test_semantic_evidence_check_rejects_a_real_but_unrelated_evidence_id() -> None:
+    explorer = _explorer_with_source_facts()
+    fragment = _json(QUALITY_FRAGMENT)
+    fragment["nodes"][0]["evidence_ids"][0] = _direct_import_evidence_id(
+        explorer,
+        path="src/booktrans/providers/qwen_mt.py",
+        imported_module="translation_provider",
+    )
+    result = apply_candidate_fragments(explorer, [fragment])
+    owner = next(
+        item
+        for drilldown in result["navigation"]["drilldowns"]
+        if drilldown["parent_module_id"] == "quality-and-repair"
+        for item in drilldown["children"]
+        if item["id"] == "quality-deterministic-qa"
+    )
+
+    with pytest.raises(AssertionError, match="semantic evidence mismatch"):
+        _assert_candidate_evidence_semantics(
+            result,
+            owner,
+            EXPECTED_T6_3_EVIDENCE_SEMANTICS["quality-deterministic-qa"],
+        )
+
+
+def test_translation_candidates_explain_the_worker_provider_boundary() -> None:
+    result = apply_candidate_fragments(
+        _explorer_with_source_facts(),
+        [_json(TRANSLATION_FRAGMENT)],
+    )
+    drilldown = next(
+        item
+        for item in result["navigation"]["drilldowns"]
+        if item["parent_module_id"] == "translation-execution"
+    )
+    worker, provider = drilldown["children"]
+    collaboration = drilldown["collaborations"][0]
+
+    assert all(
+        term in worker["responsibility"] + worker["plain_explanation"]
+        for term in ("Worker/pipeline", "编排", "路由", "RAW 投影")
+    )
+    assert all(
+        term in provider["responsibility"] + provider["plain_explanation"]
+        for term in ("Provider", "模型适配", "不负责 Worker 的流程编排")
+    )
+    assert "Worker" in collaboration["professional_description"]
+    assert "Provider" in collaboration["professional_description"]
 
 
 def test_candidate_fragment_adds_unreviewed_document_drilldown_without_changing_trust() -> None:

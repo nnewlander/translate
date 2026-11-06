@@ -10,7 +10,8 @@
     assert(title() === "翻译执行与模型接入", "translation drilldown did not open");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "translation candidate count changed");
-    assert(card("translation-routing-and-acquisition").textContent.includes("翻译窗口"), "translation routing explanation missing");
+    assert(card("translation-routing-and-acquisition").textContent.includes("Worker/pipeline") && card("translation-routing-and-acquisition").textContent.includes("RAW 投影"), "Worker orchestration boundary missing");
+    assert(card("translation-provider-adapters").textContent.includes("Provider") && card("translation-provider-adapters").textContent.includes("不负责 Worker 的流程编排"), "Provider adapter boundary missing");
     assert(card("translation-provider-adapters").textContent.includes("组件状态：未审核"), "provider adapter is not visibly unreviewed");
     let collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));
     assert(collaborations.length === 1 && collaborations[0].textContent.includes("模型柜台"), "translation collaboration missing");
@@ -30,6 +31,12 @@
     assert(card("quality-semantic-review-and-repair").textContent.includes("组件状态：未审核"), "semantic repair is not visibly unreviewed");
     collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));
     assert(collaborations.length === 1 && collaborations[0].textContent.includes("返修门禁"), "quality collaboration missing");
+
+    card("quality-semantic-review-and-repair").click();
+    detail = document.querySelector("#detail-content");
+    assert(detail.textContent.includes("booktrans.production_worker.reviewer_context"), "semantic review context evidence missing");
+    assert(detail.querySelectorAll(".candidate-evidence-card").length === 4, "semantic review evidence count changed");
+    document.querySelector("#relationship-detail").close();
 
     collaborations[0].click();
     detail = document.querySelector("#detail-content");
