@@ -343,9 +343,11 @@
     return [...new Set([...childReferences, ...direct])].map((id) => relationshipById[id]).filter(Boolean);
   };
 
+  const candidateKindFor = (module) => module.node_type === "component" ? "组件" : "职责";
+
   const showModuleDetail = (module) => {
     const isCandidate = module.review_status === "candidate";
-    const candidateKind = module.node_type === "component" ? "组件" : "职责";
+    const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
     detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
@@ -395,7 +397,7 @@
     bottomNavigation.hidden = atTop;
     heroTitle.textContent = atTop ? "顶层架构" : drilldown.name;
     heroLede.textContent = atTop ? "已批准的逻辑职责，与源码覆盖核验分别呈现。" : drilldown.coverage_note;
-    modulesHeading.textContent = atTop ? "七个顶层模块" : "候选逻辑职责";
+    modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
 
   const cardFor = (module, index, isChild) => {
@@ -404,13 +406,13 @@
     const hasChildren = Boolean(drilldownByParent[module.id]);
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键查看关系与源码证据`);
     article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
-    if (isChild && module.node_type) article.append(text("span", module.node_type === "component" ? "候选组件" : "候选职责", "candidate-node-type"));
+    if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name), text("p", module.responsibility, "module-responsibility"));
     if (!isChild && modulePlainExplanations[module.id]) article.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
     if (isChild && module.plain_explanation) article.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
     if (isChild && module.source_assignment.evidence_ids?.length) article.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
     const statuses = document.createElement("div"); statuses.className = "statuses";
-    if (isChild) statuses.append(text("span", "职责状态：未审核", "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+    if (isChild) statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);
     const activate = () => {
@@ -428,7 +430,7 @@
   const renderModules = () => {
     const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
     grid.replaceChildren(); visible.forEach((module, index) => grid.append(cardFor(module, index, Boolean(drilldown))));
-    moduleCount.textContent = `${visible.length} 个${drilldown ? "候选职责" : "模块"}`;
+    moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
     const collaborations = drilldown?.collaborations || [];
     candidateCollaborations.hidden = collaborations.length === 0;
     candidateCollaborationList.replaceChildren();

@@ -13,7 +13,10 @@
     assert(title() === "文档理解与定位", "document drilldown did not open");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "document candidate count changed");
-    assert(children.every((item) => item.textContent.includes("职责状态：未审核")), "document candidate is not visibly unreviewed");
+    assert(document.querySelector("#modules-heading")?.textContent === "候选职责与组件", "candidate section type is incomplete");
+    assert(document.querySelector("#module-count")?.textContent === "2 个候选节点", "candidate count type is incomplete");
+    assert(card("document-package-extraction").textContent.includes("职责状态：未审核"), "candidate responsibility is not visibly unreviewed");
+    assert(card("document-translation-view").textContent.includes("组件状态：未审核"), "candidate component is not visibly unreviewed");
     assert(children.every((item) => item.querySelector(".candidate-plain-explanation")?.textContent), "document candidate plain explanation missing");
     assert(children.some((item) => item.textContent.includes("档案拆包员")), "document explanation is not specific");
     assert(children.every((item) => item.querySelector(".candidate-evidence-count")?.textContent.includes("源码依据")), "document evidence count missing");
