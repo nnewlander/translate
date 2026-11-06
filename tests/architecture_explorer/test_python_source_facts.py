@@ -113,6 +113,8 @@ def test_fixed_source_scan_is_stable_shallow_and_does_not_assign_architecture(
         "No scanned file is assigned to an approved architecture module.",
         "Dynamic imports, runtime calls, and a complete call graph are not collected.",
         "Files outside the declared scope are unexamined, not historical, inactive, or invalid.",
+        "PowerShell facts are limited to the single production Supervisor; no general PowerShell call graph is built.",
+        "Dynamic or ambiguous PowerShell paths remain unknown and do not prove script execution or architecture collaboration.",
     ]
 
     modules = {item["path"]: item for item in first["modules"]}
@@ -215,6 +217,95 @@ def test_syntax_error_fails_the_whole_scan_conservatively(source_repository: Pat
 
     with pytest.raises(ExplorerInputError, match="syntax error.*src/booktrans/broken.py"):
         scan_python_source_facts(source_repository)
+
+
+def test_supervisor_powershell_ast_reports_only_static_entries_and_bindings(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "param([string]$StateRebuildScript)\n"
+        "$stateScript = if ($StateRebuildScript) { $StateRebuildScript } else { "
+        "Join-Path $Root 'scripts\\production\\rebuild_production_campaign_state.py' }\n"
+        "$controlPlaneAdapterScript = Join-Path $Root "
+        "'scripts\\production\\control_plane_decision_adapters.ps1'\n"
+        "$deterministicWorkerScript = Join-Path $Root "
+        "'scripts\\production\\run_qwen_deterministic_worker.py'\n"
+        "$promptPath = Join-Path $Root 'scripts\\production\\production_worker_prompt.txt'\n"
+        ". $controlPlaneAdapterScript\n"
+        "function Start-DeterministicWorkerProcess { throw 'must never execute' }\n"
+        "function Refresh-State { throw 'must never execute' }\n"
+        "function Unrelated-Helper { throw 'outside the bounded entry set' }\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    assert result["powershell_scope"] == {
+        "selection": "The single production Supervisor script",
+        "paths": ["scripts/production/production_campaign_supervisor.ps1"],
+        "files_scanned": 1,
+    }
+    supervisor = result["powershell_scripts"][0]
+    assert supervisor["path"] == "scripts/production/production_campaign_supervisor.ps1"
+    assert supervisor["parse_status"] == "parsed"
+    assert [item["symbol"] for item in supervisor["entries"]] == [
+        "Refresh-State",
+        "Start-DeterministicWorkerProcess",
+    ]
+    bindings = {item["variable"]: item for item in supervisor["script_bindings"]}
+    assert bindings["controlPlaneAdapterScript"]["resolution"] == "known"
+    assert bindings["controlPlaneAdapterScript"]["target_path"] == (
+        "scripts/production/control_plane_decision_adapters.ps1"
+    )
+    assert bindings["deterministicWorkerScript"]["resolution"] == "known"
+    assert "promptPath" not in bindings
+    assert bindings["stateScript"]["resolution"] == "unknown"
+    assert bindings["stateScript"]["target_path"] is None
+    assert bindings["stateScript"]["candidate_paths"] == [
+        "scripts/production/rebuild_production_campaign_state.py"
+    ]
+    assert supervisor["dot_sources"][0]["resolution"] == "known"
+    assert supervisor["dot_sources"][0]["target_path"] == (
+        "scripts/production/control_plane_decision_adapters.ps1"
+    )
+    for fact in [
+        *supervisor["entries"],
+        *supervisor["script_bindings"],
+        *supervisor["dot_sources"],
+    ]:
+        assert fact["evidence"]["path"] == supervisor["path"]
+        assert fact["evidence"]["snippet"]
+
+
+def test_supervisor_powershell_parse_errors_remain_unknown(
+    source_repository: Path,
+) -> None:
+    _write(
+        source_repository,
+        "scripts/production/production_campaign_supervisor.ps1",
+        "$workerScript = Join-Path $Root 'scripts\\production\\worker.py'\n"
+        "function Refresh-State {\n",
+    )
+    _git(
+        source_repository,
+        "add",
+        "scripts/production/production_campaign_supervisor.ps1",
+    )
+
+    result = scan_python_source_facts(source_repository)
+
+    supervisor = result["powershell_scripts"][0]
+    assert supervisor["parse_status"] == "parse-error"
+    assert supervisor["parse_errors"]
+    assert supervisor["entries"] == []
+    assert supervisor["script_bindings"] == []
+    assert supervisor["dot_sources"] == []
 
 
 def test_file_change_during_single_read_fails_conservatively(

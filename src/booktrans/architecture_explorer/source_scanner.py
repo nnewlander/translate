@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import ast
+import base64
 from copy import deepcopy
+import json
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from .candidate_scanner import validated_source_path
@@ -16,7 +19,7 @@ from .source_primitives import (
 )
 
 
-SCANNER_VERSION = "architecture-explorer-t6-1/1.0"
+SCANNER_VERSION = "architecture-explorer-t6-4/1.0"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
@@ -28,8 +31,135 @@ LIMITATIONS = (
     "No scanned file is assigned to an approved architecture module.",
     "Dynamic imports, runtime calls, and a complete call graph are not collected.",
     "Files outside the declared scope are unexamined, not historical, inactive, or invalid.",
+    "PowerShell facts are limited to the single production Supervisor; no general PowerShell call graph is built.",
+    "Dynamic or ambiguous PowerShell paths remain unknown and do not prove script execution or architecture collaboration.",
 )
 _WORKER_WRAPPER = "scripts/production/run_qwen_deterministic_worker.py"
+_SUPERVISOR = "scripts/production/production_campaign_supervisor.ps1"
+_SUPERVISOR_ENTRIES = (
+    "Get-AutoRecoveryPolicy",
+    "Invoke-AuthoritativeCursorDecision",
+    "Invoke-AuthoritativeHandoffDecision",
+    "Invoke-ControlPlaneShadow",
+    "Invoke-CurrentExecutionProjection",
+    "Invoke-SupervisorRetryPolicy",
+    "Refresh-State",
+    "Start-DeterministicWorkerProcess",
+)
+
+_POWERSHELL_SOURCE_FACTS_QUERY = r"""
+$ErrorActionPreference = 'Stop'
+$encoded = [Console]::In.ReadToEnd().Trim()
+$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded)).TrimStart([char]0xFEFF)
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseInput(
+    $source,
+    [ref]$tokens,
+    [ref]$parseErrors
+)
+$entryNames = @(
+    'Get-AutoRecoveryPolicy',
+    'Invoke-AuthoritativeCursorDecision',
+    'Invoke-AuthoritativeHandoffDecision',
+    'Invoke-ControlPlaneShadow',
+    'Invoke-CurrentExecutionProjection',
+    'Invoke-SupervisorRetryPolicy',
+    'Refresh-State',
+    'Start-DeterministicWorkerProcess'
+)
+$result = [ordered]@{
+    parse_errors = @($parseErrors | ForEach-Object {
+        [pscustomobject][ordered]@{
+            line = $_.Extent.StartLineNumber
+            message = $_.Message
+            text = $_.Extent.Text
+        }
+    })
+    entries = @()
+    bindings = @()
+    dot_sources = @()
+}
+if (@($parseErrors).Count -eq 0) {
+    $functions = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $entryNames -contains $node.Name
+    }, $true))
+    foreach ($node in $functions) {
+        $result.entries += [pscustomobject][ordered]@{
+            symbol = $node.Name
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+
+    $assignments = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [System.Management.Automation.Language.VariableExpressionAst]
+    }, $true))
+    foreach ($node in $assignments) {
+        $joins = @($node.Right.FindAll({
+            param($child)
+            $child -is [System.Management.Automation.Language.CommandAst] -and
+            $child.GetCommandName() -eq 'Join-Path'
+        }, $true))
+        $candidates = @()
+        foreach ($join in $joins) {
+            $elements = @($join.CommandElements)
+            if (
+                $elements.Count -eq 3 -and
+                $elements[1] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                $elements[1].VariablePath.UserPath -eq 'Root' -and
+                $elements[2] -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                $elements[2].Value -like 'scripts\production\*' -and
+                $elements[2].Value -match '\.(py|ps1)$'
+            ) {
+                $candidates += $elements[2].Value
+            }
+        }
+        if ($candidates.Count -gt 0) {
+            $known = $joins.Count -eq 1 -and
+                $candidates.Count -eq 1 -and
+                $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim()
+            $result.bindings += [pscustomobject][ordered]@{
+                variable = $node.Left.VariablePath.UserPath
+                resolution = $(if ($known) { 'known' } else { 'unknown' })
+                target_path = $(if ($known) { $candidates[0] } else { $null })
+                candidate_paths = @($candidates)
+                text = $node.Extent.Text
+                line_start = $node.Extent.StartLineNumber
+                line_end = $node.Extent.EndLineNumber
+            }
+        }
+    }
+
+    $dotCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot
+    }, $true))
+    foreach ($node in $dotCommands) {
+        $elements = @($node.CommandElements)
+        $variable = $null
+        if (
+            $elements.Count -eq 1 -and
+            $elements[0] -is [System.Management.Automation.Language.VariableExpressionAst]
+        ) {
+            $variable = $elements[0].VariablePath.UserPath
+        }
+        $result.dot_sources += [pscustomobject][ordered]@{
+            variable = $variable
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+}
+$result | ConvertTo-Json -Compress -Depth 8
+"""
 
 
 def _read_stable_utf8(repository: Path, relative: str) -> tuple[str, str, int]:
@@ -332,6 +462,177 @@ def _scan_module(repository: Path, relative: str) -> dict[str, Any]:
     }
 
 
+def _powershell_ast(text: str) -> dict[str, Any]:
+    encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    try:
+        completed = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                _POWERSHELL_SOURCE_FACTS_QUERY,
+            ],
+            input=encoded,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError as error:
+        raise ExplorerInputError("PowerShell AST parser is unavailable") from error
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise ExplorerInputError(f"PowerShell AST parser failed: {detail}")
+    try:
+        result = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise ExplorerInputError("PowerShell AST parser returned invalid JSON") from error
+    if not isinstance(result, dict):
+        raise ExplorerInputError("PowerShell AST parser returned invalid data")
+    return result
+
+
+def _powershell_evidence(
+    record: dict[str, Any],
+    *,
+    file_sha256: str,
+    evidence_kind: str,
+    symbol: str,
+    structural_anchor: str,
+    syntax_position: str,
+) -> dict[str, Any]:
+    return build_static_evidence(
+        path=_SUPERVISOR,
+        source_role="automatic_source_fact",
+        evidence_kind=evidence_kind,
+        symbol=symbol,
+        structural_anchor=structural_anchor,
+        syntax_position=syntax_position,
+        snippet=str(record["text"]),
+        line_start=int(record["line_start"]),
+        line_end=int(record["line_end"]),
+        file_sha256=file_sha256,
+    )
+
+
+def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
+    tracked = _git(repository, "ls-files", "--", _SUPERVISOR).splitlines()
+    if _SUPERVISOR not in {item.replace("\\", "/") for item in tracked}:
+        return []
+    text, file_sha256, size_bytes = _read_stable_utf8(repository, _SUPERVISOR)
+    structure = _powershell_ast(text)
+    parse_errors = structure.get("parse_errors")
+    if not isinstance(parse_errors, list):
+        raise ExplorerInputError("PowerShell AST parser omitted parse errors")
+    if parse_errors:
+        return [
+            {
+                "path": _SUPERVISOR,
+                "file_sha256": file_sha256,
+                "size_bytes": size_bytes,
+                "parse_status": "parse-error",
+                "parse_errors": parse_errors,
+                "entries": [],
+                "script_bindings": [],
+                "dot_sources": [],
+            }
+        ]
+    raw_entries = structure.get("entries")
+    raw_bindings = structure.get("bindings")
+    raw_dot_sources = structure.get("dot_sources")
+    if not all(isinstance(value, list) for value in (raw_entries, raw_bindings, raw_dot_sources)):
+        raise ExplorerInputError("PowerShell AST parser omitted source fact collections")
+
+    entries = []
+    for record in raw_entries:
+        symbol = str(record["symbol"])
+        if symbol not in _SUPERVISOR_ENTRIES:
+            continue
+        entries.append(
+            {
+                "kind": "function_entry",
+                "symbol": symbol,
+                "resolution": "known",
+                "evidence": _powershell_evidence(
+                    record,
+                    file_sha256=file_sha256,
+                    evidence_kind="powershell_function_entry",
+                    symbol=symbol,
+                    structural_anchor=f"powershell:function:{symbol}",
+                    syntax_position=f"supervisor/function:{symbol}",
+                ),
+            }
+        )
+
+    bindings = []
+    binding_by_variable: dict[str, dict[str, Any]] = {}
+    for record in raw_bindings:
+        variable = str(record["variable"])
+        candidate_paths = sorted(
+            {str(item).replace("\\", "/") for item in record.get("candidate_paths", [])}
+        )
+        resolution = "known" if record.get("resolution") == "known" else "unknown"
+        target_path = (
+            str(record["target_path"]).replace("\\", "/")
+            if resolution == "known" and isinstance(record.get("target_path"), str)
+            else None
+        )
+        fact = {
+            "kind": "script_binding",
+            "variable": variable,
+            "resolution": resolution,
+            "target_path": target_path,
+            "candidate_paths": candidate_paths,
+            "evidence": _powershell_evidence(
+                record,
+                file_sha256=file_sha256,
+                evidence_kind="powershell_script_binding",
+                symbol=f"${variable}",
+                structural_anchor=f"powershell:assignment:${variable}",
+                syntax_position=f"supervisor/assignment:${variable}",
+            ),
+        }
+        bindings.append(fact)
+        binding_by_variable[variable] = fact
+
+    dot_sources = []
+    for record in raw_dot_sources:
+        variable = record.get("variable")
+        binding = binding_by_variable.get(variable) if isinstance(variable, str) else None
+        resolution = "known" if binding and binding["resolution"] == "known" else "unknown"
+        dot_sources.append(
+            {
+                "kind": "dot_source",
+                "symbol": f"${variable}" if isinstance(variable, str) else "unknown",
+                "resolution": resolution,
+                "target_path": binding["target_path"] if resolution == "known" else None,
+                "evidence": _powershell_evidence(
+                    record,
+                    file_sha256=file_sha256,
+                    evidence_kind="powershell_dot_source",
+                    symbol=f"${variable}" if isinstance(variable, str) else "unknown",
+                    structural_anchor="powershell:dot-source",
+                    syntax_position="supervisor/dot-source",
+                ),
+            }
+        )
+
+    return [
+        {
+            "path": _SUPERVISOR,
+            "file_sha256": file_sha256,
+            "size_bytes": size_bytes,
+            "parse_status": "parsed",
+            "parse_errors": [],
+            "entries": sorted(entries, key=lambda item: item["symbol"]),
+            "script_bindings": sorted(bindings, key=lambda item: item["variable"]),
+            "dot_sources": dot_sources,
+        }
+    ]
+
+
 def scan_python_source_facts(repository: Path) -> dict[str, Any]:
     """Collect shallow static facts without importing or executing scanned files."""
 
@@ -343,6 +644,7 @@ def scan_python_source_facts(repository: Path) -> dict[str, Any]:
         raise ExplorerInputError(f"Source repository is not a directory: {repository}")
     paths = _tracked_python_paths(repository)
     modules = [_scan_module(repository, relative) for relative in paths]
+    powershell_scripts = _scan_supervisor(repository)
     porcelain = _git(repository, "status", "--porcelain=v1", "--untracked-files=normal").rstrip(
         "\r\n"
     )
@@ -363,6 +665,12 @@ def scan_python_source_facts(repository: Path) -> dict[str, Any]:
             "files_scanned": len(modules),
         },
         "modules": modules,
+        "powershell_scope": {
+            "selection": "The single production Supervisor script",
+            "paths": [_SUPERVISOR],
+            "files_scanned": len(powershell_scripts),
+        },
+        "powershell_scripts": powershell_scripts,
         "limitations": list(LIMITATIONS),
     }
     result["deterministic_facts_sha256"] = _sha256(_canonical_bytes(result))
