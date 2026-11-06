@@ -23,11 +23,19 @@
   const relationshipById = Object.fromEntries(relationships.map((item) => [item.id, item]));
   const childById = Object.fromEntries(navigation.drilldowns.flatMap((item) => item.children).map((item) => [item.id, item]));
   const moduleById = Object.fromEntries([...modules, ...Object.values(childById)].map((item) => [item.id, item]));
+  const sourceEvidenceById = {};
+  for (const sourceModule of data.source_facts?.modules || []) {
+    for (const fact of [...sourceModule.direct_imports, ...sourceModule.entries]) {
+      sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule };
+    }
+  }
   let state = stateApi.initialState();
   let suppressNextClick = false;
 
   const grid = document.querySelector("#module-grid");
   const moduleCount = document.querySelector("#module-count");
+  const candidateCollaborations = document.querySelector("#candidate-collaborations");
+  const candidateCollaborationList = document.querySelector("#candidate-collaboration-list");
   const modulesHeading = document.querySelector("#modules-heading");
   const heroTitle = document.querySelector(".hero h1");
   const heroLede = document.querySelector(".hero .lede");
@@ -135,6 +143,27 @@
     const button = text("button", "复制定位信息", "copy-location"); button.type = "button";
     button.addEventListener("click", () => copyLocation(location, button));
     details.append(facts, text("pre", evidence.snippet), button); card.append(details); return card;
+  };
+
+  const candidateEvidenceCard = (evidenceId) => {
+    const record = sourceEvidenceById[evidenceId];
+    if (!record) return text("p", `无法解析源码依据：${evidenceId}`, "load-error");
+    const { fact, sourceModule } = record; const evidence = fact.evidence;
+    const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
+    const label = fact.kind === "from"
+      ? `${".".repeat(fact.level)}${fact.module} → ${fact.names.join(", ")}`
+      : fact.module || `${fact.kind} · ${evidence.symbol}`;
+    const card = document.createElement("article"); card.className = "candidate-evidence-card";
+    card.append(
+      text("p", "T6-1 自动静态源码事实", "evidence-role"),
+      text("h4", label),
+      text("p", `这条依据来自“${sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`, "evidence-explanation")
+    );
+    const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
+    for (const [term, value] of [["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind]]) {
+      facts.append(text("dt", term), text("dd", value));
+    }
+    card.append(facts, text("pre", evidence.snippet)); return card;
   };
 
   const renderSourceModule = () => {
@@ -285,23 +314,64 @@
     detailContent.append(original); openDialog();
   };
 
+  const candidateCollaborationsForNode = (nodeId) => navigation.drilldowns
+    .flatMap((item) => item.collaborations || [])
+    .filter((item) => item.source_node_id === nodeId || item.target_node_id === nodeId);
+
+  const showCandidateCollaboration = (collaboration) => {
+    const source = childById[collaboration.source_node_id];
+    const target = childById[collaboration.target_node_id];
+    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
+    const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
+    detailContent.append(
+      text("p", "候选协作 · 未审核", "eyebrow"),
+      title,
+      text("p", collaboration.professional_description, "relationship-summary"),
+      text("p", collaboration.plain_explanation, "plain-collaboration-explanation")
+    );
+    const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
+    statuses.append(text("span", "协作状态：未审核", "status candidate"), text("span", "源码归属：未核验", "status coverage-unverified"));
+    detailContent.append(statuses, text("p", "这些静态源码依据只支持候选解释，不证明运行时协作已经发生。", "candidate-warning"));
+    detailContent.append(text("h3", `源码依据（${collaboration.evidence_ids.length}）`));
+    for (const evidenceId of collaboration.evidence_ids) detailContent.append(candidateEvidenceCard(evidenceId));
+    openDialog();
+  };
+
   const relationshipsForModule = (moduleId) => {
     const childReferences = childById[moduleId]?.source_assignment?.relationship_ids || [];
     const direct = relationships.filter((item) => item.source_module === moduleId || item.target_module === moduleId).map((item) => item.id);
     return [...new Set([...childReferences, ...direct])].map((id) => relationshipById[id]).filter(Boolean);
   };
 
+  const candidateKindFor = (module) => module.node_type === "component" ? "组件" : "职责";
+
   const showModuleDetail = (module) => {
     const isCandidate = module.review_status === "candidate";
+    const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
     detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
-    detailContent.append(text("p", isCandidate ? "候选逻辑职责" : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
+    detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
+    if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
-    statuses.append(text("span", isCandidate ? "职责状态：候选" : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
+    statuses.append(text("span", isCandidate ? `${candidateKind}状态：未审核` : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
     if (isCandidate) {
       statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
+      if (module.source_assignment.evidence_ids?.length) {
+        detailContent.append(text("h3", `源码依据（${module.source_assignment.evidence_ids.length}）`));
+        for (const evidenceId of module.source_assignment.evidence_ids) detailContent.append(candidateEvidenceCard(evidenceId));
+      }
+      const candidateLinks = candidateCollaborationsForNode(module.id);
+      if (candidateLinks.length) {
+        detailContent.append(text("h3", "候选协作"));
+        const links = document.createElement("div"); links.className = "module-evidence-links";
+        for (const collaboration of candidateLinks) {
+          const button = text("button", `打开：${collaboration.name}`, "evidence-link"); button.type = "button";
+          button.addEventListener("click", () => showCandidateCollaboration(collaboration)); links.append(button);
+        }
+        detailContent.append(links);
+      }
     } else {
       statuses.append(text("span", coverageLabels[module.source_coverage.status], `status coverage-${module.source_coverage.status}`)); detailContent.append(statuses);
     }
@@ -327,7 +397,7 @@
     bottomNavigation.hidden = atTop;
     heroTitle.textContent = atTop ? "顶层架构" : drilldown.name;
     heroLede.textContent = atTop ? "已批准的逻辑职责，与源码覆盖核验分别呈现。" : drilldown.coverage_note;
-    modulesHeading.textContent = atTop ? "七个顶层模块" : "候选逻辑职责";
+    modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
 
   const cardFor = (module, index, isChild) => {
@@ -335,10 +405,14 @@
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const hasChildren = Boolean(drilldownByParent[module.id]);
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键查看关系与源码证据`);
-    article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"), text("h3", module.name), text("p", module.responsibility, "module-responsibility"));
+    article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
+    if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
+    article.append(text("h3", module.name), text("p", module.responsibility, "module-responsibility"));
     if (!isChild && modulePlainExplanations[module.id]) article.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
+    if (isChild && module.plain_explanation) article.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
+    if (isChild && module.source_assignment.evidence_ids?.length) article.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
     const statuses = document.createElement("div"); statuses.className = "statuses";
-    if (isChild) statuses.append(text("span", "职责状态：候选", "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+    if (isChild) statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);
     const activate = () => {
@@ -356,7 +430,22 @@
   const renderModules = () => {
     const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
     grid.replaceChildren(); visible.forEach((module, index) => grid.append(cardFor(module, index, Boolean(drilldown))));
-    moduleCount.textContent = `${visible.length} 个${drilldown ? "候选职责" : "模块"}`;
+    moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
+    const collaborations = drilldown?.collaborations || [];
+    candidateCollaborations.hidden = collaborations.length === 0;
+    candidateCollaborationList.replaceChildren();
+    for (const collaboration of collaborations) {
+      const button = document.createElement("button"); button.type = "button"; button.className = "candidate-collaboration";
+      button.append(
+        text("span", "协作状态：未审核", "status candidate"),
+        text("h4", collaboration.name),
+        text("p", collaboration.professional_description, "candidate-collaboration-professional"),
+        text("p", collaboration.plain_explanation, "candidate-plain-explanation"),
+        text("span", `源码依据：${collaboration.evidence_ids.length} 条`, "candidate-evidence-count")
+      );
+      button.addEventListener("click", () => showCandidateCollaboration(collaboration));
+      candidateCollaborationList.append(button);
+    }
   };
 
   const renderRelationships = () => {
