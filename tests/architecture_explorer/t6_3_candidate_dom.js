@@ -78,7 +78,10 @@
       assert(candidateType && professional && plain && evidence && statuses, "candidate metadata layers missing");
       const actual = captureCardStandard(candidateCard, ".candidate-plain-explanation");
       for (const key of ["card", "ordinal", "heading", "professional", "plain", "headingTop", "ordinalToHeading", "headingToProfessional", "professionalToPlain"]) {
-        assert(JSON.stringify(actual[key]) === JSON.stringify(reference[key]), `candidate ${key} differs from top-level standard`);
+        assert(
+          JSON.stringify(actual[key]) === JSON.stringify(reference[key]),
+          `candidate ${key} differs from top-level standard: ${JSON.stringify(actual[key])} != ${JSON.stringify(reference[key])}`,
+        );
       }
       const heading = candidateCard.querySelector("h3");
       assert(candidateType.getBoundingClientRect().bottom <= heading.getBoundingClientRect().top, "candidate type obscures title rhythm");
@@ -95,6 +98,13 @@
   };
   try {
     if (title() !== "顶层架构") document.querySelector("#back-button").click();
+    const topLevelReference = card("translation-execution");
+    topLevelReference.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: 40, clientY: 40,
+    }));
+    document.querySelector("#context-detail-toggle").click();
+    assert(card("translation-execution").classList.contains("expanded"), "top-level typography reference did not expand");
+    document.activeElement?.blur();
     const topLevelStandard = captureCardStandard(card("translation-execution"), ".module-plain-explanation");
     if (innerWidth >= 1280) {
       Array.from(document.querySelectorAll("#module-grid .module-card")).forEach(assertStatusesShareRow);

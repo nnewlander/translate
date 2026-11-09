@@ -53,7 +53,12 @@
   const dialog = document.querySelector("#relationship-detail");
   const detailContent = document.querySelector("#detail-content");
   const contextMenu = document.querySelector("#module-context-menu");
+  const contextDetailToggle = document.querySelector("#context-detail-toggle");
   const contextEvidence = document.querySelector("#context-evidence");
+  const graphSurface = document.querySelector("#graph-surface");
+  const relationshipGraph = document.querySelector("#relationship-graph");
+  const relationshipEdgeLayer = document.querySelector("#relationship-edge-layer");
+  const relationshipLabelLayer = document.querySelector("#relationship-label-layer");
   const snapshotDetails = document.querySelector("#source-snapshot");
   const sourceFactsDetails = document.querySelector("#source-facts");
   const sourceFactsCount = document.querySelector("#source-facts-count");
@@ -404,6 +409,83 @@
 
   const dispatch = (action) => { state = stateApi.reduce(state, action); };
   const currentDrilldown = () => drilldownByParent[state.parentModuleId] || null;
+  let edgeFrame = 0;
+  let edgeTimer = 0;
+
+  const reviewedTopLevelRelations = () => currentDrilldown() ? [] : relationships.filter((relation) => (
+    relation.review_status === "current-reviewed"
+      && relation.source_continuity?.status === "exact-match"
+      && moduleById[relation.source_module]
+      && moduleById[relation.target_module]
+  ));
+
+  const edgeEndpoints = (sourceRect, targetRect, surfaceRect) => {
+    const sourceCenter = { x: sourceRect.left + sourceRect.width / 2, y: sourceRect.top + sourceRect.height / 2 };
+    const targetCenter = { x: targetRect.left + targetRect.width / 2, y: targetRect.top + targetRect.height / 2 };
+    const horizontal = Math.abs(targetCenter.x - sourceCenter.x) >= Math.abs(targetCenter.y - sourceCenter.y);
+    const start = horizontal
+      ? { x: targetCenter.x >= sourceCenter.x ? sourceRect.right : sourceRect.left, y: sourceCenter.y }
+      : { x: sourceCenter.x, y: targetCenter.y >= sourceCenter.y ? sourceRect.bottom : sourceRect.top };
+    const end = horizontal
+      ? { x: targetCenter.x >= sourceCenter.x ? targetRect.left : targetRect.right, y: targetCenter.y }
+      : { x: targetCenter.x, y: targetCenter.y >= sourceCenter.y ? targetRect.top : targetRect.bottom };
+    return {
+      start: { x: start.x - surfaceRect.left, y: start.y - surfaceRect.top },
+      end: { x: end.x - surfaceRect.left, y: end.y - surfaceRect.top },
+    };
+  };
+
+  const activateRelationship = (relationshipId) => {
+    dispatch({ type: "RELATIONSHIP_PRIMARY", relationshipId });
+    showRelationship(relationshipById[state.relationshipId]);
+  };
+
+  const drawRelationshipGraph = () => {
+    edgeFrame = 0;
+    edgeTimer = 0;
+    relationshipEdgeLayer.replaceChildren(); relationshipLabelLayer.replaceChildren();
+    const visibleRelations = reviewedTopLevelRelations();
+    relationshipGraph.hidden = visibleRelations.length === 0;
+    if (!visibleRelations.length) return;
+    const surfaceRect = graphSurface.getBoundingClientRect();
+    const width = Math.max(1, graphSurface.scrollWidth); const height = Math.max(1, graphSurface.scrollHeight);
+    relationshipGraph.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    relationshipGraph.setAttribute("width", String(width)); relationshipGraph.setAttribute("height", String(height));
+    for (const relation of visibleRelations) {
+      const sourceCard = grid.querySelector(`[data-module-id="${CSS.escape(relation.source_module)}"]`);
+      const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(relation.target_module)}"]`);
+      if (!sourceCard || !targetCard) continue;
+      const { start, end } = edgeEndpoints(sourceCard.getBoundingClientRect(), targetCard.getBoundingClientRect(), surfaceRect);
+      const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+      const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
+      group.dataset.relationshipId = relation.id;
+      const title = document.createElementNS(relationshipGraph.namespaceURI, "title");
+      title.textContent = `${relation.presentation_zh.source_module_name} 到 ${relation.presentation_zh.target_module_name}，当前已审核`;
+      const hit = document.createElementNS(relationshipGraph.namespaceURI, "path");
+      hit.setAttribute("d", pathData); hit.setAttribute("class", "graph-edge-hit");
+      const line = document.createElementNS(relationshipGraph.namespaceURI, "path");
+      line.setAttribute("d", pathData); line.setAttribute("class", "graph-edge reviewed");
+      line.setAttribute("marker-end", "url(#reviewed-arrowhead)");
+      hit.addEventListener("click", () => activateRelationship(relation.id));
+      group.append(title, hit, line); relationshipEdgeLayer.append(group);
+
+      const label = text("button", `当前已审核 · ${relation.type}`, "graph-edge-label");
+      label.type = "button"; label.dataset.relationshipId = relation.id;
+      label.setAttribute("aria-label", `${relation.presentation_zh.source_module_name}到${relation.presentation_zh.target_module_name}，当前已审核，打开关系证据`);
+      label.style.left = `${(start.x + end.x) / 2}px`; label.style.top = `${(start.y + end.y) / 2}px`;
+      label.addEventListener("click", () => activateRelationship(relation.id)); relationshipLabelLayer.append(label);
+    }
+  };
+
+  const scheduleRelationshipGraph = () => {
+    if (edgeFrame) cancelAnimationFrame(edgeFrame);
+    if (edgeTimer) clearTimeout(edgeTimer);
+    edgeFrame = requestAnimationFrame(drawRelationshipGraph);
+    edgeTimer = window.setTimeout(() => {
+      if (!edgeFrame) return;
+      cancelAnimationFrame(edgeFrame); drawRelationshipGraph();
+    }, 40);
+  };
 
   const renderNavigation = () => {
     const drilldown = currentDrilldown(); const atTop = !drilldown;
@@ -419,13 +501,18 @@
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const hasChildren = Boolean(drilldownByParent[module.id]);
-    article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键查看关系与源码证据`);
+    const expanded = isChild || state.expandedNodeIds.includes(module.id);
+    article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
+    article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
     article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
-    article.append(text("h3", module.name), text("p", module.responsibility, "module-responsibility"));
-    if (!isChild && modulePlainExplanations[module.id]) article.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
-    if (isChild && module.plain_explanation) article.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
-    if (isChild && module.source_assignment.evidence_ids?.length) article.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
+    article.append(text("h3", module.name));
+    const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
+    inlineDetail.append(text("p", module.responsibility, "module-responsibility"));
+    if (!isChild && modulePlainExplanations[module.id]) inlineDetail.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
+    if (isChild && module.plain_explanation) inlineDetail.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
+    if (isChild && module.source_assignment.evidence_ids?.length) inlineDetail.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
+    inlineDetail.addEventListener("click", (event) => event.stopPropagation()); article.append(inlineDetail);
     const statuses = document.createElement("div"); statuses.className = "statuses";
     if (isChild) statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
@@ -435,7 +522,13 @@
       if (state.detailModuleId) showModuleDetail(moduleById[state.detailModuleId]);
     };
     article.addEventListener("click", activate);
-    article.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); } });
+    article.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); }
+      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+        event.preventDefault(); const rect = article.getBoundingClientRect();
+        dispatch({ type: "CONTEXT_OPEN", moduleId: module.id, x: rect.left + 24, y: rect.top + 24 }); renderContextMenu();
+      }
+    });
     article.addEventListener("contextmenu", (event) => {
       event.preventDefault(); dispatch({ type: "CONTEXT_OPEN", moduleId: module.id, x: event.clientX, y: event.clientY }); renderContextMenu();
     });
@@ -479,15 +572,23 @@
   const renderContextMenu = () => {
     if (!state.contextMenu) { contextMenu.hidden = true; return; }
     contextMenu.hidden = false; contextMenu.dataset.moduleId = state.contextMenu.moduleId;
+    const canToggleDetail = !currentDrilldown();
+    contextDetailToggle.hidden = !canToggleDetail;
+    contextDetailToggle.textContent = state.expandedNodeIds.includes(state.contextMenu.moduleId) ? "关闭展示" : "详细展示";
     const maxLeft = Math.max(8, window.innerWidth - contextMenu.offsetWidth - 8);
     const maxTop = Math.max(8, window.innerHeight - contextMenu.offsetHeight - 8);
     contextMenu.style.left = `${Math.min(state.contextMenu.x, maxLeft)}px`; contextMenu.style.top = `${Math.min(state.contextMenu.y, maxTop)}px`;
-    contextEvidence.focus({ preventScroll: true });
+    (canToggleDetail ? contextDetailToggle : contextEvidence).focus({ preventScroll: true });
   };
-  const render = () => { renderNavigation(); renderModules(); renderContextMenu(); };
+  const render = () => { renderNavigation(); renderModules(); renderContextMenu(); scheduleRelationshipGraph(); };
 
   backButton.addEventListener("click", () => { dispatch({ type: "BACK" }); render(); });
   homeButton.addEventListener("click", () => { dispatch({ type: "HOME" }); render(); });
+  contextDetailToggle.addEventListener("click", () => {
+    const moduleId = state.contextMenu?.moduleId; if (!moduleId) return;
+    dispatch({ type: "NODE_DETAIL_TOGGLE", moduleId }); render();
+    grid.querySelector(`[data-module-id="${CSS.escape(moduleId)}"]`)?.focus({ preventScroll: true });
+  });
   contextEvidence.addEventListener("click", () => {
     const module = moduleById[state.contextMenu?.moduleId]; if (!module) return;
     const related = relationshipsForModule(module.id); dispatch({ type: "MENU_EVIDENCE", relationshipId: related[0]?.id || null }); renderContextMenu();
@@ -505,6 +606,9 @@
     if (suppressNextClick) { suppressNextClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
   }, true);
   dialog.addEventListener("close", () => dispatch({ type: "DETAIL_CLOSED" }));
+  window.addEventListener("resize", scheduleRelationshipGraph);
+  window.addEventListener("scroll", scheduleRelationshipGraph, { passive: true });
+  if (typeof ResizeObserver === "function") new ResizeObserver(scheduleRelationshipGraph).observe(graphSurface);
 
   const history = navigation.history_and_auxiliary;
   const historyDetails = document.querySelector("#history-and-auxiliary"); historyDetails.open = Boolean(history.default_expanded);

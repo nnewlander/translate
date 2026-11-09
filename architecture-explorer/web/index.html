@@ -31,7 +31,18 @@
             <span id="module-count" class="count"></span>
           </div>
         </div>
-        <div id="module-grid" class="module-grid"></div>
+        <div id="graph-surface" class="graph-surface">
+          <svg id="relationship-graph" class="relationship-graph" aria-label="当前层级架构关系" role="group">
+            <defs>
+              <marker id="reviewed-arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M 0 0 L 10 4 L 0 8 z"></path>
+              </marker>
+            </defs>
+            <g id="relationship-edge-layer"></g>
+          </svg>
+          <div id="module-grid" class="module-grid"></div>
+          <div id="relationship-label-layer" class="relationship-label-layer"></div>
+        </div>
         <section id="candidate-collaborations" class="candidate-collaborations" aria-labelledby="candidate-collaborations-heading" hidden>
           <h3 id="candidate-collaborations-heading">候选协作</h3>
           <div id="candidate-collaboration-list" class="candidate-collaboration-list"></div>
@@ -73,6 +84,7 @@
       <p id="load-error" class="load-error" role="alert" hidden></p>
     </main>
     <div id="module-context-menu" class="context-menu" role="menu" hidden>
+      <button id="context-detail-toggle" type="button" role="menuitem">详细展示</button>
       <button id="context-evidence" type="button" role="menuitem">查看关系与源码证据</button>
     </div>
     <dialog id="relationship-detail" class="relationship-detail" aria-labelledby="detail-title">

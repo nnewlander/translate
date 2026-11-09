@@ -214,7 +214,11 @@ h2 {
   font-size: 0.84rem;
 }
 
+.graph-surface { position: relative; }
+
 .module-grid {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
@@ -224,7 +228,7 @@ h2 {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 278px;
+  min-height: 190px;
   flex-direction: column;
   padding: 30px;
   overflow: hidden;
@@ -233,6 +237,9 @@ h2 {
   background: #ffffff;
   box-shadow: 0 14px 34px rgba(35, 45, 32, 0.06);
 }
+.module-card.expanded { min-height: 278px; }
+.module-inline-detail[hidden] { display: none; }
+.module-inline-detail { cursor: text; }
 
 .interactive-module { cursor: pointer; }
 .interactive-module:hover, .interactive-module:focus-visible { border-color: #78946b; outline: 3px solid rgba(120, 148, 107, 0.16); }
@@ -265,6 +272,55 @@ h2 {
   font-weight: 600;
   line-height: 1.35;
 }
+
+.relationship-graph {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+.relationship-graph[hidden] { display: none; }
+.graph-edge {
+  fill: none;
+  stroke: #526b49;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+.graph-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+#reviewed-arrowhead path { fill: #526b49; }
+.relationship-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.graph-edge-label {
+  position: absolute;
+  max-width: 180px;
+  padding: 6px 9px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #b7c8af;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2f4630;
+  box-shadow: 0 4px 12px rgba(35, 45, 32, 0.1);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.2;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.graph-edge-label:hover, .graph-edge-label:focus-visible { border-color: #526b49; outline: 3px solid rgba(120, 148, 107, 0.2); }
 
 .module-card p {
   margin: 0 0 30px;
@@ -386,7 +442,8 @@ h2 {
 
 .workflow-highlight .module-card[data-module-id="production-control"],
 .workflow-highlight .module-card[data-module-id="translation-execution"],
-.workflow-highlight .relationship-line {
+.workflow-highlight .relationship-line,
+.workflow-highlight .graph-edge-label {
   border-color: #ffd633;
   outline: 2px solid #ffd633;
   outline-offset: 0;
@@ -395,6 +452,8 @@ h2 {
     0 0 14px 7px rgba(255, 239, 158, 0.25),
     0 14px 34px rgba(131, 103, 14, 0.09);
 }
+.workflow-highlight .graph-edge { stroke: #d9a900; stroke-width: 3.5; }
+.workflow-highlight #reviewed-arrowhead path { fill: #d9a900; }
 .workflow-highlight .module-card[data-module-id="production-control"]::before,
 .workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #ffd633; }
 
