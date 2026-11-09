@@ -224,6 +224,8 @@ h2 {
   gap: 22px;
 }
 
+.module-grid.production-candidate-grid { row-gap: 58px; }
+
 .module-card {
   position: relative;
   display: flex;
@@ -310,6 +312,7 @@ h2 {
   stroke-width: 2.5;
   vector-effect: non-scaling-stroke;
 }
+.graph-edge.candidate { stroke: #8b6c2d; stroke-dasharray: 8 7; }
 .graph-edge-hit {
   fill: none;
   stroke: transparent;
@@ -318,6 +321,7 @@ h2 {
   cursor: pointer;
 }
 #reviewed-arrowhead path { fill: #526b49; }
+#candidate-arrowhead path { fill: #8b6c2d; }
 .relationship-label-layer {
   position: absolute;
   inset: 0;
@@ -464,7 +468,7 @@ h2 {
 .workflow-highlight .module-card[data-module-id="production-control"],
 .workflow-highlight .module-card[data-module-id="translation-execution"],
 .workflow-highlight .relationship-line,
-.workflow-highlight .graph-edge-label {
+.workflow-highlight .graph-edge-label.reviewed {
   border-color: #ffd633;
   outline: 2px solid #ffd633;
   outline-offset: 0;
@@ -473,7 +477,7 @@ h2 {
     0 0 14px 7px rgba(255, 239, 158, 0.25),
     0 14px 34px rgba(131, 103, 14, 0.09);
 }
-.workflow-highlight .graph-edge { stroke: #d9a900; stroke-width: 3.5; }
+.workflow-highlight .graph-edge.reviewed { stroke: #d9a900; stroke-width: 3.5; }
 .workflow-highlight #reviewed-arrowhead path { fill: #d9a900; }
 .workflow-highlight .module-card[data-module-id="production-control"]::before,
 .workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #ffd633; }

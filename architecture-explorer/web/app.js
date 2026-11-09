@@ -287,7 +287,8 @@
 
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
-    detailContent.replaceChildren(); detailContent.dataset.relationshipId = relation.id;
+    detailContent.replaceChildren(); delete detailContent.dataset.collaborationId;
+    detailContent.dataset.relationshipId = relation.id;
     const title = text("h2", `${guide.source_module_name} → ${guide.target_module_name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
       text("p", "架构关系解读", "eyebrow"),
@@ -342,6 +343,7 @@
     const source = childById[collaboration.source_node_id];
     const target = childById[collaboration.target_node_id];
     detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
+    detailContent.dataset.collaborationId = collaboration.id;
     const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
       text("p", "候选协作 · 未审核", "eyebrow"),
@@ -369,7 +371,7 @@
     const isCandidate = module.review_status === "candidate";
     const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
+    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
@@ -412,12 +414,40 @@
   let edgeFrame = 0;
   let edgeTimer = 0;
 
-  const reviewedTopLevelRelations = () => currentDrilldown() ? [] : relationships.filter((relation) => (
-    relation.review_status === "current-reviewed"
-      && relation.source_continuity?.status === "exact-match"
-      && moduleById[relation.source_module]
-      && moduleById[relation.target_module]
-  ));
+  const visibleGraphEdges = () => {
+    const drilldown = currentDrilldown();
+    if (drilldown) {
+      if (drilldown.parent_module_id !== "production-control") return [];
+      const visibleNodeIds = new Set(drilldown.children.map((node) => node.id));
+      return (drilldown.collaborations || [])
+        .filter((collaboration) => (
+          collaboration.review_status === "candidate"
+            && visibleNodeIds.has(collaboration.source_node_id)
+            && visibleNodeIds.has(collaboration.target_node_id)
+        ))
+        .map((collaboration) => ({
+          id: collaboration.id,
+          sourceId: collaboration.source_node_id,
+          targetId: collaboration.target_node_id,
+          kind: "candidate",
+          record: collaboration,
+        }));
+    }
+    return relationships
+      .filter((relation) => (
+        relation.review_status === "current-reviewed"
+          && relation.source_continuity?.status === "exact-match"
+          && moduleById[relation.source_module]
+          && moduleById[relation.target_module]
+      ))
+      .map((relation) => ({
+        id: relation.id,
+        sourceId: relation.source_module,
+        targetId: relation.target_module,
+        kind: "reviewed",
+        record: relation,
+      }));
+  };
 
   const edgeEndpoints = (sourceRect, targetRect, surfaceRect) => {
     const sourceCenter = { x: sourceRect.left + sourceRect.width / 2, y: sourceRect.top + sourceRect.height / 2 };
@@ -440,38 +470,49 @@
     showRelationship(relationshipById[state.relationshipId]);
   };
 
+  const activateGraphEdge = (edge) => {
+    if (edge.kind === "candidate") showCandidateCollaboration(edge.record);
+    else activateRelationship(edge.id);
+  };
+
   const drawRelationshipGraph = () => {
     edgeFrame = 0;
     edgeTimer = 0;
     relationshipEdgeLayer.replaceChildren(); relationshipLabelLayer.replaceChildren();
-    const visibleRelations = reviewedTopLevelRelations();
-    relationshipGraph.hidden = visibleRelations.length === 0;
-    if (!visibleRelations.length) return;
+    const visibleEdges = visibleGraphEdges();
+    relationshipGraph.hidden = visibleEdges.length === 0;
+    if (!visibleEdges.length) return;
     const surfaceRect = graphSurface.getBoundingClientRect();
     const width = Math.max(1, graphSurface.scrollWidth); const height = Math.max(1, graphSurface.scrollHeight);
     relationshipGraph.setAttribute("viewBox", `0 0 ${width} ${height}`);
     relationshipGraph.setAttribute("width", String(width)); relationshipGraph.setAttribute("height", String(height));
-    for (const relation of visibleRelations) {
-      const sourceCard = grid.querySelector(`[data-module-id="${CSS.escape(relation.source_module)}"]`);
-      const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(relation.target_module)}"]`);
+    for (const edge of visibleEdges) {
+      const sourceCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.sourceId)}"]`);
+      const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.targetId)}"]`);
       if (!sourceCard || !targetCard) continue;
       const { start, end } = edgeEndpoints(sourceCard.getBoundingClientRect(), targetCard.getBoundingClientRect(), surfaceRect);
       const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
-      group.dataset.relationshipId = relation.id;
+      group.dataset.sourceNodeId = edge.sourceId; group.dataset.targetNodeId = edge.targetId;
+      if (edge.kind === "candidate") group.dataset.collaborationId = edge.id;
+      else group.dataset.relationshipId = edge.id;
       const title = document.createElementNS(relationshipGraph.namespaceURI, "title");
-      title.textContent = `${relation.presentation_zh.source_module_name} 到 ${relation.presentation_zh.target_module_name}，当前已审核`;
+      const sourceName = moduleById[edge.sourceId].name; const targetName = moduleById[edge.targetId].name;
+      title.textContent = `${sourceName} 到 ${targetName}，${edge.kind === "candidate" ? "候选·未审核" : "当前已审核"}`;
       const hit = document.createElementNS(relationshipGraph.namespaceURI, "path");
       hit.setAttribute("d", pathData); hit.setAttribute("class", "graph-edge-hit");
       const line = document.createElementNS(relationshipGraph.namespaceURI, "path");
-      line.setAttribute("d", pathData); line.setAttribute("class", "graph-edge reviewed");
-      line.setAttribute("marker-end", "url(#reviewed-arrowhead)");
-      hit.addEventListener("click", () => activateRelationship(relation.id));
+      line.setAttribute("d", pathData); line.setAttribute("class", `graph-edge ${edge.kind}`);
+      line.setAttribute("marker-end", `url(#${edge.kind}-arrowhead)`);
+      hit.addEventListener("click", () => activateGraphEdge(edge));
       group.append(title, hit, line); relationshipEdgeLayer.append(group);
 
-      const label = text("button", `当前已审核 · ${relation.type}`, "graph-edge-label");
-      label.type = "button"; label.dataset.relationshipId = relation.id;
-      label.setAttribute("aria-label", `${relation.presentation_zh.source_module_name}到${relation.presentation_zh.target_module_name}，当前已审核，打开关系证据`);
+      const labelText = edge.kind === "candidate" ? "候选·未审核" : `当前已审核 · ${edge.record.type}`;
+      const label = text("button", labelText, `graph-edge-label ${edge.kind}`);
+      label.type = "button";
+      if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
+      else label.dataset.relationshipId = edge.id;
+      label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，打开关系证据`);
       const deltaX = end.x - start.x; const deltaY = end.y - start.y;
       const edgeLength = Math.max(1, Math.hypot(deltaX, deltaY));
       let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
@@ -486,7 +527,7 @@
       }
       label.style.left = `${Math.max(90, Math.min(width - 90, labelX))}px`;
       label.style.top = `${Math.max(18, Math.min(height - 18, labelY))}px`;
-      label.addEventListener("click", () => activateRelationship(relation.id)); relationshipLabelLayer.append(label);
+      label.addEventListener("click", () => activateGraphEdge(edge)); relationshipLabelLayer.append(label);
     }
   };
 
@@ -514,7 +555,8 @@
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const hasChildren = Boolean(drilldownByParent[module.id]);
-    const expanded = isChild || state.expandedNodeIds.includes(module.id);
+    const usesCompactCandidateGraph = isChild && state.parentModuleId === "production-control";
+    const expanded = (isChild && !usesCompactCandidateGraph) || state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
     if (isChild) article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
@@ -551,6 +593,7 @@
   const renderModules = () => {
     const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
     grid.classList.toggle("top-level-grid", !drilldown);
+    grid.classList.toggle("production-candidate-grid", drilldown?.parent_module_id === "production-control");
     grid.replaceChildren(); visible.forEach((module, index) => grid.append(cardFor(module, index, Boolean(drilldown))));
     moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
     const collaborations = drilldown?.collaborations || [];
@@ -586,7 +629,8 @@
   const renderContextMenu = () => {
     if (!state.contextMenu) { contextMenu.hidden = true; return; }
     contextMenu.hidden = false; contextMenu.dataset.moduleId = state.contextMenu.moduleId;
-    const canToggleDetail = !currentDrilldown();
+    const drilldown = currentDrilldown();
+    const canToggleDetail = !drilldown || drilldown.parent_module_id === "production-control";
     contextDetailToggle.hidden = !canToggleDetail;
     contextDetailToggle.textContent = state.expandedNodeIds.includes(state.contextMenu.moduleId) ? "关闭展示" : "详细展示";
     const maxLeft = Math.max(8, window.innerWidth - contextMenu.offsetWidth - 8);

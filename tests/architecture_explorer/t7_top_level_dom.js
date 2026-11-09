@@ -139,8 +139,9 @@
     card("production-control").click();
     await nextPaint();
     assert(document.querySelector(".hero h1").textContent === "生产调度与控制", "left click no longer drills down");
-    assert(document.querySelector("#relationship-graph").hidden, "top-level relationship leaked into candidate drilldown");
-    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => node.classList.contains("expanded")), "T6 candidate cards changed before T7-2");
+    assert(document.querySelectorAll(".graph-edge.reviewed").length === 0, "top-level reviewed relationship leaked into candidate drilldown");
+    assert(document.querySelectorAll(".graph-edge.candidate").length === 2, "T7-2 candidate graph did not replace the reviewed graph");
+    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => !node.classList.contains("expanded")), "T7-2 candidate cards did not start compact");
     document.querySelector("#back-button").click();
     await nextPaint();
     assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => !node.classList.contains("expanded")), "BACK did not clear inline expansion");

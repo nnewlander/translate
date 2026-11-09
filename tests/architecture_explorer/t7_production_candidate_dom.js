@@ -1,0 +1,126 @@
+(async () => {
+  "use strict";
+
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  const nextPaint = () => new Promise((resolve) => window.setTimeout(resolve, 60));
+  const card = (id) => document.querySelector(`[data-module-id="${id}"]`);
+  const openMenu = (node) => node.dispatchEvent(new MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: 48, clientY: 48,
+  }));
+  const coordinates = (path) => {
+    const values = path.getAttribute("d").match(/-?\d+(?:\.\d+)?/g).map(Number);
+    return { start: { x: values[0], y: values[1] }, end: { x: values[2], y: values[3] } };
+  };
+  const cardBoundsInSurface = (node) => {
+    const surface = document.querySelector("#graph-surface").getBoundingClientRect();
+    const bounds = node.getBoundingClientRect();
+    return {
+      left: bounds.left - surface.left, right: bounds.right - surface.left,
+      top: bounds.top - surface.top, bottom: bounds.bottom - surface.top,
+    };
+  };
+  const onBoundary = (point, bounds) => {
+    const epsilon = 1.5;
+    const withinX = point.x >= bounds.left - epsilon && point.x <= bounds.right + epsilon;
+    const withinY = point.y >= bounds.top - epsilon && point.y <= bounds.bottom + epsilon;
+    const touchesX = Math.abs(point.x - bounds.left) <= epsilon || Math.abs(point.x - bounds.right) <= epsilon;
+    const touchesY = Math.abs(point.y - bounds.top) <= epsilon || Math.abs(point.y - bounds.bottom) <= epsilon;
+    return (touchesX && withinY) || (touchesY && withinX);
+  };
+
+  try {
+    document.querySelector('[data-module-id="production-control"]').click();
+    await nextPaint();
+
+    const cards = Array.from(document.querySelectorAll("#module-grid .module-card"));
+    assert(cards.length === 5, "production candidate node count changed");
+    assert(cards.every((card) => !card.classList.contains("expanded")), "candidate nodes must start compact");
+    assert(cards.every((card) => card.querySelector(".module-inline-detail")?.hidden), "compact candidates expose detail");
+    assert(cards.filter((card) => card.textContent.includes("候选职责")).length === 3, "candidate responsibility count changed");
+    assert(cards.filter((card) => card.textContent.includes("候选组件")).length === 2, "candidate component count changed");
+    assert(card("worker-launch-boundary").textContent.includes("职责状态：未审核"), "worker boundary lost candidate status");
+    assert(card("worker-launch-boundary").textContent.includes("源码归属：部分核验"), "worker partial assignment was hidden or promoted");
+
+    const expected = [
+      ["candidate-collaboration:supervisor-to-control-adapters", "supervisor-orchestration", "production-control-adapters"],
+      ["candidate-collaboration:supervisor-to-worker-wrapper", "worker-launch-boundary", "deterministic-worker-wrapper"],
+    ];
+    const edges = Array.from(document.querySelectorAll(".graph-edge.candidate"));
+    assert(edges.length === 2, "production candidate edge count changed");
+    for (const [id, source, target] of expected) {
+      const group = document.querySelector(`[data-collaboration-id="${id}"]`);
+      assert(group, `missing stable candidate collaboration ${id}`);
+      assert(group.dataset.sourceNodeId === source, `${id} source changed`);
+      assert(group.dataset.targetNodeId === target, `${id} target changed`);
+      const edge = group.querySelector(".graph-edge.candidate");
+      assert(edge.getAttribute("marker-end") === "url(#candidate-arrowhead)", `${id} lacks directed arrowhead`);
+      assert(getComputedStyle(edge).strokeDasharray !== "none", `${id} is not dashed`);
+      const points = coordinates(edge);
+      assert(Math.hypot(points.end.x - points.start.x, points.end.y - points.start.y) >= 48, `${id} is too short to show a clear dashed line`);
+      const label = document.querySelector(`.graph-edge-label[data-collaboration-id="${id}"]`);
+      assert(label?.textContent.includes("候选·未审核"), `${id} lacks explicit unreviewed label`);
+    }
+
+    const candidateStroke = getComputedStyle(edges[0]).stroke;
+    const candidateLabelBorder = getComputedStyle(document.querySelector(".graph-edge-label.candidate")).borderColor;
+    document.querySelector("#workflow-toggle").click();
+    assert(getComputedStyle(edges[0]).stroke === candidateStroke, "workflow highlight promoted candidate edge colour");
+    assert(getComputedStyle(document.querySelector(".graph-edge-label.candidate")).borderColor === candidateLabelBorder, "workflow highlight promoted candidate label");
+    document.querySelector("#workflow-toggle").click();
+
+    const workerEdge = () => document.querySelector('[data-collaboration-id="candidate-collaboration:supervisor-to-worker-wrapper"] .graph-edge.candidate');
+    const initialWorkerPath = workerEdge().getAttribute("d");
+    openMenu(card("worker-launch-boundary"));
+    assert(document.querySelector("#context-detail-toggle").textContent === "详细展示", "candidate menu lacks detail toggle");
+    document.querySelector("#context-detail-toggle").click();
+    await nextPaint();
+    assert(card("worker-launch-boundary").classList.contains("expanded"), "worker candidate did not expand inline");
+    assert(workerEdge().getAttribute("d") !== initialWorkerPath, "candidate edge did not recompute after expansion");
+    let points = coordinates(workerEdge());
+    assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "expanded candidate edge left source boundary");
+    assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "expanded candidate edge left target boundary");
+
+    openMenu(card("supervisor-orchestration"));
+    document.querySelector("#context-detail-toggle").click();
+    await nextPaint();
+    assert(card("worker-launch-boundary").classList.contains("expanded"), "second expansion collapsed worker candidate");
+    assert(card("supervisor-orchestration").classList.contains("expanded"), "second candidate did not expand independently");
+    openMenu(card("worker-launch-boundary"));
+    assert(document.querySelector("#context-detail-toggle").textContent === "关闭展示", "expanded candidate menu lacks close action");
+    document.querySelector("#context-detail-toggle").click();
+    await nextPaint();
+    assert(!card("worker-launch-boundary").classList.contains("expanded"), "worker candidate did not collapse");
+    assert(card("supervisor-orchestration").classList.contains("expanded"), "collapsing worker collapsed another candidate");
+
+    const candidateLabel = document.querySelector('[data-collaboration-id="candidate-collaboration:supervisor-to-worker-wrapper"].graph-edge-label');
+    candidateLabel.click();
+    assert(document.querySelector("#detail-content").dataset.collaborationId === "candidate-collaboration:supervisor-to-worker-wrapper", "candidate edge opened a copied or different record");
+    assert(document.querySelectorAll("#detail-content .candidate-evidence-card").length === 2, "candidate edge evidence IDs changed");
+    document.querySelector("#relationship-detail").close();
+
+    openMenu(card("worker-launch-boundary"));
+    document.querySelector("#context-evidence").click();
+    assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "worker formal evidence entry changed stable Relationship ID");
+    assert(!document.querySelector("#detail-content").dataset.collaborationId, "formal evidence retained candidate collaboration identity");
+    assert(document.querySelectorAll("#detail-content .evidence-group .evidence-card").length === 13, "formal relationship evidence count changed");
+    document.querySelector("#relationship-detail").close();
+
+    const stablePaths = Array.from(document.querySelectorAll(".graph-edge.candidate"), (edge) => edge.getAttribute("d"));
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await nextPaint();
+    assert(Array.from(document.querySelectorAll(".graph-edge.candidate"), (edge) => edge.getAttribute("d")).every((path, index) => path === stablePaths[index]), "scroll introduced candidate endpoint drift");
+    window.scrollTo(0, 0);
+
+    window.resizeTo(960, 900);
+    await nextPaint();
+    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "candidate graph overflows after desktop reflow");
+    points = coordinates(workerEdge());
+    assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "reflowed candidate edge left source boundary");
+    assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "reflowed candidate edge left target boundary");
+
+    document.documentElement.dataset.t7ProductionCandidate = "pass";
+  } catch (error) {
+    document.documentElement.dataset.t7ProductionCandidate = "fail";
+    document.documentElement.dataset.t7ProductionCandidateError = String(error?.message || error);
+  }
+})();
