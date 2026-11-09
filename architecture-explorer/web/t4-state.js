@@ -12,6 +12,7 @@
     detailModuleId: null,
     relationshipId: null,
     contextMenu: null,
+    expandedNodeIds: [],
   });
 
   const navigationState = (state, navigationPath) => {
@@ -24,10 +25,17 @@
       detailModuleId: null,
       relationshipId: null,
       contextMenu: null,
+      expandedNodeIds: [],
     };
   };
 
   const reduce = (state, action) => {
+    if (action.type === "NODE_DETAIL_TOGGLE") {
+      const expanded = state.expandedNodeIds.includes(action.moduleId)
+        ? state.expandedNodeIds.filter((moduleId) => moduleId !== action.moduleId)
+        : [...state.expandedNodeIds, action.moduleId];
+      return { ...state, contextMenu: null, expandedNodeIds: expanded };
+    }
     if (action.type === "CONTEXT_OPEN") {
       return { ...state, contextMenu: { moduleId: action.moduleId, x: action.x, y: action.y } };
     }
