@@ -472,7 +472,14 @@
       const label = text("button", `当前已审核 · ${relation.type}`, "graph-edge-label");
       label.type = "button"; label.dataset.relationshipId = relation.id;
       label.setAttribute("aria-label", `${relation.presentation_zh.source_module_name}到${relation.presentation_zh.target_module_name}，当前已审核，打开关系证据`);
-      label.style.left = `${(start.x + end.x) / 2}px`; label.style.top = `${(start.y + end.y) / 2}px`;
+      const deltaX = end.x - start.x; const deltaY = end.y - start.y;
+      let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
+      if (Math.hypot(deltaX, deltaY) < 80) {
+        if (Math.abs(deltaY) >= Math.abs(deltaX)) labelX += labelX > width / 2 ? -120 : 120;
+        else labelY += labelY > height / 2 ? -34 : 34;
+      }
+      label.style.left = `${Math.max(90, Math.min(width - 90, labelX))}px`;
+      label.style.top = `${Math.max(18, Math.min(height - 18, labelY))}px`;
       label.addEventListener("click", () => activateRelationship(relation.id)); relationshipLabelLayer.append(label);
     }
   };

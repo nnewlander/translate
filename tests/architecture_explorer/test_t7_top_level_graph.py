@@ -49,6 +49,38 @@ def _desktop_browser() -> Path | None:
     )
 
 
+def _dump_dom(
+    browser: Path,
+    page: Path,
+    profile: Path,
+    *,
+    virtual_time_budget: int,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            str(browser),
+            "--headless=new",
+            "--disable-gpu",
+            "--disable-background-networking",
+            "--disable-breakpad",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--allow-file-access-from-files",
+            "--window-size=1280,900",
+            f"--user-data-dir={profile}",
+            f"--virtual-time-budget={virtual_time_budget}",
+            "--dump-dom",
+            page.resolve().as_uri(),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+
+
 def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation() -> None:
     completed = subprocess.run(
         ["node", str(REPOSITORY / "tests/architecture_explorer/t7_top_level_state.cjs")],
@@ -85,28 +117,11 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
         encoding="utf-8",
     )
 
-    completed = subprocess.run(
-        [
-            str(browser),
-            "--headless=new",
-            "--disable-gpu",
-            "--disable-background-networking",
-            "--disable-breakpad",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--allow-file-access-from-files",
-            "--window-size=1280,900",
-            f"--user-data-dir={tmp_path / 'browser-profile'}",
-            "--virtual-time-budget=2500",
-            "--dump-dom",
-            page.resolve().as_uri(),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=2500,
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -128,28 +143,11 @@ def test_degraded_relationship_never_receives_reviewed_graph_treatment(
     site = tmp_path / "site"
     write_site(degraded, site, WEB_ASSETS)
 
-    completed = subprocess.run(
-        [
-            str(browser),
-            "--headless=new",
-            "--disable-gpu",
-            "--disable-background-networking",
-            "--disable-breakpad",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--allow-file-access-from-files",
-            "--window-size=1280,900",
-            f"--user-data-dir={tmp_path / 'browser-profile'}",
-            "--virtual-time-budget=500",
-            "--dump-dom",
-            (site / "index.html").resolve().as_uri(),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
+    completed = _dump_dom(
+        browser,
+        site / "index.html",
+        tmp_path / "browser-profile",
+        virtual_time_budget=500,
     )
 
     assert completed.returncode == 0, completed.stderr

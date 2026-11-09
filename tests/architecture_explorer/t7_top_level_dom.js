@@ -72,6 +72,17 @@
 
     const graphLabel = document.querySelector('.graph-edge-label[data-relationship-id="relationship:production-control:launches:translation-execution"]');
     assert(graphLabel?.textContent.includes("当前已审核"), "graph label does not state reviewed trust");
+    const labelledPoints = coordinates(document.querySelector(".graph-edge.reviewed"));
+    const surfaceRect = document.querySelector("#graph-surface").getBoundingClientRect();
+    const pathMidpoint = {
+      x: surfaceRect.left + (labelledPoints.start.x + labelledPoints.end.x) / 2,
+      y: surfaceRect.top + (labelledPoints.start.y + labelledPoints.end.y) / 2,
+    };
+    const labelRect = graphLabel.getBoundingClientRect();
+    assert(
+      pathMidpoint.x < labelRect.left || pathMidpoint.x > labelRect.right || pathMidpoint.y < labelRect.top || pathMidpoint.y > labelRect.bottom,
+      "short reviewed edge is completely hidden by its label",
+    );
     graphLabel.click();
     assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "graph edge opened a different relationship record");
     assert(document.querySelectorAll(".evidence-group .evidence-card").length === 13, "approved evidence count changed");
