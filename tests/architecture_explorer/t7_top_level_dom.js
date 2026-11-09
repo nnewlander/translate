@@ -33,14 +33,25 @@
     await nextPaint();
     const cards = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(cards.length === 7, "top level must contain seven cards");
+    assert(cards.every((node) => !node.querySelector(".ordinal")), "top-level ordinals still consume node space");
     assert(cards.every((node) => !node.classList.contains("expanded")), "cards must start compact");
     assert(cards.every((node) => node.querySelector(".module-inline-detail")?.hidden), "compact cards expose responsibility text");
     assert(cards.every((node) => node.querySelectorAll(".statuses .status").length === 2), "minimum trust states missing");
+    assert(cards.every((node) => node.getBoundingClientRect().width <= 300), "top-level node remains too wide");
+    assert(cards.every((node) => node.getBoundingClientRect().height <= 165), "top-level node remains too tall");
+    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "compact graph overflows horizontally");
     const reviewedEdges = Array.from(document.querySelectorAll(".graph-edge.reviewed"));
     assert(reviewedEdges.length === 1, "top level must contain exactly one reviewed SVG edge");
     assert(reviewedEdges[0].getAttribute("marker-end") === "url(#reviewed-arrowhead)", "reviewed edge lacks target arrowhead");
     const initialPath = reviewedEdges[0].getAttribute("d");
     let points = coordinates(reviewedEdges[0]);
+    const sourceRect = card("production-control").getBoundingClientRect();
+    const targetRect = card("translation-execution").getBoundingClientRect();
+    assert(Math.abs(sourceRect.top - targetRect.top) <= 2, "reviewed relationship nodes are not aligned on one row");
+    assert(targetRect.left - sourceRect.right >= 220, "reviewed relationship lacks a clear visual runway");
+    assert(points.end.x > points.start.x, "reviewed relationship arrow does not point from Supervisor to Worker");
+    assert(Math.abs(points.end.x - points.start.x) >= 220, "reviewed relationship line is not visually continuous");
+    assert(Math.abs(points.end.y - points.start.y) <= 2, "collapsed reviewed relationship should be horizontal");
     assert(onBoundary(points.start, cardBoundsInSurface(card("production-control"))), "edge does not start on production-control boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("translation-execution"))), "edge does not end on translation-execution boundary");
 
@@ -79,6 +90,14 @@
       y: surfaceRect.top + (labelledPoints.start.y + labelledPoints.end.y) / 2,
     };
     const labelRect = graphLabel.getBoundingClientRect();
+    assert(
+      labelRect.right < sourceRect.left || labelRect.left > sourceRect.right || labelRect.bottom < sourceRect.top || labelRect.top > sourceRect.bottom,
+      "reviewed relationship label overlaps the source node",
+    );
+    assert(
+      labelRect.right < targetRect.left || labelRect.left > targetRect.right || labelRect.bottom < targetRect.top || labelRect.top > targetRect.bottom,
+      "reviewed relationship label overlaps the target node",
+    );
     assert(
       pathMidpoint.x < labelRect.left || pathMidpoint.x > labelRect.right || pathMidpoint.y < labelRect.top || pathMidpoint.y > labelRect.bottom,
       "short reviewed edge is completely hidden by its label",

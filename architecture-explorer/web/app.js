@@ -473,10 +473,16 @@
       label.type = "button"; label.dataset.relationshipId = relation.id;
       label.setAttribute("aria-label", `${relation.presentation_zh.source_module_name}到${relation.presentation_zh.target_module_name}，当前已审核，打开关系证据`);
       const deltaX = end.x - start.x; const deltaY = end.y - start.y;
+      const edgeLength = Math.max(1, Math.hypot(deltaX, deltaY));
       let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
-      if (Math.hypot(deltaX, deltaY) < 80) {
-        if (Math.abs(deltaY) >= Math.abs(deltaX)) labelX += labelX > width / 2 ? -120 : 120;
-        else labelY += labelY > height / 2 ? -34 : 34;
+      const labelOffset = edgeLength < 80 ? 120 : 34;
+      if (edgeLength < 80 && Math.abs(deltaY) >= Math.abs(deltaX)) {
+        labelX += labelX > width / 2 ? -labelOffset : labelOffset;
+      } else {
+        const normalX = -deltaY / edgeLength; const normalY = deltaX / edgeLength;
+        const direction = labelY + normalY * labelOffset > height - 24 ? -1 : 1;
+        labelX += normalX * labelOffset * direction;
+        labelY += normalY * labelOffset * direction;
       }
       label.style.left = `${Math.max(90, Math.min(width - 90, labelX))}px`;
       label.style.top = `${Math.max(18, Math.min(height - 18, labelY))}px`;
@@ -511,7 +517,7 @@
     const expanded = isChild || state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
-    article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
+    if (isChild) article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
@@ -544,6 +550,7 @@
 
   const renderModules = () => {
     const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
+    grid.classList.toggle("top-level-grid", !drilldown);
     grid.replaceChildren(); visible.forEach((module, index) => grid.append(cardFor(module, index, Boolean(drilldown))));
     moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
     const collaborations = drilldown?.collaborations || [];

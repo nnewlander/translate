@@ -55,6 +55,8 @@ def _dump_dom(
     profile: Path,
     *,
     virtual_time_budget: int,
+    viewport_width: int = 1280,
+    viewport_height: int = 900,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -66,7 +68,7 @@ def _dump_dom(
             "--no-first-run",
             "--no-default-browser-check",
             "--allow-file-access-from-files",
-            "--window-size=1280,900",
+            f"--window-size={viewport_width},{viewport_height}",
             f"--user-data-dir={profile}",
             f"--virtual-time-budget={virtual_time_budget}",
             "--dump-dom",
@@ -95,9 +97,12 @@ def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation
     assert "all assertions passed" in completed.stdout
 
 
+@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (1440, 900)])
 def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     tmp_path: Path,
     explorer_data: dict,
+    viewport_width: int,
+    viewport_height: int,
 ) -> None:
     browser = _desktop_browser()
     if browser is None:
@@ -122,6 +127,8 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
         page,
         tmp_path / "browser-profile",
         virtual_time_budget=2500,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
     )
 
     assert completed.returncode == 0, completed.stderr

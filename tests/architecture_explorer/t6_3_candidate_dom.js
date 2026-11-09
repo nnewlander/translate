@@ -44,11 +44,12 @@
     const source = card("translation-execution");
     const sourceBadgeHeight = source.querySelector(".status").getBoundingClientRect().height;
     const fixture = document.createElement("div");
+    fixture.className = "top-level-grid";
     fixture.style.cssText = "position:fixed;left:-10000px;top:0;visibility:hidden";
     const compactCard = source.cloneNode(true);
     const narrowCard = source.cloneNode(true);
-    compactCard.style.width = "326px";
-    narrowCard.style.width = "250px";
+    compactCard.style.width = "283px";
+    narrowCard.style.width = "180px";
     fixture.append(compactCard, narrowCard);
     document.body.append(fixture);
     try {
@@ -66,9 +67,10 @@
       fixture.remove();
     }
   };
-  const assertCandidateMatchesTopStandard = (reference) => {
+  const assertCandidateMatchesStandard = (reference = null) => {
     const candidateCards = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(candidateCards.length > 0, "candidate cards missing");
+    const standard = reference || captureCardStandard(candidateCards[0], ".candidate-plain-explanation");
     for (const candidateCard of candidateCards) {
       const candidateType = candidateCard.querySelector(".candidate-node-type");
       const professional = candidateCard.querySelector(".module-responsibility");
@@ -79,8 +81,8 @@
       const actual = captureCardStandard(candidateCard, ".candidate-plain-explanation");
       for (const key of ["card", "ordinal", "heading", "professional", "plain", "headingTop", "ordinalToHeading", "headingToProfessional", "professionalToPlain"]) {
         assert(
-          JSON.stringify(actual[key]) === JSON.stringify(reference[key]),
-          `candidate ${key} differs from top-level standard: ${JSON.stringify(actual[key])} != ${JSON.stringify(reference[key])}`,
+          JSON.stringify(actual[key]) === JSON.stringify(standard[key]),
+          `candidate ${key} differs from candidate standard: ${JSON.stringify(actual[key])} != ${JSON.stringify(standard[key])}`,
         );
       }
       const heading = candidateCard.querySelector("h3");
@@ -95,6 +97,7 @@
       if (innerWidth >= 1280) assertStatusesShareRow(candidateCard);
     }
     assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "page overflows horizontally");
+    return standard;
   };
   try {
     if (title() !== "顶层架构") document.querySelector("#back-button").click();
@@ -105,7 +108,6 @@
     document.querySelector("#context-detail-toggle").click();
     assert(card("translation-execution").classList.contains("expanded"), "top-level typography reference did not expand");
     document.activeElement?.blur();
-    const topLevelStandard = captureCardStandard(card("translation-execution"), ".module-plain-explanation");
     if (innerWidth >= 1280) {
       Array.from(document.querySelectorAll("#module-grid .module-card")).forEach(assertStatusesShareRow);
     }
@@ -114,7 +116,7 @@
     assert(title() === "翻译执行与模型接入", "translation drilldown did not open");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "translation candidate count changed");
-    assertCandidateMatchesTopStandard(topLevelStandard);
+    const candidateStandard = assertCandidateMatchesStandard();
     assert(card("translation-routing-and-acquisition").textContent.includes("Worker/pipeline") && card("translation-routing-and-acquisition").textContent.includes("RAW 投影"), "Worker orchestration boundary missing");
     assert(card("translation-provider-adapters").textContent.includes("Provider") && card("translation-provider-adapters").textContent.includes("不负责 Worker 的流程编排"), "Provider adapter boundary missing");
     assert(card("translation-provider-adapters").textContent.includes("组件状态：未审核"), "provider adapter is not visibly unreviewed");
@@ -132,7 +134,7 @@
     assert(title() === "质量判断与受限修复", "quality drilldown did not open");
     children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "quality candidate count changed");
-    assertCandidateMatchesTopStandard(topLevelStandard);
+    assertCandidateMatchesStandard(candidateStandard);
     assert(card("quality-deterministic-qa").textContent.includes("固定量规"), "deterministic QA explanation missing");
     assert(card("quality-semantic-review-and-repair").textContent.includes("组件状态：未审核"), "semantic repair is not visibly unreviewed");
     collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));
