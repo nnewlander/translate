@@ -130,6 +130,73 @@ EXPECTED_T6_3_EVIDENCE_SEMANTICS = {
     },
 }
 
+EXPECTED_T6_5_EVIDENCE_SEMANTICS = {
+    "checkpoint-evidence-persistence": {
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.production_worker.artifacts",
+            "write_json_once",
+        ),
+    },
+    "checkpoint-manifest-seal": {
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.harness.batch_manifest",
+            "sealed_checkpoint_manifest_projection",
+        ),
+    },
+    "candidate-collaboration:checkpoint-evidence-to-manifest-seal": {
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.production_worker.artifacts",
+            "write_json_once",
+        ),
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.harness.batch_manifest",
+            "sealed_checkpoint_manifest_projection",
+        ),
+    },
+    "candidate-document-projection": {
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.ooxml.tagged_projection",
+            "apply_tagged_projections",
+        ),
+    },
+    "package-preservation-verifier": {
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.harness.package_preservation",
+            "verify_package_preservation",
+        ),
+        (
+            "src/booktrans/harness/package_preservation.py",
+            "booktrans.ooxml.package",
+            "open_docx_package",
+        ),
+    },
+    "release-membership-derivation": {
+        (
+            "scripts/advance_full_book_batch013.py",
+            "booktrans.harness.release_membership",
+            "derive_release_membership",
+        ),
+    },
+    "candidate-collaboration:projection-to-package-verification": {
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.ooxml.tagged_projection",
+            "apply_tagged_projections",
+        ),
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.harness.package_preservation",
+            "verify_package_preservation",
+        ),
+    },
+}
+
 
 def _json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -689,6 +756,62 @@ def test_t6_5_fragments_complete_seven_candidate_drilldowns_without_changing_tru
     assert "不是每个 Checkpoint" in drilldowns["candidate-and-release"][
         "coverage_note"
     ]
+
+
+def test_t6_5_candidates_keep_their_expected_source_semantics_and_endpoints() -> None:
+    result = apply_candidate_fragments(
+        _explorer_with_source_facts(),
+        [_json(PRODUCTION_EVIDENCE_FRAGMENT), _json(CANDIDATE_RELEASE_FRAGMENT)],
+    )
+    drilldowns = {
+        item["parent_module_id"]: item for item in result["navigation"]["drilldowns"]
+    }
+    owners = {
+        item["id"]: item
+        for parent in ("production-evidence", "candidate-and-release")
+        for collection in ("children", "collaborations")
+        for item in drilldowns[parent][collection]
+    }
+    assert set(owners) == set(EXPECTED_T6_5_EVIDENCE_SEMANTICS)
+
+    for owner_id, expected in EXPECTED_T6_5_EVIDENCE_SEMANTICS.items():
+        _assert_candidate_evidence_semantics(result, owners[owner_id], expected)
+
+    checkpoint_collaboration = drilldowns["production-evidence"]["collaborations"][0]
+    assert (
+        checkpoint_collaboration["source_node_id"],
+        checkpoint_collaboration["target_node_id"],
+    ) == ("checkpoint-evidence-persistence", "checkpoint-manifest-seal")
+    release_collaboration = drilldowns["candidate-and-release"]["collaborations"][0]
+    assert (
+        release_collaboration["source_node_id"],
+        release_collaboration["target_node_id"],
+    ) == ("candidate-document-projection", "package-preservation-verifier")
+
+
+def test_t6_5_semantic_evidence_rejects_a_real_but_unrelated_evidence_id() -> None:
+    explorer = _explorer_with_source_facts()
+    fragment = _json(CANDIDATE_RELEASE_FRAGMENT)
+    fragment["nodes"][0]["evidence_ids"][0] = _direct_import_evidence_id(
+        explorer,
+        path="src/booktrans/providers/qwen_mt.py",
+        imported_module="translation_provider",
+    )
+    result = apply_candidate_fragments(explorer, [fragment])
+    owner = next(
+        item
+        for drilldown in result["navigation"]["drilldowns"]
+        if drilldown["parent_module_id"] == "candidate-and-release"
+        for item in drilldown["children"]
+        if item["id"] == "candidate-document-projection"
+    )
+
+    with pytest.raises(AssertionError, match="semantic evidence mismatch"):
+        _assert_candidate_evidence_semantics(
+            result,
+            owner,
+            EXPECTED_T6_5_EVIDENCE_SEMANTICS["candidate-document-projection"],
+        )
 
 
 def test_candidate_fragments_reject_duplicate_parent_definitions() -> None:

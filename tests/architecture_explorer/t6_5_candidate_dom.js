@@ -41,6 +41,14 @@
     assert(detail.textContent.includes("不能证明") || detail.textContent.includes("不证明"), "checkpoint evidence limitation missing");
     closeDetail();
 
+    card("checkpoint-manifest-seal").click();
+    detail = document.querySelector("#detail-content");
+    assert(detail.querySelectorAll(".candidate-evidence-card").length === 1, "checkpoint manifest evidence missing");
+    assert(detail.textContent.includes("production_checkpoint.py") && detail.textContent.includes("booktrans.harness.batch_manifest") && detail.textContent.includes("sealed_checkpoint_manifest_projection"), "checkpoint manifest source semantics missing");
+    assert(detail.textContent.includes("档案管理员") && detail.textContent.includes("不代表每个 Checkpoint 都已通过或发布"), "checkpoint manifest plain explanation missing");
+    assert(detail.textContent.includes("组件状态：未审核") && detail.textContent.includes("源码归属：未核验"), "checkpoint manifest candidate status missing");
+    closeDetail();
+
     let collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));
     assert(collaborations.length === 1, "production evidence collaboration count changed");
     collaborations[0].click();
@@ -57,6 +65,14 @@
     assert(children.every((item) => item.textContent.includes("未审核")), "candidate release trust is hidden");
     assert(children.every((item) => item.querySelector(".candidate-plain-explanation")?.textContent), "candidate release plain explanation missing");
     assert(document.querySelector(".lede")?.textContent.includes("不是每个 Checkpoint"), "checkpoint workflow boundary missing");
+
+    card("candidate-document-projection").click();
+    detail = document.querySelector("#detail-content");
+    assert(detail.querySelectorAll(".candidate-evidence-card").length === 1, "candidate projection evidence missing");
+    assert(detail.textContent.includes("tagged_roundtrip.py") && detail.textContent.includes("booktrans.ooxml.tagged_projection") && detail.textContent.includes("apply_tagged_projections"), "candidate projection source semantics missing");
+    assert(detail.textContent.includes("精确坐标") && detail.textContent.includes("不证明生产 Checkpoint 必然生成候选文档"), "candidate projection plain explanation missing");
+    assert(detail.textContent.includes("职责状态：未审核") && detail.textContent.includes("源码归属：未核验"), "candidate projection candidate status missing");
+    closeDetail();
 
     card("package-preservation-verifier").click();
     detail = document.querySelector("#detail-content");
