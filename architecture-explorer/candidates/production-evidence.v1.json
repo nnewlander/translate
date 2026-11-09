@@ -1,0 +1,45 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "production-evidence",
+  "name": "生产证据与 Checkpoint",
+  "coverage_note": "本层只展示一次写入工件与批次清单封存接口的真实静态 import 所支持的未审核候选；import 不证明运行时调用或正式模块归属，也不表示七模块源码覆盖已完成正式审核。",
+  "nodes": [
+    {
+      "id": "checkpoint-evidence-persistence",
+      "node_type": "responsibility",
+      "name": "Checkpoint 证据持久化",
+      "professional_description": "候选职责：把 Checkpoint 过程中形成的记录与候选血缘工件写入不可随意覆盖的证据边界。",
+      "plain_explanation": "像把每道工序的单据放进只能新增或核对、不能随手改写的档案袋。源码静态 import 能证明 Worker 接入了一次写入工件接口，但不能证明某次运行已经写出或封存了证据。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b3e51b489d71aea1a3dff03d90a6b02612b3bfdd5c7c8be69a708dbc582430bf"
+      ]
+    },
+    {
+      "id": "checkpoint-manifest-seal",
+      "node_type": "component",
+      "name": "Checkpoint 清单封存组件",
+      "professional_description": "候选组件：解析权威批次清单、形成已封存 Checkpoint 的后继投影，并在证据就绪后发布清单后继版本。",
+      "plain_explanation": "像档案管理员先核对当前目录，再把已完成 Checkpoint 登记到新的目录版本中。静态 import 只说明这些封存接口被生产 Worker 引用，不代表每个 Checkpoint 都已通过或发布。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4b7703e57020be4fd0cf332ed2159bcdbb3a2929b3bb8cab113ef5467a9f45c0"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:checkpoint-evidence-to-manifest-seal",
+      "source_node_id": "checkpoint-evidence-persistence",
+      "target_node_id": "checkpoint-manifest-seal",
+      "name": "证据工件支撑清单封存",
+      "professional_description": "候选协作：Checkpoint 工件持久化边界与批次清单封存接口共同形成可恢复的封存候选路径。",
+      "plain_explanation": "像先把单据装订完整，再让档案管理员登记这一册已经封存。两个明确 import 支持这项未审核解释，但不证明真实运行顺序，也不新增正式架构关系。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b3e51b489d71aea1a3dff03d90a6b02612b3bfdd5c7c8be69a708dbc582430bf",
+        "evidence:sha256:4b7703e57020be4fd0cf332ed2159bcdbb3a2929b3bb8cab113ef5467a9f45c0"
+      ]
+    }
+  ]
+}

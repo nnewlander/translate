@@ -4,6 +4,9 @@
   const fail = (message) => { throw new Error(message); };
   const assert = (condition, message) => { if (!condition) fail(message); };
   const contextMenu = document.querySelector("#module-context-menu");
+  const floatingNavigation = document.querySelector("#bottom-navigation");
+  const backButton = document.querySelector("#back-button");
+  const homeButton = document.querySelector("#home-button");
   const title = () => document.querySelector(".hero h1")?.textContent;
   const productionCard = () => document.querySelector('[data-module-id="production-control"]');
   const openMenu = (card) => card.dispatchEvent(new MouseEvent("contextmenu", {
@@ -15,6 +18,7 @@
   };
 
   try {
+    assert(floatingNavigation.hidden, "return navigation must stay hidden at the top level");
     const topCards = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(topCards.length === 7, "seven top-level module cards missing");
     const plainModuleExplanations = topCards.map((item) => item.querySelector(".module-plain-explanation")?.textContent || "");
@@ -39,7 +43,46 @@
     card.click();
     assert(title() === "生产调度与控制", "next normal click after outside dismissal was suppressed");
 
-    document.querySelector("#home-button").click();
+    assert(!floatingNavigation.hidden, "floating return navigation did not appear after drilldown");
+    assert(getComputedStyle(floatingNavigation).position === "fixed", "return navigation is not viewport-fixed");
+    assert(backButton.getAttribute("aria-label") === "返回上一级", "back button accessible hint is inaccurate");
+    assert(homeButton.getAttribute("aria-label") === "返回最高层", "home button accessible hint is inaccurate");
+    assert(backButton.querySelector(".floating-nav-icon")?.textContent.trim() === "←", "back icon is missing");
+    assert(homeButton.querySelector(".floating-nav-icon")?.textContent.trim() === "⌂", "home icon is missing");
+    const backTooltip = backButton.querySelector('[role="tooltip"]');
+    const homeTooltip = homeButton.querySelector('[role="tooltip"]');
+    assert(backTooltip?.textContent === "返回上一级", "back tooltip is inaccurate");
+    assert(homeTooltip?.textContent === "返回最高层", "home tooltip is inaccurate");
+    const initialBackRect = backButton.getBoundingClientRect();
+    const initialHomeRect = homeButton.getBoundingClientRect();
+    const viewportMiddle = window.innerHeight / 2;
+    assert(Math.abs(initialBackRect.top + initialBackRect.height / 2 - viewportMiddle) <= 1, "back button is not vertically centered");
+    assert(Math.abs(initialHomeRect.top + initialHomeRect.height / 2 - viewportMiddle) <= 1, "home button is not vertically centered");
+    assert(initialBackRect.left <= 16, "back button is not fixed to the left viewport edge");
+    assert(initialHomeRect.right >= document.documentElement.clientWidth - 16, "home button is not fixed to the right viewport edge");
+    const gridRectBeforeTooltip = document.querySelector("#module-grid").getBoundingClientRect();
+    backButton.focus({ preventScroll: true });
+    assert(getComputedStyle(backTooltip).visibility === "visible", "back tooltip is not shown on keyboard focus");
+    homeButton.focus({ preventScroll: true });
+    assert(getComputedStyle(homeTooltip).visibility === "visible", "home tooltip is not shown on keyboard focus");
+    const gridRectAfterTooltip = document.querySelector("#module-grid").getBoundingClientRect();
+    assert(gridRectAfterTooltip.left === gridRectBeforeTooltip.left && gridRectAfterTooltip.width === gridRectBeforeTooltip.width, "floating tooltip caused a content layout shift");
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    assert(window.scrollY > 0, "browser fixture did not scroll");
+    const scrolledBackRect = backButton.getBoundingClientRect();
+    const scrolledHomeRect = homeButton.getBoundingClientRect();
+    assert(scrolledBackRect.top === initialBackRect.top && scrolledBackRect.left === initialBackRect.left, "back button moved while scrolling");
+    assert(scrolledHomeRect.top === initialHomeRect.top && scrolledHomeRect.right === initialHomeRect.right, "home button moved while scrolling");
+    window.scrollTo(0, 0);
+
+    backButton.click();
+    assert(title() === "顶层架构", "BACK did not return exactly one level");
+    assert(floatingNavigation.hidden, "return navigation stayed visible at the top level after BACK");
+    productionCard().click();
+    homeButton.click();
+    assert(title() === "顶层架构", "HOME did not return directly to the top level");
+    assert(floatingNavigation.hidden, "return navigation stayed visible at the top level after HOME");
+
     card = productionCard();
     openMenu(card);
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));

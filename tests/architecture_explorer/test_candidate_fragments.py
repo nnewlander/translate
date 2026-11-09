@@ -39,6 +39,12 @@ TRANSLATION_FRAGMENT = (
     REPOSITORY / "architecture-explorer/candidates/translation-execution.v1.json"
 )
 QUALITY_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/quality-and-repair.v1.json"
+PRODUCTION_EVIDENCE_FRAGMENT = (
+    REPOSITORY / "architecture-explorer/candidates/production-evidence.v1.json"
+)
+CANDIDATE_RELEASE_FRAGMENT = (
+    REPOSITORY / "architecture-explorer/candidates/candidate-and-release.v1.json"
+)
 
 EXPECTED_T6_3_EVIDENCE_SEMANTICS = {
     "translation-routing-and-acquisition": {
@@ -120,6 +126,73 @@ EXPECTED_T6_3_EVIDENCE_SEMANTICS = {
             "src/booktrans/production_worker/pipeline.py",
             "booktrans.providers.repair_gate",
             "decide_approved_repair_contract",
+        ),
+    },
+}
+
+EXPECTED_T6_5_EVIDENCE_SEMANTICS = {
+    "checkpoint-evidence-persistence": {
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.production_worker.artifacts",
+            "write_json_once",
+        ),
+    },
+    "checkpoint-manifest-seal": {
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.harness.batch_manifest",
+            "sealed_checkpoint_manifest_projection",
+        ),
+    },
+    "candidate-collaboration:checkpoint-evidence-to-manifest-seal": {
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.production_worker.artifacts",
+            "write_json_once",
+        ),
+        (
+            "src/booktrans/production_worker/production_checkpoint.py",
+            "booktrans.harness.batch_manifest",
+            "sealed_checkpoint_manifest_projection",
+        ),
+    },
+    "candidate-document-projection": {
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.ooxml.tagged_projection",
+            "apply_tagged_projections",
+        ),
+    },
+    "package-preservation-verifier": {
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.harness.package_preservation",
+            "verify_package_preservation",
+        ),
+        (
+            "src/booktrans/harness/package_preservation.py",
+            "booktrans.ooxml.package",
+            "open_docx_package",
+        ),
+    },
+    "release-membership-derivation": {
+        (
+            "scripts/advance_full_book_batch013.py",
+            "booktrans.harness.release_membership",
+            "derive_release_membership",
+        ),
+    },
+    "candidate-collaboration:projection-to-package-verification": {
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.ooxml.tagged_projection",
+            "apply_tagged_projections",
+        ),
+        (
+            "src/booktrans/harness/tagged_roundtrip.py",
+            "booktrans.harness.package_preservation",
+            "verify_package_preservation",
         ),
     },
 }
@@ -613,6 +686,134 @@ def test_shipped_fragments_add_limited_evidence_backed_candidates_for_two_module
     assert all(item["plain_explanation"] for item in production["children"])
 
 
+def test_t6_5_fragments_complete_seven_candidate_drilldowns_without_changing_trust() -> None:
+    explorer = _explorer_with_source_facts()
+    before_architecture = deepcopy(explorer["architecture"])
+
+    result = apply_candidate_fragments(
+        explorer,
+        [
+            _json(PRODUCTION_FRAGMENT),
+            _json(DOCUMENT_FRAGMENT),
+            _json(SCOPE_FRAGMENT),
+            _json(TRANSLATION_FRAGMENT),
+            _json(QUALITY_FRAGMENT),
+            _json(PRODUCTION_EVIDENCE_FRAGMENT),
+            _json(CANDIDATE_RELEASE_FRAGMENT),
+        ],
+    )
+
+    assert result["architecture"] == before_architecture
+    assert all(
+        module["source_coverage"]["status"] == "unverified"
+        for module in result["architecture"]["modules"]
+    )
+    relationship = result["architecture"]["relationships"]
+    assert len(relationship) == 1
+    assert relationship[0]["review_status"] == "current-reviewed"
+    assert len(relationship[0]["evidence"]) == 13
+
+    drilldowns = {
+        item["parent_module_id"]: item for item in result["navigation"]["drilldowns"]
+    }
+    assert set(drilldowns) == {
+        "document-understanding",
+        "scope-and-request",
+        "translation-execution",
+        "quality-and-repair",
+        "production-evidence",
+        "production-control",
+        "candidate-and-release",
+    }
+    expected_shape = {
+        "production-evidence": (2, 1),
+        "candidate-and-release": (3, 1),
+    }
+    for parent_id, (node_count, collaboration_count) in expected_shape.items():
+        drilldown = drilldowns[parent_id]
+        assert len(drilldown["children"]) == node_count
+        assert len(drilldown["collaborations"]) == collaboration_count
+        assert {item["node_type"] for item in drilldown["children"]} == {
+            "responsibility",
+            "component",
+        }
+        assert all(item["review_status"] == "candidate" for item in drilldown["children"])
+        assert all(item["plain_explanation"] for item in drilldown["children"])
+        assert all(
+            item["source_assignment"]["status"] == "unverified"
+            for item in drilldown["children"]
+        )
+        assert all(
+            item["source_assignment"]["evidence_ids"]
+            for item in drilldown["children"]
+        )
+        assert drilldown["collaborations"][0]["review_status"] == "candidate"
+        assert drilldown["collaborations"][0]["plain_explanation"]
+
+    assert "不表示七模块源码覆盖已完成正式审核" in drilldowns[
+        "production-evidence"
+    ]["coverage_note"]
+    assert "不是每个 Checkpoint" in drilldowns["candidate-and-release"][
+        "coverage_note"
+    ]
+
+
+def test_t6_5_candidates_keep_their_expected_source_semantics_and_endpoints() -> None:
+    result = apply_candidate_fragments(
+        _explorer_with_source_facts(),
+        [_json(PRODUCTION_EVIDENCE_FRAGMENT), _json(CANDIDATE_RELEASE_FRAGMENT)],
+    )
+    drilldowns = {
+        item["parent_module_id"]: item for item in result["navigation"]["drilldowns"]
+    }
+    owners = {
+        item["id"]: item
+        for parent in ("production-evidence", "candidate-and-release")
+        for collection in ("children", "collaborations")
+        for item in drilldowns[parent][collection]
+    }
+    assert set(owners) == set(EXPECTED_T6_5_EVIDENCE_SEMANTICS)
+
+    for owner_id, expected in EXPECTED_T6_5_EVIDENCE_SEMANTICS.items():
+        _assert_candidate_evidence_semantics(result, owners[owner_id], expected)
+
+    checkpoint_collaboration = drilldowns["production-evidence"]["collaborations"][0]
+    assert (
+        checkpoint_collaboration["source_node_id"],
+        checkpoint_collaboration["target_node_id"],
+    ) == ("checkpoint-evidence-persistence", "checkpoint-manifest-seal")
+    release_collaboration = drilldowns["candidate-and-release"]["collaborations"][0]
+    assert (
+        release_collaboration["source_node_id"],
+        release_collaboration["target_node_id"],
+    ) == ("candidate-document-projection", "package-preservation-verifier")
+
+
+def test_t6_5_semantic_evidence_rejects_a_real_but_unrelated_evidence_id() -> None:
+    explorer = _explorer_with_source_facts()
+    fragment = _json(CANDIDATE_RELEASE_FRAGMENT)
+    fragment["nodes"][0]["evidence_ids"][0] = _direct_import_evidence_id(
+        explorer,
+        path="src/booktrans/providers/qwen_mt.py",
+        imported_module="translation_provider",
+    )
+    result = apply_candidate_fragments(explorer, [fragment])
+    owner = next(
+        item
+        for drilldown in result["navigation"]["drilldowns"]
+        if drilldown["parent_module_id"] == "candidate-and-release"
+        for item in drilldown["children"]
+        if item["id"] == "candidate-document-projection"
+    )
+
+    with pytest.raises(AssertionError, match="semantic evidence mismatch"):
+        _assert_candidate_evidence_semantics(
+            result,
+            owner,
+            EXPECTED_T6_5_EVIDENCE_SEMANTICS["candidate-document-projection"],
+        )
+
+
 def test_candidate_fragments_reject_duplicate_parent_definitions() -> None:
     explorer = _explorer_with_source_facts()
     fragment = _json(DOCUMENT_FRAGMENT)
@@ -673,11 +874,16 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         "src/booktrans/providers/qwen_mt.py",
         "src/booktrans/providers/repair_gate.py",
         "src/booktrans/providers/router.py",
+        "src/booktrans/production_worker/production_checkpoint.py",
+        "src/booktrans/harness/tagged_roundtrip.py",
+        "src/booktrans/harness/package_preservation.py",
+        "src/booktrans/ooxml/tagged_projection.py",
+        "scripts/advance_full_book_batch013.py",
     ):
         destination = repository / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPOSITORY / relative, destination)
-    commit(repository, "add T6-2 source facts")
+    commit(repository, "add T6 source facts")
     assert review_main(
         [
             "update-review-state",
@@ -705,6 +911,8 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         "--candidate-fragment", str(SCOPE_FRAGMENT),
         "--candidate-fragment", str(TRANSLATION_FRAGMENT),
         "--candidate-fragment", str(QUALITY_FRAGMENT),
+        "--candidate-fragment", str(PRODUCTION_EVIDENCE_FRAGMENT),
+        "--candidate-fragment", str(CANDIDATE_RELEASE_FRAGMENT),
         "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
         "--output-directory", "output/site",
     ]
@@ -721,6 +929,8 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         "scope-and-request",
         "translation-execution",
         "quality-and-repair",
+        "production-evidence",
+        "candidate-and-release",
     ]
     assert [
         item["path"] for item in data["generation_inputs"]["candidate_fragments"]
@@ -730,6 +940,8 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         SCOPE_FRAGMENT.name,
         TRANSLATION_FRAGMENT.name,
         QUALITY_FRAGMENT.name,
+        PRODUCTION_EVIDENCE_FRAGMENT.name,
+        CANDIDATE_RELEASE_FRAGMENT.name,
     ]
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
 
@@ -773,6 +985,8 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
             _json(SCOPE_FRAGMENT),
             _json(TRANSLATION_FRAGMENT),
             _json(QUALITY_FRAGMENT),
+            _json(PRODUCTION_EVIDENCE_FRAGMENT),
+            _json(CANDIDATE_RELEASE_FRAGMENT),
         ],
     )
     site = tmp_path / "site"
@@ -789,13 +1003,18 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
         REPOSITORY / "tests/architecture_explorer/t6_3_candidate_dom.js",
         site / "t6_3_candidate_dom.js",
     )
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t6_5_candidate_dom.js",
+        site / "t6_5_candidate_dom.js",
+    )
     page = site / "index.html"
     page.write_text(
         page.read_text(encoding="utf-8").replace(
             "</body>",
             '<script src="t6_4_production_dom.js"></script>'
             '<script src="t6_2_candidate_dom.js"></script>'
-            '<script src="t6_3_candidate_dom.js"></script></body>',
+            '<script src="t6_3_candidate_dom.js"></script>'
+            '<script src="t6_5_candidate_dom.js"></script></body>',
         ),
         encoding="utf-8",
     )
@@ -827,3 +1046,4 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
     assert 'data-t6-candidate="pass"' in completed.stdout, completed.stdout
     assert 'data-t6-production="pass"' in completed.stdout, completed.stdout
     assert 'data-t6-three-candidate="pass"' in completed.stdout, completed.stdout
+    assert 'data-t6-five-candidate="pass"' in completed.stdout, completed.stdout

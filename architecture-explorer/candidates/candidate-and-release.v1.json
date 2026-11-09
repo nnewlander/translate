@@ -1,0 +1,57 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "candidate-and-release",
+  "name": "候选文档与发布验证",
+  "coverage_note": "本层只展示候选投影、包保真校验与发布成员资格派生的未审核静态候选；这些边界不是每个 Checkpoint 的常驻生产步骤，import 不证明运行时调用、正式归属或完整发布审核。",
+  "nodes": [
+    {
+      "id": "candidate-document-projection",
+      "node_type": "responsibility",
+      "name": "候选文档受控投影",
+      "professional_description": "候选职责：把带定位信息的候选内容投影到候选 DOCX，同时保留源定位与结构约束。",
+      "plain_explanation": "像在原书的精确坐标上填入候选译文，而不是重新拼装整本书。源码静态 import 能证明 roundtrip Harness 接入 tagged projection；它不证明生产 Checkpoint 必然生成候选文档。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:48656d1f208b47a617720598207b0b5191bf2926ecc49e5dcb2af05337c64944"
+      ]
+    },
+    {
+      "id": "package-preservation-verifier",
+      "node_type": "component",
+      "name": "DOCX 包保真验证组件",
+      "professional_description": "候选组件：比较候选 DOCX 与源包中不应变化的内容，并通过 DOCX 包读取边界报告保真差异。",
+      "plain_explanation": "像出厂前核对封面、附件和装订结构有没有被无意改动。源码能证明 roundtrip Harness 接入包保真校验，校验本身不等于视觉 QA，也不是每个 Checkpoint 的固定步骤。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:506f1db306674e15d15ea807ba88611f0fa2c5b2412a0f69e52e88d25dc20f37",
+        "evidence:sha256:7cefa2574e9054fb72cc3ee4d6f2fcf57ee7bea463147d1e3e47a472302664d8"
+      ]
+    },
+    {
+      "id": "release-membership-derivation",
+      "node_type": "responsibility",
+      "name": "发布成员资格派生",
+      "professional_description": "候选职责：从权威范围与既有通过记录派生发布成员资格，并按源顺序确定剩余工作。",
+      "plain_explanation": "像根据正式名册和已验收回执算出哪些内容已经进入发布集合、哪些仍待处理。批次推进脚本的明确 import 支持这项候选，但脚本引用不自动证明正式模块归属或某次发布已经完成。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:0f6a0b1a170dc4d0af9ef1884c8321700bed4627da870aea2d2eae85540445eb"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:projection-to-package-verification",
+      "source_node_id": "candidate-document-projection",
+      "target_node_id": "package-preservation-verifier",
+      "name": "候选投影进入包保真校验",
+      "professional_description": "候选协作：tagged roundtrip 在形成候选投影后接入包保真验证边界。",
+      "plain_explanation": "像完成候选排版后再核对包装中不应变化的部分。两个直接 import 支持这项未审核候选协作，但不证明运行可达，也不能替代视觉 QA 或发布验收。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:48656d1f208b47a617720598207b0b5191bf2926ecc49e5dcb2af05337c64944",
+        "evidence:sha256:506f1db306674e15d15ea807ba88611f0fa2c5b2412a0f69e52e88d25dc20f37"
+      ]
+    }
+  ]
+}

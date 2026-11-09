@@ -203,17 +203,26 @@ def test_offline_ui_wires_read_only_breadcrumb_context_menu_and_local_state_asse
     assert 'navigationPath: ["top-level"]' in state
 
 
-def test_return_navigation_is_after_history_and_uses_bottom_alignment() -> None:
+def test_return_navigation_uses_fixed_edge_icons_and_top_level_visibility() -> None:
     page = (REPOSITORY / "architecture-explorer/web/index.html").read_text(encoding="utf-8")
     styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
     app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(encoding="utf-8")
 
     assert page.index('id="history-and-auxiliary"') < page.index('id="bottom-navigation"')
     assert page.index('id="bottom-navigation"') < page.index('id="load-error"')
-    bottom_markup = page.split('id="bottom-navigation"', 1)[1].split("</nav>", 1)[0]
-    assert bottom_markup.index('id="back-button"') < bottom_markup.index('id="home-button"')
-    assert ".bottom-navigation #back-button { justify-self: start; }" in styles
-    assert ".bottom-navigation #home-button { justify-self: end; }" in styles
+    navigation_markup = page.split('id="bottom-navigation"', 1)[1].split("</nav>", 1)[0]
+    assert navigation_markup.index('id="back-button"') < navigation_markup.index('id="home-button"')
+    assert 'aria-label="返回上一级"' in navigation_markup
+    assert 'aria-label="返回最高层"' in navigation_markup
+    assert '<span class="floating-nav-icon" aria-hidden="true">←</span>' in navigation_markup
+    assert '<span class="floating-nav-icon" aria-hidden="true">⌂</span>' in navigation_markup
+    assert 'role="tooltip">返回上一级</span>' in navigation_markup
+    assert 'role="tooltip">返回最高层</span>' in navigation_markup
+    assert "position: fixed" in styles
+    assert "top: 50%" in styles
+    assert ".floating-navigation #back-button { left: 12px; }" in styles
+    assert ".floating-navigation #home-button { right: 12px; }" in styles
+    assert ".floating-navigation[hidden] { display: none; }" in styles
     assert "bottomNavigation.hidden = atTop" in app
 
 
@@ -267,12 +276,15 @@ def test_snapshot_card_click_avoids_double_toggle_and_text_selection_collapse() 
     assert ".snapshot dd" in styles and "cursor: text" in styles
 
 
-def test_bottom_navigation_uses_watercolor_rose_palette_and_visible_focus() -> None:
+def test_floating_navigation_keeps_palette_focus_and_hover_tooltips() -> None:
     styles = (REPOSITORY / "architecture-explorer/web/styles.css").read_text(encoding="utf-8")
 
     assert "border: 1px solid #d6a1b4" in styles
     assert "background: #fff4f7" in styles
     assert "color: #99546d" in styles
-    assert ".bottom-navigation button:hover" in styles
-    assert ".bottom-navigation button:focus-visible" in styles
+    assert ".floating-navigation button:hover" in styles
+    assert ".floating-navigation button:focus-visible" in styles
     assert "outline: 3px solid rgba(214, 161, 180, 0.42)" in styles
+    assert ".floating-navigation button:hover .floating-nav-tooltip" in styles
+    assert ".floating-navigation button:focus-visible .floating-nav-tooltip" in styles
+    assert "visibility: visible" in styles
