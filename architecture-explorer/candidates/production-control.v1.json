@@ -1,0 +1,98 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v1",
+  "parent_module_id": "production-control",
+  "name": "生产调度与控制",
+  "coverage_note": "本层只展示 Supervisor 与确定性 Worker 包装入口中有静态源码事实支持的未审核候选；动态路径保持未知，不提升源码覆盖，也不把脚本引用当作正式架构协作证明。",
+  "nodes": [
+    {
+      "id": "supervisor-orchestration",
+      "node_type": "responsibility",
+      "name": "Supervisor 编排",
+      "professional_description": "候选职责：组织生产控制循环，并协调状态刷新、控制判断与下一步工作边界。",
+      "plain_explanation": "像生产值班调度员守着整条流水线，按眼前状态安排下一步。静态事实只证明这些关键入口写在 Supervisor 中，职责边界仍未审核。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6972e39e21b49c4853e9763f549b5fb5fdf039cc0a15f3184ed74f0d613b0b7d",
+        "evidence:sha256:09668e39b062678585018de5e5829cb229bbf4a808ec34c5a87cf510ded3e79c"
+      ]
+    },
+    {
+      "id": "worker-launch-boundary",
+      "node_type": "responsibility",
+      "name": "Worker 启动边界",
+      "professional_description": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。",
+      "plain_explanation": "像一道受控发车闸门，Supervisor 准备好明确的 Worker 脚本后才跨进程启动。这里新增的是未审核源码说明；唯一正式 Supervisor→Worker 关系仍以原有 13 条批准证据为准。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+        "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+      ]
+    },
+    {
+      "id": "state-and-control-decisions",
+      "node_type": "responsibility",
+      "name": "状态与控制决策",
+      "professional_description": "候选职责：依据可恢复状态与控制条件形成继续、停止、阻断、重试或移交的判断边界。",
+      "plain_explanation": "像调度员读取仪表盘和交接单，再决定继续、暂停、重试还是请人处理。源码能证明若干判断入口与适配器绑定存在，不能证明每次运行实际走了哪条路。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6972e39e21b49c4853e9763f549b5fb5fdf039cc0a15f3184ed74f0d613b0b7d",
+        "evidence:sha256:3289d8975d805468296e9a2bc30e1e1e276899ad97b3c17323ed6b55c9c210ff",
+        "evidence:sha256:d2b5c8a38a7c98c892a06003fee65d5be4ecb926e9b00d9b2acfe9feee7a5692"
+      ]
+    },
+    {
+      "id": "production-control-adapters",
+      "node_type": "component",
+      "name": "控制决策适配器",
+      "professional_description": "候选组件：通过明确脚本绑定与 dot-source 为 Supervisor 提供控制决策适配边界。",
+      "plain_explanation": "像把一套控制规则工具箱接到 Supervisor 工作台。AST 能确认绑定和装载写法；它不证明适配器在某次生产运行中给出了什么结果。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:fdfe8854b9f3e100b3e1e3d2b3679234b5705c38e6a6191ee5109e9e5fc445de",
+        "evidence:sha256:f07b280ecdf720aca516171e447c2e1d3eed3dac147dbddfbdc5c54adc7bbcb3"
+      ]
+    },
+    {
+      "id": "deterministic-worker-wrapper",
+      "node_type": "component",
+      "name": "确定性 Worker 包装入口",
+      "professional_description": "候选组件：把 Supervisor 的明确脚本绑定连接到 Python Worker 的受控包装入口。",
+      "plain_explanation": "像一扇只负责把启动请求交给确定性 Worker 主入口的小门。PowerShell 绑定和 Python 主入口都能静态定位，但不能据此宣称 Worker 已实际运行。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+      ]
+    }
+  ],
+  "collaborations": [
+    {
+      "id": "candidate-collaboration:supervisor-to-control-adapters",
+      "source_node_id": "supervisor-orchestration",
+      "target_node_id": "production-control-adapters",
+      "name": "Supervisor 装载控制适配器",
+      "professional_description": "候选协作：Supervisor 通过明确绑定和 dot-source 接入控制决策适配器。",
+      "plain_explanation": "像调度员把控制规则工具箱接入工作台。静态 AST 只支持这项未审核候选，不证明运行时调用或决策结果。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:fdfe8854b9f3e100b3e1e3d2b3679234b5705c38e6a6191ee5109e9e5fc445de",
+        "evidence:sha256:f07b280ecdf720aca516171e447c2e1d3eed3dac147dbddfbdc5c54adc7bbcb3"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:supervisor-to-worker-wrapper",
+      "source_node_id": "worker-launch-boundary",
+      "target_node_id": "deterministic-worker-wrapper",
+      "name": "启动边界指向 Worker 包装入口",
+      "professional_description": "候选协作：Supervisor 的明确脚本绑定指向确定性 Python Worker 包装入口。",
+      "plain_explanation": "像发车闸门旁的目的地标签明确写着确定性 Worker 入口。这是未审核的脚本绑定候选，不替代或扩张唯一正式 Supervisor→Worker 关系。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+      ]
+    }
+  ]
+}

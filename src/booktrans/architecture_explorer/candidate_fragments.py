@@ -31,6 +31,23 @@ def _source_evidence_ids(explorer: dict[str, Any]) -> set[str]:
             evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
             if isinstance(evidence_id, str):
                 evidence_ids.add(evidence_id)
+    powershell_scripts = source_facts.get("powershell_scripts", [])
+    if not isinstance(powershell_scripts, list):
+        raise ExplorerInputError("Candidate fragments require valid PowerShell source facts")
+    for script in powershell_scripts:
+        if not isinstance(script, dict):
+            continue
+        for collection in ("entries", "script_bindings", "dot_sources"):
+            facts = script.get(collection, [])
+            if not isinstance(facts, list):
+                continue
+            for fact in facts:
+                if not isinstance(fact, dict) or fact.get("resolution") != "known":
+                    continue
+                evidence = fact.get("evidence") if isinstance(fact, dict) else None
+                evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
+                if isinstance(evidence_id, str):
+                    evidence_ids.add(evidence_id)
     return evidence_ids
 
 
@@ -48,11 +65,12 @@ def apply_candidate_fragments(
         for item in result.get("architecture", {}).get("modules", [])
         if isinstance(item, dict)
     }
-    parent_ids = {
-        item.get("parent_module_id")
+    drilldown_by_parent = {
+        item.get("parent_module_id"): item
         for item in navigation["drilldowns"]
         if isinstance(item, dict)
     }
+    fragment_parent_ids: set[str] = set()
     global_node_ids = {
         child.get("id")
         for drilldown in navigation["drilldowns"]
@@ -79,11 +97,21 @@ def apply_candidate_fragments(
             raise ExplorerInputError(
                 f"Candidate fragment references unknown parent module: {parent_module_id}"
             )
-        if parent_module_id in parent_ids:
+        if parent_module_id in fragment_parent_ids:
             raise ExplorerInputError(
                 f"Candidate fragment parent module must be unique: {parent_module_id}"
             )
-        parent_ids.add(parent_module_id)
+        fragment_parent_ids.add(parent_module_id)
+        existing_drilldown = drilldown_by_parent.get(parent_module_id)
+        if existing_drilldown is not None and parent_module_id != "production-control":
+            raise ExplorerInputError(
+                f"Candidate fragment parent module must be unique: {parent_module_id}"
+            )
+        existing_children = {
+            child.get("id"): child
+            for child in existing_drilldown.get("children", [])
+            if isinstance(child, dict) and isinstance(child.get("id"), str)
+        } if isinstance(existing_drilldown, dict) else {}
         raw_nodes = fragment.get("nodes")
         if not isinstance(raw_nodes, list) or not raw_nodes:
             raise ExplorerInputError(f"Candidate fragment {parent_module_id} needs nodes")
@@ -105,7 +133,7 @@ def apply_candidate_fragments(
             node_id = _text(raw_node.get("id"), "node id")
             if node_id in node_ids:
                 raise ExplorerInputError(f"Candidate fragment node id must be unique: {node_id}")
-            if node_id in global_node_ids:
+            if node_id in global_node_ids and node_id not in existing_children:
                 raise ExplorerInputError(
                     f"Candidate fragment node id must be globally unique: {node_id}"
                 )
@@ -114,6 +142,20 @@ def apply_candidate_fragments(
             node_type = _text(raw_node.get("node_type"), "node type")
             if node_type not in {"responsibility", "component"}:
                 raise ExplorerInputError(f"Unsupported candidate fragment node type: {node_type}")
+            source_assignment = {
+                "status": "unverified",
+                "note": "静态源码事实只支持这项候选解释，不证明文件已经归属该架构模块。",
+                "relationship_ids": [],
+                "evidence_ids": list(evidence_ids),
+            }
+            if node_id in existing_children:
+                existing_assignment = existing_children[node_id].get("source_assignment")
+                if not isinstance(existing_assignment, dict):
+                    raise ExplorerInputError(
+                        f"Existing candidate node needs source assignment: {node_id}"
+                    )
+                source_assignment = deepcopy(existing_assignment)
+                source_assignment["evidence_ids"] = list(evidence_ids)
             children.append(
                 {
                     "id": node_id,
@@ -126,13 +168,14 @@ def apply_candidate_fragments(
                         raw_node.get("plain_explanation"), "plain explanation"
                     ),
                     "review_status": "candidate",
-                    "source_assignment": {
-                        "status": "unverified",
-                        "note": "静态源码事实只支持这项候选解释，不证明文件已经归属该架构模块。",
-                        "relationship_ids": [],
-                        "evidence_ids": list(evidence_ids),
-                    },
+                    "source_assignment": source_assignment,
                 }
+            )
+        missing_existing = sorted(set(existing_children) - node_ids)
+        if missing_existing:
+            raise ExplorerInputError(
+                "Candidate fragment must preserve existing candidate node: "
+                f"{missing_existing[0]}"
             )
         raw_collaborations = fragment.get("collaborations")
         if not isinstance(raw_collaborations, list):
@@ -200,7 +243,11 @@ def apply_candidate_fragments(
             "children": children,
             "collaborations": collaborations,
         }
-        navigation["drilldowns"].append(validated)
+        if existing_drilldown is None:
+            navigation["drilldowns"].append(validated)
+        else:
+            index = navigation["drilldowns"].index(existing_drilldown)
+            navigation["drilldowns"][index] = validated
         validated_fragments.append(validated)
 
     canonical = json.dumps(

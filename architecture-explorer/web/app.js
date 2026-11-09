@@ -29,6 +29,11 @@
       sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule };
     }
   }
+  for (const sourceModule of data.source_facts?.powershell_scripts || []) {
+    for (const fact of [...sourceModule.entries, ...sourceModule.script_bindings, ...sourceModule.dot_sources]) {
+      sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule, language: "powershell" };
+    }
+  }
   let state = stateApi.initialState();
   let suppressNextClick = false;
 
@@ -148,16 +153,25 @@
   const candidateEvidenceCard = (evidenceId) => {
     const record = sourceEvidenceById[evidenceId];
     if (!record) return text("p", `无法解析源码依据：${evidenceId}`, "load-error");
-    const { fact, sourceModule } = record; const evidence = fact.evidence;
+    const { fact, sourceModule, language } = record; const evidence = fact.evidence;
     const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
-    const label = fact.kind === "from"
+    const label = language === "powershell"
+      ? `${fact.kind} · ${fact.symbol || `$${fact.variable}`}`
+      : fact.kind === "from"
       ? `${".".repeat(fact.level)}${fact.module} → ${fact.names.join(", ")}`
       : fact.module || `${fact.kind} · ${evidence.symbol}`;
+    const explanation = language === "powershell"
+      ? fact.kind === "script_binding"
+        ? `PowerShell 静态 AST 把这个脚本变量解析为明确路径；它支持当前未审核候选，但不证明目标脚本已经执行或形成正式架构协作。`
+        : fact.kind === "dot_source"
+          ? `PowerShell 静态 AST 确认这里使用 dot-source 接入明确绑定的脚本；它支持当前未审核候选，但不证明运行时调用或决策结果。`
+          : `PowerShell 静态 AST 确认这个关键函数入口写在 Supervisor 中；它支持当前未审核候选，但不证明入口在某次运行中被调用。`
+      : `这条依据来自“${sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`;
     const card = document.createElement("article"); card.className = "candidate-evidence-card";
     card.append(
-      text("p", "T6-1 自动静态源码事实", "evidence-role"),
+      text("p", language === "powershell" ? "PowerShell AST 自动静态源码事实" : "Python AST 自动静态源码事实", "evidence-role"),
       text("h4", label),
-      text("p", `这条依据来自“${sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`, "evidence-explanation")
+      text("p", explanation, "evidence-explanation")
     );
     const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
     for (const [term, value] of [["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind]]) {
@@ -200,7 +214,8 @@
   const initializeSourceFacts = () => {
     const sourceFacts = data.source_facts;
     if (!sourceFacts || !Array.isArray(sourceFacts.modules)) { sourceFactsDetails.hidden = true; return; }
-    sourceFactsCount.textContent = `${sourceFacts.scope.files_scanned} 个文件 · 默认收起`;
+    const supervisorCount = Number(sourceFacts.powershell_scope?.files_scanned || 0);
+    sourceFactsCount.textContent = `${sourceFacts.scope.files_scanned} 个 Python 文件 · ${supervisorCount} 个 Supervisor · 默认收起`;
     sourceFacts.modules.forEach((module, index) => {
       const option = document.createElement("option"); option.value = String(index); option.textContent = module.path; sourceModuleSelect.append(option);
     });

@@ -32,6 +32,9 @@ DOCUMENT_FRAGMENT = (
     REPOSITORY / "architecture-explorer/candidates/document-understanding.v1.json"
 )
 SCOPE_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/scope-and-request.v1.json"
+PRODUCTION_FRAGMENT = (
+    REPOSITORY / "architecture-explorer/candidates/production-control.v1.json"
+)
 TRANSLATION_FRAGMENT = (
     REPOSITORY / "architecture-explorer/candidates/translation-execution.v1.json"
 )
@@ -154,6 +157,18 @@ def _direct_import_evidence_id(
         for item in source_module["direct_imports"]
         if item["module"] == imported_module
     )
+    return fact["evidence"]["evidence_id"]
+
+
+def _powershell_evidence_id(
+    explorer: dict,
+    *,
+    collection: str,
+    field: str,
+    value: str,
+) -> str:
+    supervisor = explorer["source_facts"]["powershell_scripts"][0]
+    fact = next(item for item in supervisor[collection] if item[field] == value)
     return fact["evidence"]["evidence_id"]
 
 
@@ -433,13 +448,133 @@ def test_candidate_collaboration_can_share_real_evidence_without_becoming_review
     ]
 
 
+def test_production_candidate_fragment_enriches_t4_nodes_without_changing_trust() -> None:
+    explorer = _explorer_with_source_facts()
+    before_architecture = deepcopy(explorer["architecture"])
+    before_coverage = [
+        deepcopy(module["source_coverage"])
+        for module in explorer["architecture"]["modules"]
+    ]
+    launch = _powershell_evidence_id(
+        explorer,
+        collection="entries",
+        field="symbol",
+        value="Start-DeterministicWorkerProcess",
+    )
+    refresh = _powershell_evidence_id(
+        explorer,
+        collection="entries",
+        field="symbol",
+        value="Refresh-State",
+    )
+    worker_binding = _powershell_evidence_id(
+        explorer,
+        collection="script_bindings",
+        field="variable",
+        value="deterministicWorkerScript",
+    )
+    adapter_binding = _powershell_evidence_id(
+        explorer,
+        collection="script_bindings",
+        field="variable",
+        value="controlPlaneAdapterScript",
+    )
+    dot_source = explorer["source_facts"]["powershell_scripts"][0]["dot_sources"][0][
+        "evidence"
+    ]["evidence_id"]
+    fragment = {
+        "schema": "architecture-explorer.candidate-fragment.v1",
+        "parent_module_id": "production-control",
+        "name": "生产调度与控制",
+        "coverage_note": "只展示静态事实支持的未审核候选，不提升源码覆盖。",
+        "nodes": [
+            {
+                "id": "supervisor-orchestration",
+                "node_type": "responsibility",
+                "name": "Supervisor 编排",
+                "professional_description": "候选职责：组织生产控制循环。",
+                "plain_explanation": "像值班调度员看住整个循环；源码只证明入口存在。",
+                "review_status": "candidate",
+                "evidence_ids": [refresh],
+            },
+            {
+                "id": "worker-launch-boundary",
+                "node_type": "responsibility",
+                "name": "Worker 启动边界",
+                "professional_description": "候选职责：建立受约束的 Worker 进程边界。",
+                "plain_explanation": "像一道发车闸门；正式关系仍由原有审核证据负责。",
+                "review_status": "candidate",
+                "evidence_ids": [launch, worker_binding],
+            },
+            {
+                "id": "state-and-control-decisions",
+                "node_type": "responsibility",
+                "name": "状态与控制决策",
+                "professional_description": "候选职责：读取状态并形成控制决定。",
+                "plain_explanation": "像根据仪表盘决定继续、停下或移交。",
+                "review_status": "candidate",
+                "evidence_ids": [refresh, dot_source],
+            },
+            {
+                "id": "production-control-adapters",
+                "node_type": "component",
+                "name": "控制决策适配器",
+                "professional_description": "候选组件：提供控制决策适配边界。",
+                "plain_explanation": "像把不同控制判断接到统一插座。",
+                "review_status": "candidate",
+                "evidence_ids": [adapter_binding, dot_source],
+            },
+        ],
+        "collaborations": [
+            {
+                "id": "candidate-collaboration:supervisor-to-control-adapters",
+                "source_node_id": "supervisor-orchestration",
+                "target_node_id": "production-control-adapters",
+                "name": "Supervisor 装载控制适配器",
+                "professional_description": "候选协作：Supervisor 静态 dot-source 控制适配器。",
+                "plain_explanation": "像调度员把控制规则工具箱接入工作台；不证明运行时结果。",
+                "review_status": "candidate",
+                "evidence_ids": [adapter_binding, dot_source],
+            }
+        ],
+    }
+
+    result = apply_candidate_fragments(explorer, [fragment])
+
+    assert result["architecture"] == before_architecture
+    assert [
+        module["source_coverage"] for module in result["architecture"]["modules"]
+    ] == before_coverage
+    relationship = result["architecture"]["relationships"]
+    assert len(relationship) == 1
+    assert relationship[0]["review_status"] == "current-reviewed"
+    assert len(relationship[0]["evidence"]) == 13
+    drilldown = next(
+        item
+        for item in result["navigation"]["drilldowns"]
+        if item["parent_module_id"] == "production-control"
+    )
+    assert [item["id"] for item in drilldown["children"]][:3] == [
+        "supervisor-orchestration",
+        "worker-launch-boundary",
+        "state-and-control-decisions",
+    ]
+    worker = drilldown["children"][1]
+    assert worker["source_assignment"]["status"] == "partial"
+    assert worker["source_assignment"]["relationship_ids"] == [
+        "relationship:production-control:launches:translation-execution"
+    ]
+    assert all(item["plain_explanation"] for item in drilldown["children"])
+    assert drilldown["collaborations"][0]["review_status"] == "candidate"
+
+
 def test_shipped_fragments_add_limited_evidence_backed_candidates_for_two_modules() -> None:
     explorer = _explorer_with_source_facts()
     before_architecture = deepcopy(explorer["architecture"])
 
     result = apply_candidate_fragments(
         explorer,
-        [_json(DOCUMENT_FRAGMENT), _json(SCOPE_FRAGMENT)],
+        [_json(PRODUCTION_FRAGMENT), _json(DOCUMENT_FRAGMENT), _json(SCOPE_FRAGMENT)],
     )
 
     assert result["architecture"] == before_architecture
@@ -467,6 +602,15 @@ def test_shipped_fragments_add_limited_evidence_backed_candidates_for_two_module
             item["source_assignment"]["evidence_ids"]
             for item in drilldown["children"]
         )
+    production = drilldowns["production-control"]
+    assert len(production["children"]) == 5
+    assert {item["node_type"] for item in production["children"]} == {
+        "responsibility",
+        "component",
+    }
+    assert len(production["collaborations"]) == 2
+    assert all(item["review_status"] == "candidate" for item in production["children"])
+    assert all(item["plain_explanation"] for item in production["children"])
 
 
 def test_candidate_fragments_reject_duplicate_parent_definitions() -> None:
@@ -481,6 +625,22 @@ def test_candidate_fragment_rejects_dangling_source_evidence() -> None:
     explorer = _explorer_with_source_facts()
     fragment = _json(DOCUMENT_FRAGMENT)
     fragment["nodes"][0]["evidence_ids"][0] = "evidence:sha256:" + "0" * 64
+
+    with pytest.raises(ExplorerInputError, match="unknown source evidence"):
+        apply_candidate_fragments(explorer, [fragment])
+
+
+def test_candidate_fragment_rejects_unresolved_powershell_evidence() -> None:
+    explorer = _explorer_with_source_facts()
+    fragment = _json(DOCUMENT_FRAGMENT)
+    supervisor = explorer["source_facts"]["powershell_scripts"][0]
+    unresolved = next(
+        item
+        for item in supervisor["script_bindings"]
+        if item["variable"] == "stateScript"
+    )
+    assert unresolved["resolution"] == "unknown"
+    fragment["nodes"][0]["evidence_ids"][0] = unresolved["evidence"]["evidence_id"]
 
     with pytest.raises(ExplorerInputError, match="unknown source evidence"):
         apply_candidate_fragments(explorer, [fragment])
@@ -501,6 +661,7 @@ def test_candidate_fragments_reject_global_node_id_collisions() -> None:
 def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Path) -> None:
     repository = create_source_repository(tmp_path)
     for relative in (
+        "scripts/production/production_campaign_supervisor.ps1",
         "src/booktrans/ooxml/extractor.py",
         "src/booktrans/ooxml/translation_view.py",
         "scripts/write_full_book_translation_scope.py",
@@ -529,25 +690,25 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         ]
     ) == 0
 
-    assert review_main(
-        [
-            "build",
-            "--repository", str(repository),
-            "--snapshot", str(SNAPSHOT),
-            "--mapping", str(MODULE_MAP),
-            "--candidate", str(CANDIDATE),
-            "--review-mapping", str(REVIEW_MAP),
-            "--review-source", str(REVIEW_SOURCE),
-            "--review-state", "output/review-state.json",
-            "--navigation", str(NAVIGATION),
-            "--candidate-fragment", str(DOCUMENT_FRAGMENT),
-            "--candidate-fragment", str(SCOPE_FRAGMENT),
-            "--candidate-fragment", str(TRANSLATION_FRAGMENT),
-            "--candidate-fragment", str(QUALITY_FRAGMENT),
-            "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
-            "--output-directory", "output/site",
-        ]
-    ) == 0
+    build_args = [
+        "build",
+        "--repository", str(repository),
+        "--snapshot", str(SNAPSHOT),
+        "--mapping", str(MODULE_MAP),
+        "--candidate", str(CANDIDATE),
+        "--review-mapping", str(REVIEW_MAP),
+        "--review-source", str(REVIEW_SOURCE),
+        "--review-state", "output/review-state.json",
+        "--navigation", str(NAVIGATION),
+        "--candidate-fragment", str(PRODUCTION_FRAGMENT),
+        "--candidate-fragment", str(DOCUMENT_FRAGMENT),
+        "--candidate-fragment", str(SCOPE_FRAGMENT),
+        "--candidate-fragment", str(TRANSLATION_FRAGMENT),
+        "--candidate-fragment", str(QUALITY_FRAGMENT),
+        "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
+        "--output-directory", "output/site",
+    ]
+    assert review_main(build_args) == 0
 
     data = json.loads(
         (repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
@@ -564,12 +725,28 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
     assert [
         item["path"] for item in data["generation_inputs"]["candidate_fragments"]
     ] == [
+        PRODUCTION_FRAGMENT.name,
         DOCUMENT_FRAGMENT.name,
         SCOPE_FRAGMENT.name,
         TRANSLATION_FRAGMENT.name,
         QUALITY_FRAGMENT.name,
     ]
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
+
+    supervisor = repository / "scripts/production/production_campaign_supervisor.ps1"
+    supervisor.write_text(
+        supervisor.read_text(encoding="utf-8") + "\n# unrelated source comment\n",
+        encoding="utf-8",
+    )
+
+    assert review_main(build_args) == 0
+    rebuilt = json.loads(
+        (repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
+    )
+    relationship = rebuilt["architecture"]["relationships"][0]
+    assert relationship["review_status"] == "current-reviewed"
+    assert relationship["source_continuity"]["status"] == "exact-match"
+    assert len(relationship["evidence_ids"]) == 13
 
 
 @pytest.mark.parametrize(
@@ -591,6 +768,7 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
     data = apply_candidate_fragments(
         _explorer_with_source_facts(),
         [
+            _json(PRODUCTION_FRAGMENT),
             _json(DOCUMENT_FRAGMENT),
             _json(SCOPE_FRAGMENT),
             _json(TRANSLATION_FRAGMENT),
@@ -604,6 +782,10 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
         site / "t6_2_candidate_dom.js",
     )
     shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t6_4_production_dom.js",
+        site / "t6_4_production_dom.js",
+    )
+    shutil.copyfile(
         REPOSITORY / "tests/architecture_explorer/t6_3_candidate_dom.js",
         site / "t6_3_candidate_dom.js",
     )
@@ -611,6 +793,7 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
     page.write_text(
         page.read_text(encoding="utf-8").replace(
             "</body>",
+            '<script src="t6_4_production_dom.js"></script>'
             '<script src="t6_2_candidate_dom.js"></script>'
             '<script src="t6_3_candidate_dom.js"></script></body>',
         ),
@@ -642,4 +825,5 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
     )
     assert completed.returncode == 0, completed.stderr
     assert 'data-t6-candidate="pass"' in completed.stdout, completed.stdout
+    assert 'data-t6-production="pass"' in completed.stdout, completed.stdout
     assert 'data-t6-three-candidate="pass"' in completed.stdout, completed.stdout

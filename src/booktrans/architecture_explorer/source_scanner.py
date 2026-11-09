@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import ast
+import base64
 from copy import deepcopy
+import json
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from .candidate_scanner import validated_source_path
@@ -16,7 +19,7 @@ from .source_primitives import (
 )
 
 
-SCANNER_VERSION = "architecture-explorer-t6-1/1.0"
+SCANNER_VERSION = "architecture-explorer-t6-4/1.5"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
@@ -28,8 +31,441 @@ LIMITATIONS = (
     "No scanned file is assigned to an approved architecture module.",
     "Dynamic imports, runtime calls, and a complete call graph are not collected.",
     "Files outside the declared scope are unexamined, not historical, inactive, or invalid.",
+    "PowerShell facts are limited to the single production Supervisor; no general PowerShell call graph is built.",
+    "Dynamic or ambiguous PowerShell paths remain unknown and do not prove script execution or architecture collaboration.",
 )
 _WORKER_WRAPPER = "scripts/production/run_qwen_deterministic_worker.py"
+_SUPERVISOR = "scripts/production/production_campaign_supervisor.ps1"
+_SUPERVISOR_ENTRIES = (
+    "Get-AutoRecoveryPolicy",
+    "Invoke-AuthoritativeCursorDecision",
+    "Invoke-AuthoritativeHandoffDecision",
+    "Invoke-ControlPlaneShadow",
+    "Invoke-CurrentExecutionProjection",
+    "Invoke-SupervisorRetryPolicy",
+    "Refresh-State",
+    "Start-DeterministicWorkerProcess",
+)
+
+_POWERSHELL_SOURCE_FACTS_QUERY = r"""
+$ErrorActionPreference = 'Stop'
+$encoded = [Console]::In.ReadToEnd().Trim()
+$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded)).TrimStart([char]0xFEFF)
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseInput(
+    $source,
+    [ref]$tokens,
+    [ref]$parseErrors
+)
+$entryNames = @(
+__ENTRY_NAMES__
+)
+
+function Test-T6ScriptScope($node, $root) {
+    $ancestor = $node.Parent
+    while ($null -ne $ancestor) {
+        if ($ancestor -is [System.Management.Automation.Language.ScriptBlockAst]) {
+            return [object]::ReferenceEquals($ancestor, $root)
+        }
+        $ancestor = $ancestor.Parent
+    }
+    return $false
+}
+
+function Test-T6ConditionalContext($node) {
+    $conditionalTypes = @(
+        'IfStatementAst',
+        'SwitchStatementAst',
+        'ForEachStatementAst',
+        'ForStatementAst',
+        'WhileStatementAst',
+        'DoWhileStatementAst',
+        'DoUntilStatementAst',
+        'TryStatementAst',
+        'TrapStatementAst'
+    )
+    $ancestor = $node.Parent
+    while ($null -ne $ancestor) {
+        if ($conditionalTypes -contains $ancestor.GetType().Name) { return $true }
+        $ancestor = $ancestor.Parent
+    }
+    return $false
+}
+
+function Convert-T6VariableIdentity($node) {
+    $path = $node.VariablePath
+    $userPath = $path.UserPath
+    $separator = $userPath.IndexOf(':')
+    $name = if ($separator -ge 0) { $userPath.Substring($separator + 1) } else { $userPath }
+    $supported = $path.IsUnqualified -or $path.IsScript -or $path.IsLocal -or $path.IsPrivate
+    [pscustomobject][ordered]@{
+        name = $name
+        scope = $(if ($supported) { 'script' } else { 'unsupported' })
+        supported = [bool]$supported
+    }
+}
+
+function Get-T6CommandArgument($elements, [string]$parameterName, [int]$position) {
+    for ($index = 1; $index -lt $elements.Count; $index++) {
+        $element = $elements[$index]
+        if (
+            $element -is [System.Management.Automation.Language.CommandParameterAst] -and
+            $element.ParameterName -eq $parameterName
+        ) {
+            if ($null -ne $element.Argument) { return $element.Argument }
+            if ($index + 1 -lt $elements.Count) { return $elements[$index + 1] }
+            return $null
+        }
+    }
+    if (
+        $position -ge 1 -and
+        $position -lt $elements.Count -and
+        -not ($elements[$position] -is [System.Management.Automation.Language.CommandParameterAst])
+    ) {
+        return $elements[$position]
+    }
+    return $null
+}
+
+function Test-T6OpaqueSplat($elements) {
+    foreach ($element in $elements) {
+        if (
+            $element -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $element.Splatted
+        ) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-T6CommandAffectsScriptScope($node, $scopeNode, $root) {
+    $rootScope = Test-T6ScriptScope $node $root
+    $explicitScope = if (
+        $scopeNode -is [System.Management.Automation.Language.StringConstantExpressionAst]
+    ) { $scopeNode.Value } else { $null }
+    if ($rootScope) {
+        return $null -eq $scopeNode -or
+            $null -eq $explicitScope -or
+            $explicitScope -in @('Script', 'Local', 'Private')
+    }
+    return $explicitScope -eq 'Script' -or
+        ($null -ne $scopeNode -and $null -eq $explicitScope)
+}
+
+function Test-T6CommandAffectsCommandLookup($node, $scopeNode, $root) {
+    if (
+        $scopeNode -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+        $scopeNode.Value -eq 'Global'
+    ) {
+        return $true
+    }
+    return Test-T6CommandAffectsScriptScope $node $scopeNode $root
+}
+
+function New-T6ExtentHazard($node, [bool]$sourceOrderKnown) {
+    [pscustomobject][ordered]@{
+        source_order_known = $sourceOrderKnown
+        start_offset = $node.Extent.StartOffset
+        text = $node.Extent.Text
+        line_start = $node.Extent.StartLineNumber
+        line_end = $node.Extent.EndLineNumber
+    }
+}
+
+function New-T6WriteHazard($variableNode, [string]$operator, $node, [bool]$sourceOrderKnown) {
+    $identity = Convert-T6VariableIdentity $variableNode
+    [pscustomobject][ordered]@{
+        variable = $variableNode.VariablePath.UserPath
+        variable_name = $identity.name
+        variable_scope = $identity.scope
+        operator = $operator
+        source_order_known = $sourceOrderKnown
+        resolution = 'unknown'
+        target_path = $null
+        candidate_paths = @()
+        start_offset = $node.Extent.StartOffset
+        text = $node.Extent.Text
+        line_start = $node.Extent.StartLineNumber
+        line_end = $node.Extent.EndLineNumber
+    }
+}
+
+$result = [ordered]@{
+    parse_errors = @($parseErrors | ForEach-Object {
+        [pscustomobject][ordered]@{
+            line = $_.Extent.StartLineNumber
+            message = $_.Message
+            text = $_.Extent.Text
+        }
+    })
+    entries = @()
+    bindings = @()
+    write_hazards = @()
+    global_write_hazards = @()
+    runtime_value_hazards = @()
+    command_resolution_hazards = @()
+    dot_sources = @()
+}
+if (@($parseErrors).Count -eq 0) {
+    $functions = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $entryNames -contains $node.Name
+    }, $true))
+    foreach ($node in $functions) {
+        $known = (Test-T6ScriptScope $node $ast) -and
+            -not (Test-T6ConditionalContext $node)
+        $result.entries += [pscustomobject][ordered]@{
+            symbol = $node.Name
+            resolution = $(if ($known) { 'known' } else { 'unknown' })
+            start_offset = $node.Extent.StartOffset
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+
+    $joinPathFunctions = @($ast.FindAll({
+        param($node)
+        if (-not ($node -is [System.Management.Automation.Language.FunctionDefinitionAst])) {
+            return $false
+        }
+        $name = $node.Name
+        $separator = $name.IndexOf(':')
+        $baseName = if ($separator -ge 0) { $name.Substring($separator + 1) } else { $name }
+        return $baseName -eq 'Join-Path'
+    }, $true))
+    foreach ($node in $joinPathFunctions) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        $scriptQualified = $node.Name -like 'script:*'
+        $globalQualified = $node.Name -like 'global:*'
+        if (-not $rootScope -and -not $scriptQualified -and -not $globalQualified) { continue }
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
+    $aliasCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -in @(
+            'Set-Alias', 'New-Alias', 'Remove-Alias', 'sal', 'nal', 'ral'
+        )
+    }, $true))
+    foreach ($node in $aliasCommands) {
+        $elements = @($node.CommandElements)
+        $nameNode = Get-T6CommandArgument $elements 'Name' 1
+        $scopeNode = Get-T6CommandArgument $elements 'Scope' -1
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (Test-T6OpaqueSplat $elements) {
+            $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+            continue
+        }
+        if (-not (Test-T6CommandAffectsCommandLookup $node $scopeNode $ast)) { continue }
+        $staticName = $nameNode -is [System.Management.Automation.Language.StringConstantExpressionAst]
+        if ($staticName -and $nameNode.Value -ne 'Join-Path') { continue }
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
+    $providerMutationCommands = @($ast.FindAll({
+        param($node)
+        if (-not ($node -is [System.Management.Automation.Language.CommandAst])) {
+            return $false
+        }
+        if ($node.GetCommandName() -notin @(
+            'Set-Item', 'New-Item', 'Remove-Item', 'Rename-Item',
+            'Move-Item', 'Copy-Item', 'si', 'ni', 'ri', 'rni', 'mi', 'cpi'
+        )) {
+            return $false
+        }
+        if (Test-T6OpaqueSplat @($node.CommandElements)) { return $true }
+        if (Test-T6ScriptScope $node $ast) { return $true }
+        foreach ($element in @($node.CommandElements)) {
+            if (
+                $element -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                $element.Value -match '^(function|alias):[\\/]*(global:|script:)?join-path$'
+            ) {
+                return $true
+            }
+        }
+        return $false
+    }, $true))
+    foreach ($node in $providerMutationCommands) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+    }
+
+    $sessionMutationCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -in @('Import-Module', 'ipmo', 'Invoke-Expression', 'iex')
+    }, $true))
+    foreach ($node in $sessionMutationCommands) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $rootScope
+        if ($node.GetCommandName() -in @('Invoke-Expression', 'iex')) {
+            $result.runtime_value_hazards += New-T6ExtentHazard $node $rootScope
+        }
+    }
+
+    $assignments = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [System.Management.Automation.Language.VariableExpressionAst]
+    }, $true))
+    foreach ($node in $assignments) {
+        $identity = Convert-T6VariableIdentity $node.Left
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (-not $rootScope -and -not $node.Left.VariablePath.IsScript) { continue }
+        $conditional = Test-T6ConditionalContext $node
+        $joins = @($node.Right.FindAll({
+            param($child)
+            $child -is [System.Management.Automation.Language.CommandAst] -and
+            $child.GetCommandName() -eq 'Join-Path'
+        }, $true))
+        $candidates = @()
+        foreach ($join in $joins) {
+            $elements = @($join.CommandElements)
+            if (
+                $elements.Count -eq 3 -and
+                $elements[1] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                $elements[1].VariablePath.UserPath -eq 'Root' -and
+                $elements[2] -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                $elements[2].Value -like 'scripts\production\*' -and
+                $elements[2].Value -match '\.(py|ps1)$'
+            ) {
+                $candidates += $elements[2].Value
+            }
+        }
+        $known = $joins.Count -eq 1 -and
+            $candidates.Count -eq 1 -and
+            $node.Operator -eq [System.Management.Automation.Language.TokenKind]::Equals -and
+            $identity.supported -and
+            $rootScope -and
+            $node.Right.Extent.Text.Trim() -eq $joins[0].Extent.Text.Trim() -and
+            -not $conditional
+        $result.bindings += [pscustomobject][ordered]@{
+            variable = $node.Left.VariablePath.UserPath
+            variable_name = $identity.name
+            variable_scope = $identity.scope
+            operator = [string]$node.Operator
+            source_order_known = [bool]$rootScope
+            resolution = $(if ($known) { 'known' } else { 'unknown' })
+            target_path = $(if ($known) { $candidates[0] } else { $null })
+            candidate_paths = @($candidates)
+            start_offset = $node.Extent.StartOffset
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+
+    $destructuringAssignments = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left -is [System.Management.Automation.Language.ArrayLiteralAst]
+    }, $true))
+    foreach ($node in $destructuringAssignments) {
+        $rootScope = Test-T6ScriptScope $node $ast
+        foreach ($variableNode in @($node.Left.Elements)) {
+            if (-not ($variableNode -is [System.Management.Automation.Language.VariableExpressionAst])) {
+                continue
+            }
+            if (-not $rootScope -and -not $variableNode.VariablePath.IsScript) { continue }
+            $result.write_hazards += New-T6WriteHazard `
+                $variableNode 'Destructuring' $node $rootScope
+        }
+    }
+
+    $foreachStatements = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.ForEachStatementAst]
+    }, $true))
+    foreach ($node in $foreachStatements) {
+        $variableNode = $node.Variable
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (-not $rootScope -and -not $variableNode.VariablePath.IsScript) { continue }
+        $result.write_hazards += New-T6WriteHazard $variableNode 'ForEach' $node $rootScope
+    }
+
+    $setVariableCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.GetCommandName() -in @('Set-Variable', 'sv')
+    }, $true))
+    foreach ($node in $setVariableCommands) {
+        $elements = @($node.CommandElements)
+        $nameNode = Get-T6CommandArgument $elements 'Name' 1
+        $scopeNode = Get-T6CommandArgument $elements 'Scope' -1
+        $rootScope = Test-T6ScriptScope $node $ast
+        if (Test-T6OpaqueSplat $elements) {
+            $result.global_write_hazards += New-T6ExtentHazard $node $rootScope
+            continue
+        }
+        if (-not (Test-T6CommandAffectsScriptScope $node $scopeNode $ast)) { continue }
+        if (-not ($nameNode -is [System.Management.Automation.Language.StringConstantExpressionAst])) {
+            $result.global_write_hazards += New-T6ExtentHazard $node $rootScope
+            continue
+        }
+        if ($nameNode.Value.IndexOfAny([char[]]'*?[') -ge 0) {
+            $result.global_write_hazards += New-T6ExtentHazard $node $rootScope
+            continue
+        }
+        $userPath = $nameNode.Value.TrimStart('$')
+        $separator = $userPath.IndexOf(':')
+        $variableName = if ($separator -ge 0) {
+            $userPath.Substring($separator + 1)
+        } else {
+            $userPath
+        }
+        $result.write_hazards += [pscustomobject][ordered]@{
+            variable = $userPath
+            variable_name = $variableName
+            variable_scope = 'script'
+            operator = 'SetVariable'
+            source_order_known = [bool]$rootScope
+            resolution = 'unknown'
+            target_path = $null
+            candidate_paths = @()
+            start_offset = $node.Extent.StartOffset
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+
+    $dotCommands = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+        $node.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot
+    }, $true))
+    foreach ($node in $dotCommands) {
+        if (-not (Test-T6ScriptScope $node $ast)) { continue }
+        $result.command_resolution_hazards += New-T6ExtentHazard $node $true
+        $result.runtime_value_hazards += New-T6ExtentHazard $node $true
+        $elements = @($node.CommandElements)
+        $variable = $null
+        $identity = $null
+        if (
+            $elements.Count -eq 1 -and
+            $elements[0] -is [System.Management.Automation.Language.VariableExpressionAst]
+        ) {
+            $variable = $elements[0].VariablePath.UserPath
+            $identity = Convert-T6VariableIdentity $elements[0]
+        }
+        $result.dot_sources += [pscustomobject][ordered]@{
+            variable = $variable
+            variable_name = $(if ($null -ne $identity) { $identity.name } else { $null })
+            variable_scope = $(if ($null -ne $identity) { $identity.scope } else { 'unsupported' })
+            start_offset = $node.Extent.StartOffset
+            text = $node.Extent.Text
+            line_start = $node.Extent.StartLineNumber
+            line_end = $node.Extent.EndLineNumber
+        }
+    }
+}
+$result | ConvertTo-Json -Compress -Depth 8
+"""
 
 
 def _read_stable_utf8(repository: Path, relative: str) -> tuple[str, str, int]:
@@ -332,6 +768,293 @@ def _scan_module(repository: Path, relative: str) -> dict[str, Any]:
     }
 
 
+def _powershell_ast(text: str) -> dict[str, Any]:
+    encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    entry_names = "\n".join(f"    '{name}'" for name in _SUPERVISOR_ENTRIES)
+    query = _POWERSHELL_SOURCE_FACTS_QUERY.replace("__ENTRY_NAMES__", entry_names)
+    try:
+        completed = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                query,
+            ],
+            input=encoded,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError as error:
+        raise ExplorerInputError("PowerShell AST parser is unavailable") from error
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise ExplorerInputError(f"PowerShell AST parser failed: {detail}")
+    try:
+        result = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise ExplorerInputError("PowerShell AST parser returned invalid JSON") from error
+    if not isinstance(result, dict):
+        raise ExplorerInputError("PowerShell AST parser returned invalid data")
+    return result
+
+
+def _powershell_evidence(
+    record: dict[str, Any],
+    *,
+    file_sha256: str,
+    evidence_kind: str,
+    symbol: str,
+    structural_anchor: str,
+    syntax_position: str,
+) -> dict[str, Any]:
+    return build_static_evidence(
+        path=_SUPERVISOR,
+        source_role="automatic_source_fact",
+        evidence_kind=evidence_kind,
+        symbol=symbol,
+        structural_anchor=structural_anchor,
+        syntax_position=syntax_position,
+        snippet=str(record["text"]),
+        line_start=int(record["line_start"]),
+        line_end=int(record["line_end"]),
+        file_sha256=file_sha256,
+    )
+
+
+def _scan_supervisor(repository: Path) -> list[dict[str, Any]]:
+    tracked = _git(repository, "ls-files", "--", _SUPERVISOR).splitlines()
+    if _SUPERVISOR not in {item.replace("\\", "/") for item in tracked}:
+        return []
+    text, file_sha256, size_bytes = _read_stable_utf8(repository, _SUPERVISOR)
+    structure = _powershell_ast(text)
+    parse_errors = structure.get("parse_errors")
+    if not isinstance(parse_errors, list):
+        raise ExplorerInputError("PowerShell AST parser omitted parse errors")
+    if parse_errors:
+        return [
+            {
+                "path": _SUPERVISOR,
+                "file_sha256": file_sha256,
+                "size_bytes": size_bytes,
+                "parse_status": "parse-error",
+                "parse_errors": parse_errors,
+                "entries": [],
+                "script_bindings": [],
+                "dot_sources": [],
+            }
+        ]
+    raw_entries = structure.get("entries")
+    raw_bindings = structure.get("bindings")
+    raw_write_hazards = structure.get("write_hazards")
+    raw_global_write_hazards = structure.get("global_write_hazards")
+    raw_runtime_value_hazards = structure.get("runtime_value_hazards")
+    raw_command_resolution_hazards = structure.get("command_resolution_hazards")
+    raw_dot_sources = structure.get("dot_sources")
+    if not all(
+        isinstance(value, list)
+        for value in (
+            raw_entries,
+            raw_bindings,
+            raw_write_hazards,
+            raw_global_write_hazards,
+            raw_runtime_value_hazards,
+            raw_command_resolution_hazards,
+            raw_dot_sources,
+        )
+    ):
+        raise ExplorerInputError("PowerShell AST parser omitted source fact collections")
+    raw_bindings = [*raw_bindings, *raw_write_hazards]
+
+    entry_names = {name.casefold() for name in _SUPERVISOR_ENTRIES}
+    entries = []
+    entries_by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for record in raw_entries:
+        symbol = str(record["symbol"])
+        symbol_key = symbol.casefold()
+        if symbol_key not in entry_names:
+            continue
+        fact = {
+            "kind": "function_entry",
+            "symbol": symbol,
+            "resolution": (
+                "known" if record.get("resolution") == "known" else "unknown"
+            ),
+            "source_order": int(record.get("start_offset", 0)),
+            "evidence": _powershell_evidence(
+                record,
+                file_sha256=file_sha256,
+                evidence_kind="powershell_function_entry",
+                symbol=symbol,
+                structural_anchor=f"powershell:function:{symbol}",
+                syntax_position=f"supervisor/function:{symbol}",
+            ),
+        }
+        entries.append(fact)
+        entries_by_symbol.setdefault(symbol_key, []).append(fact)
+
+    for matching_entries in entries_by_symbol.values():
+        if len(matching_entries) > 1:
+            for entry in matching_entries:
+                entry["resolution"] = "unknown"
+
+    def variable_key(record: dict[str, Any]) -> str | None:
+        name = record.get("variable_name")
+        scope = record.get("variable_scope")
+        if not isinstance(name, str) or not isinstance(scope, str):
+            return None
+        return f"{scope}:{name.casefold()}"
+
+    relevant_variable_keys = {
+        key
+        for record in raw_dot_sources
+        if (key := variable_key(record)) is not None
+    }
+    relevant_variable_keys.update(
+        key
+        for record in raw_bindings
+        if record.get("candidate_paths") and (key := variable_key(record)) is not None
+    )
+
+    bindings = []
+    bindings_by_variable: dict[str, list[dict[str, Any]]] = {}
+    for record in raw_bindings:
+        record_key = variable_key(record)
+        if record_key not in relevant_variable_keys:
+            continue
+        variable = str(record["variable"])
+        variable_name = str(record.get("variable_name", variable))
+        variable_scope = str(record.get("variable_scope", "unsupported"))
+        candidate_paths = sorted(
+            {str(item).replace("\\", "/") for item in record.get("candidate_paths", [])}
+        )
+        source_order = int(record.get("start_offset", 0))
+        prior_command_hazards = [
+            hazard
+            for hazard in raw_command_resolution_hazards
+            if hazard.get("source_order_known") is not True
+            or int(hazard.get("start_offset", 0)) < source_order
+        ]
+        resolution = (
+            "known"
+            if record.get("resolution") == "known" and not prior_command_hazards
+            else "unknown"
+        )
+        target_path = (
+            str(record["target_path"]).replace("\\", "/")
+            if resolution == "known" and isinstance(record.get("target_path"), str)
+            else None
+        )
+        fact = {
+            "kind": "script_binding",
+            "variable": variable,
+            "variable_name": variable_name,
+            "variable_scope": variable_scope,
+            "operator": str(record.get("operator", "")),
+            "source_order": source_order,
+            "source_order_known": record.get("source_order_known") is True,
+            "resolution": resolution,
+            "target_path": target_path,
+            "candidate_paths": candidate_paths,
+            "_statement_known": resolution == "known",
+            "evidence": _powershell_evidence(
+                record,
+                file_sha256=file_sha256,
+                evidence_kind="powershell_script_binding",
+                symbol=f"${variable}",
+                structural_anchor=f"powershell:assignment:${variable}",
+                syntax_position=f"supervisor/assignment:${variable}",
+            ),
+        }
+        bindings.append(fact)
+        bindings_by_variable.setdefault(record_key, []).append(fact)
+
+    dot_sources = []
+    for record in raw_dot_sources:
+        variable = record.get("variable")
+        variable_name = record.get("variable_name")
+        variable_scope = record.get("variable_scope")
+        dot_variable_key = (
+            f"{variable_scope}:{variable_name.casefold()}"
+            if isinstance(variable_scope, str) and isinstance(variable_name, str)
+            else None
+        )
+        source_order = int(record.get("start_offset", 0))
+        matching_bindings = (
+            bindings_by_variable.get(dot_variable_key, [])
+            if dot_variable_key is not None and variable_scope == "script"
+            else []
+        )
+        prior_bindings = [
+            binding
+            for binding in matching_bindings
+            if not binding["source_order_known"]
+            or binding["source_order"] < source_order
+        ]
+        prior_global_hazards = [
+            hazard
+            for hazard in raw_global_write_hazards
+            if hazard.get("source_order_known") is not True
+            or int(hazard.get("start_offset", 0)) < source_order
+        ]
+        prior_runtime_value_hazards = [
+            hazard
+            for hazard in raw_runtime_value_hazards
+            if hazard.get("source_order_known") is not True
+            or int(hazard.get("start_offset", 0)) < source_order
+        ]
+        binding = prior_bindings[0] if len(prior_bindings) == 1 else None
+        resolution = (
+            "known"
+            if binding
+            and binding["_statement_known"]
+            and not prior_global_hazards
+            and not prior_runtime_value_hazards
+            else "unknown"
+        )
+        dot_sources.append(
+            {
+                "kind": "dot_source",
+                "symbol": f"${variable}" if isinstance(variable, str) else "unknown",
+                "source_order": source_order,
+                "resolution": resolution,
+                "target_path": binding["target_path"] if resolution == "known" else None,
+                "evidence": _powershell_evidence(
+                    record,
+                    file_sha256=file_sha256,
+                    evidence_kind="powershell_dot_source",
+                    symbol=f"${variable}" if isinstance(variable, str) else "unknown",
+                    structural_anchor="powershell:dot-source",
+                    syntax_position="supervisor/dot-source",
+                ),
+            }
+        )
+
+    for matching_bindings in bindings_by_variable.values():
+        if len(matching_bindings) > 1 or raw_global_write_hazards:
+            for binding in matching_bindings:
+                binding["resolution"] = "unknown"
+                binding["target_path"] = None
+        for binding in matching_bindings:
+            del binding["_statement_known"]
+
+    return [
+        {
+            "path": _SUPERVISOR,
+            "file_sha256": file_sha256,
+            "size_bytes": size_bytes,
+            "parse_status": "parsed",
+            "parse_errors": [],
+            "entries": sorted(entries, key=lambda item: item["symbol"]),
+            "script_bindings": sorted(bindings, key=lambda item: item["variable"]),
+            "dot_sources": dot_sources,
+        }
+    ]
+
+
 def scan_python_source_facts(repository: Path) -> dict[str, Any]:
     """Collect shallow static facts without importing or executing scanned files."""
 
@@ -343,6 +1066,7 @@ def scan_python_source_facts(repository: Path) -> dict[str, Any]:
         raise ExplorerInputError(f"Source repository is not a directory: {repository}")
     paths = _tracked_python_paths(repository)
     modules = [_scan_module(repository, relative) for relative in paths]
+    powershell_scripts = _scan_supervisor(repository)
     porcelain = _git(repository, "status", "--porcelain=v1", "--untracked-files=normal").rstrip(
         "\r\n"
     )
@@ -363,6 +1087,12 @@ def scan_python_source_facts(repository: Path) -> dict[str, Any]:
             "files_scanned": len(modules),
         },
         "modules": modules,
+        "powershell_scope": {
+            "selection": "The single production Supervisor script",
+            "paths": [_SUPERVISOR],
+            "files_scanned": len(powershell_scripts),
+        },
+        "powershell_scripts": powershell_scripts,
         "limitations": list(LIMITATIONS),
     }
     result["deterministic_facts_sha256"] = _sha256(_canonical_bytes(result))
