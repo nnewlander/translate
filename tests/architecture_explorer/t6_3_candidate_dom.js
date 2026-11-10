@@ -114,6 +114,8 @@
     assertStatusesWrapAsWholeBadges();
     card("translation-execution").click();
     assert(title() === "翻译执行与模型接入", "translation drilldown did not open");
+    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((item) => item.classList.contains("expanded")), "T7-2 expanded beyond production-control candidates");
+    assert(document.querySelector("#relationship-graph").hidden, "T7-2 drew a candidate graph outside production-control");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "translation candidate count changed");
     const candidateStandard = assertCandidateMatchesStandard();

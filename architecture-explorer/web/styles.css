@@ -216,6 +216,35 @@ h2 {
 
 .graph-surface { position: relative; }
 
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 18px;
+  margin: -6px 0 16px;
+  color: #4b5948;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.graph-legend-item { display: inline-flex; align-items: center; gap: 8px; }
+.legend-line {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  border-top: 2px solid #526b49;
+}
+.legend-line.candidate { border-top-color: #8b6c2d; border-top-style: dashed; }
+.legend-line::after {
+  position: absolute;
+  top: -5px;
+  right: -1px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 7px solid #526b49;
+  content: "";
+}
+.legend-line.candidate::after { border-left-color: #8b6c2d; }
+
 .module-grid {
   position: relative;
   z-index: 1;
@@ -223,6 +252,8 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
 }
+
+.module-grid.production-candidate-grid { row-gap: 58px; }
 
 .module-card {
   position: relative;
@@ -274,25 +305,37 @@ h2 {
 }
 
 .top-level-grid { align-items: start; gap: 16px; }
-.top-level-grid .module-card {
+.production-candidate-grid { align-items: start; }
+.top-level-grid .module-card,
+.production-candidate-grid .module-card {
   min-height: 132px;
   padding: 18px;
   border-radius: 19px;
   box-shadow: 0 9px 24px rgba(35, 45, 32, 0.055);
 }
-.top-level-grid .module-card.expanded { min-height: 250px; }
-.top-level-grid .module-card::before { left: 18px; width: 42px; }
-.top-level-grid .module-card h3 {
-  max-width: 100%;
+.top-level-grid .module-card.expanded,
+.production-candidate-grid .module-card.expanded { min-height: 250px; }
+.top-level-grid .module-card::before,
+.production-candidate-grid .module-card::before { left: 18px; width: 42px; }
+.top-level-grid .module-card h3,
+.production-candidate-grid .module-card h3 {
   margin: 13px 0 12px;
   font-size: 1.14rem;
   line-height: 1.3;
 }
-.top-level-grid .status { padding: 6px 7px; font-size: 0.72rem; }
-.top-level-grid .statuses { gap: 6px 5px; }
-.top-level-grid .module-inline-detail { margin-top: 4px; }
-.top-level-grid .module-card p { font-size: 0.88rem; line-height: 1.6; }
-.top-level-grid .module-card .module-plain-explanation { margin-bottom: 18px; font-size: 0.82rem; }
+.top-level-grid .module-card h3 { max-width: 100%; }
+.production-candidate-grid .module-card h3 { max-width: 72%; }
+.production-candidate-grid .candidate-node-type { top: 18px; right: 18px; }
+.top-level-grid .status,
+.production-candidate-grid .status { padding: 6px 7px; font-size: 0.72rem; }
+.top-level-grid .statuses,
+.production-candidate-grid .statuses { gap: 6px 5px; }
+.top-level-grid .module-inline-detail,
+.production-candidate-grid .module-inline-detail { margin-top: 4px; }
+.top-level-grid .module-card p,
+.production-candidate-grid .module-card p { font-size: 0.88rem; line-height: 1.6; }
+.top-level-grid .module-card .module-plain-explanation,
+.production-candidate-grid .candidate-plain-explanation { margin-bottom: 18px; font-size: 0.82rem; }
 
 .relationship-graph {
   position: absolute;
@@ -310,6 +353,7 @@ h2 {
   stroke-width: 2.5;
   vector-effect: non-scaling-stroke;
 }
+.graph-edge.candidate { stroke: #8b6c2d; stroke-dasharray: 8 7; }
 .graph-edge-hit {
   fill: none;
   stroke: transparent;
@@ -318,6 +362,7 @@ h2 {
   cursor: pointer;
 }
 #reviewed-arrowhead path { fill: #526b49; }
+#candidate-arrowhead path { fill: #8b6c2d; }
 .relationship-label-layer {
   position: absolute;
   inset: 0;
@@ -342,6 +387,7 @@ h2 {
   cursor: pointer;
 }
 .graph-edge-label:hover, .graph-edge-label:focus-visible { border-color: #526b49; outline: 3px solid rgba(120, 148, 107, 0.2); }
+.graph-edge-label.candidate { max-width: 150px; white-space: normal; }
 
 .module-card p {
   margin: 0 0 30px;
@@ -464,7 +510,7 @@ h2 {
 .workflow-highlight .module-card[data-module-id="production-control"],
 .workflow-highlight .module-card[data-module-id="translation-execution"],
 .workflow-highlight .relationship-line,
-.workflow-highlight .graph-edge-label {
+.workflow-highlight .graph-edge-label.reviewed {
   border-color: #ffd633;
   outline: 2px solid #ffd633;
   outline-offset: 0;
@@ -473,7 +519,7 @@ h2 {
     0 0 14px 7px rgba(255, 239, 158, 0.25),
     0 14px 34px rgba(131, 103, 14, 0.09);
 }
-.workflow-highlight .graph-edge { stroke: #d9a900; stroke-width: 3.5; }
+.workflow-highlight .graph-edge.reviewed { stroke: #d9a900; stroke-width: 3.5; }
 .workflow-highlight #reviewed-arrowhead path { fill: #d9a900; }
 .workflow-highlight .module-card[data-module-id="production-control"]::before,
 .workflow-highlight .module-card[data-module-id="translation-execution"]::before { background: #ffd633; }
@@ -540,6 +586,11 @@ h2 {
 
 @media (min-width: 1180px) {
   .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .production-candidate-grid {
+    grid-template-areas:
+      "supervisor worker state"
+      "adapter wrapper .";
+  }
   .top-level-grid {
     grid-template-areas:
       "document control . execution"
@@ -554,6 +605,21 @@ h2 {
   .top-level-grid [data-module-id="production-control"] { grid-area: control; }
   .top-level-grid [data-module-id="candidate-and-release"] { grid-area: release; }
 }
+
+@media (min-width: 761px) and (max-width: 1179px) {
+  .production-candidate-grid {
+    grid-template-areas:
+      "supervisor worker"
+      "adapter wrapper"
+      "state state";
+  }
+}
+
+.production-candidate-grid [data-module-id="supervisor-orchestration"] { grid-area: supervisor; }
+.production-candidate-grid [data-module-id="worker-launch-boundary"] { grid-area: worker; }
+.production-candidate-grid [data-module-id="state-and-control-decisions"] { grid-area: state; }
+.production-candidate-grid [data-module-id="production-control-adapters"] { grid-area: adapter; }
+.production-candidate-grid [data-module-id="deterministic-worker-wrapper"] { grid-area: wrapper; }
 
 @media (max-width: 760px) {
   main { width: min(100% - 30px, 1180px); padding-top: 48px; }

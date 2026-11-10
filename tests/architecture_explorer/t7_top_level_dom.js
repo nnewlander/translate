@@ -82,7 +82,11 @@
     assert(card("translation-execution").classList.contains("expanded"), "closing one card collapsed another");
 
     const graphLabel = document.querySelector('.graph-edge-label[data-relationship-id="relationship:production-control:launches:translation-execution"]');
-    assert(graphLabel?.textContent.includes("当前已审核"), "graph label does not state reviewed trust");
+    assert(graphLabel?.textContent === "进程启动", "reviewed graph label does not prioritize the published relationship name");
+    assert(!graphLabel.textContent.includes("process-launch") && !graphLabel.textContent.includes("当前已审核"), "reviewed graph label still leads with technical type or trust state");
+    const legend = document.querySelector("#graph-legend");
+    assert(legend?.textContent.includes("已审核关系"), "shared graph legend omits reviewed relationship meaning");
+    assert(legend?.textContent.includes("候选关系·未经审核"), "shared graph legend omits candidate trust warning");
     const labelledPoints = coordinates(document.querySelector(".graph-edge.reviewed"));
     const surfaceRect = document.querySelector("#graph-surface").getBoundingClientRect();
     const pathMidpoint = {
@@ -104,6 +108,8 @@
     );
     graphLabel.click();
     assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "graph edge opened a different relationship record");
+    assert(document.querySelector("#detail-content").textContent.includes("当前已审核"), "relationship detail no longer exposes full review status");
+    assert(document.querySelector("#detail-content").textContent.includes("process-launch"), "relationship detail no longer exposes the technical relationship type");
     assert(document.querySelectorAll(".evidence-group .evidence-card").length === 13, "approved evidence count changed");
     document.querySelector("#relationship-detail").close();
     document.querySelector(".graph-edge-hit").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -139,8 +145,9 @@
     card("production-control").click();
     await nextPaint();
     assert(document.querySelector(".hero h1").textContent === "生产调度与控制", "left click no longer drills down");
-    assert(document.querySelector("#relationship-graph").hidden, "top-level relationship leaked into candidate drilldown");
-    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => node.classList.contains("expanded")), "T6 candidate cards changed before T7-2");
+    assert(document.querySelectorAll(".graph-edge.reviewed").length === 0, "top-level reviewed relationship leaked into candidate drilldown");
+    assert(document.querySelectorAll(".graph-edge.candidate").length === 2, "T7-2 candidate graph did not replace the reviewed graph");
+    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => !node.classList.contains("expanded")), "T7-2 candidate cards did not start compact");
     document.querySelector("#back-button").click();
     await nextPaint();
     assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => !node.classList.contains("expanded")), "BACK did not clear inline expansion");

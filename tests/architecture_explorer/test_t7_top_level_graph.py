@@ -8,13 +8,19 @@ import subprocess
 
 import pytest
 
+from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
 from booktrans.architecture_explorer.generator import write_site
 from booktrans.architecture_explorer.navigation import apply_navigation
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
+from booktrans.architecture_explorer.source_scanner import (
+    attach_python_source_facts,
+    scan_python_source_facts,
+)
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 WEB_ASSETS = REPOSITORY / "architecture-explorer/web"
+PRODUCTION_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/production-control.v1.json"
 
 
 def _json(path: Path) -> dict:
@@ -32,7 +38,9 @@ def explorer_data() -> dict:
         _json(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"),
         review_state_path=REPOSITORY / "output/architecture-explorer/t5-lite/review-state.v1.json",
     )
-    return apply_navigation(reviewed, _json(REPOSITORY / "architecture-explorer/navigation.v1.json"))
+    with_facts = attach_python_source_facts(reviewed, scan_python_source_facts(REPOSITORY))
+    navigable = apply_navigation(with_facts, _json(REPOSITORY / "architecture-explorer/navigation.v1.json"))
+    return apply_candidate_fragments(navigable, [_json(PRODUCTION_FRAGMENT)])
 
 
 def _desktop_browser() -> Path | None:
@@ -40,8 +48,8 @@ def _desktop_browser() -> Path | None:
         (
             path
             for path in (
-                Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
                 Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+                Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
             )
             if path.is_file()
         ),
@@ -65,6 +73,7 @@ def _dump_dom(
             "--disable-gpu",
             "--disable-background-networking",
             "--disable-breakpad",
+            "--disable-crash-reporter",
             "--no-first-run",
             "--no-default-browser-check",
             "--allow-file-access-from-files",
@@ -133,6 +142,44 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
 
     assert completed.returncode == 0, completed.stderr
     assert 'data-t7-inline-regression="pass"' in completed.stdout, completed.stdout
+
+
+@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1024, 900), (1280, 900), (1440, 900)])
+def test_real_browser_renders_production_candidates_in_the_shared_graph(
+    tmp_path: Path,
+    explorer_data: dict,
+    viewport_width: int,
+    viewport_height: int,
+) -> None:
+    browser = _desktop_browser()
+    if browser is None:
+        pytest.skip("Chrome or Edge headless browser is unavailable")
+
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t7_production_candidate_dom.js",
+        site / "t7-production-candidate-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>", '<script src="t7-production-candidate-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=2500,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert 'data-t7-production-candidate="pass"' in completed.stdout, completed.stdout
 
 
 def test_degraded_relationship_never_receives_reviewed_graph_treatment(
