@@ -114,10 +114,16 @@
       labelRect.right < targetRect.left || labelRect.left > targetRect.right || labelRect.bottom < targetRect.top || labelRect.top > targetRect.bottom,
       "reviewed relationship label overlaps the target node",
     );
-    assert(
-      pathMidpoint.x < labelRect.left || pathMidpoint.x > labelRect.right || pathMidpoint.y < labelRect.top || pathMidpoint.y > labelRect.bottom,
-      "short reviewed edge is completely hidden by its label",
-    );
+    const deltaX = labelledPoints.end.x - labelledPoints.start.x;
+    const deltaY = labelledPoints.end.y - labelledPoints.start.y;
+    const edgeLength = Math.hypot(deltaX, deltaY);
+    const unitX = deltaX / edgeLength;
+    const unitY = deltaY / edgeLength;
+    const labelProjection = Math.abs(unitX) * labelRect.width / 2 + Math.abs(unitY) * labelRect.height / 2;
+    assert(Math.abs((labelRect.left + labelRect.right) / 2 - pathMidpoint.x) <= 2, "reviewed relationship label is not centered on its line");
+    assert(Math.abs((labelRect.top + labelRect.bottom) / 2 - pathMidpoint.y) <= 2, "reviewed relationship label is not centered on its line");
+    assert(edgeLength / 2 - labelProjection >= 12, "reviewed relationship lacks visible line on both sides of its label");
+    assert(getComputedStyle(graphLabel).backgroundColor !== "rgba(0, 0, 0, 0)", "reviewed relationship label does not create a visible line break");
     graphLabel.click();
     assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "graph edge opened a different relationship record");
     assert(document.querySelector("#detail-content").textContent.includes("当前已审核"), "relationship detail no longer exposes full review status");

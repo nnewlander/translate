@@ -493,11 +493,9 @@
       const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.targetId)}"]`);
       if (!sourceCard || !targetCard) return null;
       const { start, end } = edgeEndpoints(sourceCard.getBoundingClientRect(), targetCard.getBoundingClientRect(), surfaceRect);
-      return { edge, sourceCard, targetCard, start, end };
+      return { edge, start, end };
     }).filter(Boolean);
-    const verticalEdges = positionedEdges.filter(({ start, end }) => Math.abs(end.y - start.y) >= Math.abs(end.x - start.x));
-    const verticalCenterX = verticalEdges.reduce((total, { start, end }) => total + (start.x + end.x) / 2, 0) / Math.max(1, verticalEdges.length);
-    for (const { edge, sourceCard, targetCard, start, end } of positionedEdges) {
+    for (const { edge, start, end } of positionedEdges) {
       const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
       group.dataset.sourceNodeId = edge.sourceId; group.dataset.targetNodeId = edge.targetId;
@@ -521,32 +519,9 @@
       if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;
       label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，${trustLabel}，打开关系证据`);
-      const deltaX = end.x - start.x; const deltaY = end.y - start.y;
-      const edgeLength = Math.max(1, Math.hypot(deltaX, deltaY));
-      let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
+      const labelX = (start.x + end.x) / 2; const labelY = (start.y + end.y) / 2;
       relationshipLabelLayer.append(label);
       const labelWidth = label.offsetWidth; const labelHeight = label.offsetHeight;
-      const isVertical = Math.abs(deltaY) >= Math.abs(deltaX);
-      const sourceBounds = sourceCard.getBoundingClientRect();
-      const targetBounds = targetCard.getBoundingClientRect();
-      const sharesGridRow = Math.abs(sourceBounds.top - targetBounds.top) <= 2;
-      if (edge.kind === "candidate" && sharesGridRow) {
-        const belowCards = Math.max(sourceBounds.bottom, targetBounds.bottom) - surfaceRect.top + labelHeight / 2 + 12;
-        const aboveCards = Math.min(sourceBounds.top, targetBounds.top) - surfaceRect.top - labelHeight / 2 - 12;
-        if (belowCards <= height - 8) labelY = belowCards;
-        else if (aboveCards >= 8) labelY = aboveCards;
-      } else if (isVertical) {
-        const direction = verticalEdges.length > 1
-          ? (labelX < verticalCenterX ? -1 : 1)
-          : (labelX > width / 2 ? -1 : 1);
-        labelX += direction * (labelWidth / 2 + 24);
-      } else {
-        const labelOffset = 34;
-        const normalX = -deltaY / edgeLength; const normalY = deltaX / edgeLength;
-        const direction = labelY + normalY * labelOffset > height - 24 ? -1 : 1;
-        labelX += normalX * labelOffset * direction;
-        labelY += normalY * labelOffset * direction;
-      }
       label.style.left = `${Math.max(labelWidth / 2 + 8, Math.min(width - labelWidth / 2 - 8, labelX))}px`;
       label.style.top = `${Math.max(labelHeight / 2 + 8, Math.min(height - labelHeight / 2 - 8, labelY))}px`;
       label.addEventListener("click", () => activateGraphEdge(edge));

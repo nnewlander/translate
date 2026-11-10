@@ -127,6 +127,18 @@
       assert(onBoundary(points.start, cardBoundsInSurface(card(sourceId))), `${collaborationId} source endpoint left its card boundary`);
       assert(onBoundary(points.end, cardBoundsInSurface(card(targetId))), `${collaborationId} target endpoint left its card boundary`);
       const labelBounds = currentLabel().getBoundingClientRect();
+      const surfaceBounds = document.querySelector("#graph-surface").getBoundingClientRect();
+      const deltaX = points.end.x - points.start.x;
+      const deltaY = points.end.y - points.start.y;
+      const edgeLength = Math.hypot(deltaX, deltaY);
+      const unitX = deltaX / edgeLength;
+      const unitY = deltaY / edgeLength;
+      const midpointX = surfaceBounds.left + (points.start.x + points.end.x) / 2;
+      const midpointY = surfaceBounds.top + (points.start.y + points.end.y) / 2;
+      const labelProjection = Math.abs(unitX) * labelBounds.width / 2 + Math.abs(unitY) * labelBounds.height / 2;
+      assert(Math.abs((labelBounds.left + labelBounds.right) / 2 - midpointX) <= 2, `${collaborationId} label is not horizontally centered on its line`);
+      assert(Math.abs((labelBounds.top + labelBounds.bottom) / 2 - midpointY) <= 2, `${collaborationId} label is not vertically centered on its line`);
+      assert(edgeLength / 2 - labelProjection >= 12, `${collaborationId} lacks visible line on both sides of its label`);
       for (const candidate of document.querySelectorAll("#module-grid .module-card")) {
         assert(rectangleDistance(labelBounds, candidate.getBoundingClientRect()) >= 8, `${collaborationId} label crowds a candidate node`);
       }

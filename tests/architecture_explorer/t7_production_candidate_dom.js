@@ -45,23 +45,32 @@
     }
   };
   const assertCandidateLabelGeometry = () => {
-    const surfaceLeft = document.querySelector("#graph-surface").getBoundingClientRect().left;
+    const surface = document.querySelector("#graph-surface").getBoundingClientRect();
     const records = Array.from(document.querySelectorAll(".graph-edge-label.candidate"), (label) => {
       const id = label.dataset.collaborationId;
       const edge = document.querySelector(`[data-collaboration-id="${id}"] .graph-edge.candidate`);
       const points = coordinates(edge);
       const bounds = label.getBoundingClientRect();
-      return { id, bounds, centerX: (bounds.left + bounds.right) / 2, edgeX: surfaceLeft + (points.start.x + points.end.x) / 2 };
-    }).sort((left, right) => left.edgeX - right.edgeX);
+      const deltaX = points.end.x - points.start.x;
+      const deltaY = points.end.y - points.start.y;
+      const edgeLength = Math.hypot(deltaX, deltaY);
+      const unitX = deltaX / edgeLength;
+      const unitY = deltaY / edgeLength;
+      return {
+        id, bounds,
+        centerX: (bounds.left + bounds.right) / 2,
+        centerY: (bounds.top + bounds.bottom) / 2,
+        midpointX: surface.left + (points.start.x + points.end.x) / 2,
+        midpointY: surface.top + (points.start.y + points.end.y) / 2,
+        runway: edgeLength / 2 - (Math.abs(unitX) * bounds.width / 2 + Math.abs(unitY) * bounds.height / 2),
+      };
+    }).sort((left, right) => left.midpointX - right.midpointX);
     assert(records.length === 2, "candidate label geometry requires the two published collaborations");
     assert(rectangleDistance(records[0].bounds, records[1].bounds) >= 24, "candidate relationship labels lack 24px separation");
-    assert(records[0].centerX < records[0].edgeX, "left candidate label is pushed inward toward the other relationship");
-    assert(records[1].centerX > records[1].edgeX, "right candidate label is pushed inward toward the other relationship");
-    for (const [index, record] of records.entries()) {
-      const other = records[1 - index];
-      assert(Math.abs(record.centerX - record.edgeX) < Math.abs(record.centerX - other.edgeX), `${record.id} appears closer to the other arrow`);
-      const lineGap = record.edgeX < record.bounds.left ? record.bounds.left - record.edgeX : record.edgeX > record.bounds.right ? record.edgeX - record.bounds.right : 0;
-      assert(lineGap >= 18, `${record.id} label crowds its arrow`);
+    for (const record of records) {
+      assert(Math.abs(record.centerX - record.midpointX) <= 2, `${record.id} label is not horizontally centered on its line`);
+      assert(Math.abs(record.centerY - record.midpointY) <= 2, `${record.id} label is not vertically centered on its line`);
+      assert(record.runway >= 12, `${record.id} lacks visible line on both sides of its label`);
       for (const candidate of document.querySelectorAll("#module-grid .module-card")) {
         assert(rectangleDistance(record.bounds, candidate.getBoundingClientRect()) >= 8, `${record.id} label crowds a candidate node`);
       }

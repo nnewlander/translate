@@ -254,6 +254,7 @@ h2 {
 }
 
 .module-grid.candidate-graph-grid { row-gap: 58px; }
+.module-grid.production-candidate-grid { row-gap: 120px; }
 .candidate-graph-grid:not(.production-candidate-grid) {
   row-gap: 96px;
   padding-bottom: 84px;
@@ -383,6 +384,7 @@ h2 {
 }
 .graph-edge-label {
   position: absolute;
+  box-sizing: border-box;
   max-width: 180px;
   padding: 6px 9px;
   transform: translate(-50%, -50%);
@@ -616,6 +618,10 @@ h2 {
   .top-level-grid [data-module-id="production-evidence"] { grid-area: evidence; }
   .top-level-grid [data-module-id="production-control"] { grid-area: control; }
   .top-level-grid [data-module-id="candidate-and-release"] { grid-area: release; }
+  .candidate-graph-grid:not(.production-candidate-grid):has(> .module-card:nth-child(3):last-child) {
+    grid-template-columns: repeat(3, 259px);
+    column-gap: clamp(180px, calc((100% - 777px) / 2), 220px);
+  }
 }
 
 @media (min-width: 761px) and (max-width: 1179px) {
@@ -636,7 +642,7 @@ h2 {
   .candidate-graph-grid:not(.production-candidate-grid) {
     grid-template-columns: repeat(auto-fit, minmax(259px, 283px));
     justify-content: center;
-    column-gap: clamp(96px, 10vw, 140px);
+    column-gap: clamp(180px, 18vw, 220px);
   }
 }
 
