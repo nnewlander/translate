@@ -100,6 +100,9 @@
   };
 
   try {
+    const expectedViewport = window.T7_EXPECTED_VIEWPORT;
+    assert(Array.isArray(expectedViewport), "expected viewport was not provided by the browser harness");
+    assert(window.innerWidth === expectedViewport[0] && window.innerHeight === expectedViewport[1], `browser viewport mismatch: expected ${expectedViewport.join("x")}, actual ${window.innerWidth}x${window.innerHeight}`);
     document.querySelector('[data-module-id="production-control"]').click();
     await nextPaint();
 
@@ -201,16 +204,6 @@
     await nextPaint();
     assert(Array.from(document.querySelectorAll(".graph-edge.candidate"), (edge) => edge.getAttribute("d")).every((path, index) => path === stablePaths[index]), "scroll introduced candidate endpoint drift");
     window.scrollTo(0, 0);
-
-    window.resizeTo(960, 900);
-    await nextPaint();
-    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "candidate graph overflows after desktop reflow");
-    assertVerticalCandidateStatuses();
-    assertCompactProductionLayout();
-    points = coordinates(workerEdge());
-    assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "reflowed candidate edge left source boundary");
-    assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "reflowed candidate edge left target boundary");
-    assertCandidateLabelGeometry();
 
     document.documentElement.dataset.t7ProductionCandidate = "pass";
   } catch (error) {

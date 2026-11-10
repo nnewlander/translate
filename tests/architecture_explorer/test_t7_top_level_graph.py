@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -121,6 +122,56 @@ def _desktop_browser() -> Path | None:
     )
 
 
+_VIEWPORT_FRAME_INSETS: dict[Path, tuple[int, int]] = {}
+
+
+def _viewport_frame_insets(browser: Path, scratch: Path) -> tuple[int, int]:
+    cached = _VIEWPORT_FRAME_INSETS.get(browser)
+    if cached is not None:
+        return cached
+
+    probe_width, probe_height = 1280, 900
+    probe = scratch / "viewport-probe.html"
+    probe.write_text(
+        '<script>document.documentElement.dataset.viewport = `${window.innerWidth}x${window.innerHeight}`;</script>',
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [
+            str(browser),
+            "--headless=new",
+            "--disable-gpu",
+            "--disable-background-networking",
+            "--disable-breakpad",
+            "--disable-crash-reporter",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--force-device-scale-factor=1",
+            f"--window-size={probe_width},{probe_height}",
+            f"--user-data-dir={scratch / 'viewport-probe-profile'}",
+            "--dump-dom",
+            probe.resolve().as_uri(),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"browser viewport probe failed: {completed.stderr}")
+    match = re.search(r'data-viewport="(\d+)x(\d+)"', completed.stdout)
+    if match is None:
+        raise RuntimeError("browser viewport probe did not report innerWidth/innerHeight")
+    inner_width, inner_height = (int(value) for value in match.groups())
+    insets = (probe_width - inner_width, probe_height - inner_height)
+    if insets[0] < 0 or insets[1] < 0:
+        raise RuntimeError(f"browser viewport probe returned invalid frame insets: {insets}")
+    _VIEWPORT_FRAME_INSETS[browser] = insets
+    return insets
+
+
 def _dump_dom(
     browser: Path,
     page: Path,
@@ -130,6 +181,7 @@ def _dump_dom(
     viewport_width: int = 1280,
     viewport_height: int = 900,
 ) -> subprocess.CompletedProcess[str]:
+    frame_width, frame_height = _viewport_frame_insets(browser, profile.parent)
     return subprocess.run(
         [
             str(browser),
@@ -141,7 +193,8 @@ def _dump_dom(
             "--no-first-run",
             "--no-default-browser-check",
             "--allow-file-access-from-files",
-            f"--window-size={viewport_width},{viewport_height}",
+            "--force-device-scale-factor=1",
+            f"--window-size={viewport_width + frame_width},{viewport_height + frame_height}",
             f"--user-data-dir={profile}",
             f"--virtual-time-budget={virtual_time_budget}",
             "--dump-dom",
@@ -194,6 +247,41 @@ def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation
     assert "all assertions passed" in completed.stdout
 
 
+def test_real_browser_opens_locatable_candidate_evidence_from_every_inline_node(
+    tmp_path: Path,
+    explorer_data: dict,
+) -> None:
+    browser = _desktop_browser()
+    if browser is None:
+        pytest.skip("Chrome or Edge headless browser is unavailable")
+
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t7_candidate_inline_evidence_dom.js",
+        site / "t7-candidate-inline-evidence-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>", '<script src="t7-candidate-inline-evidence-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=9000,
+        viewport_width=1280,
+        viewport_height=900,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert 'data-t7-candidate-inline-evidence="pass"' in completed.stdout, completed.stdout
+
+
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (1440, 900)])
 def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     tmp_path: Path,
@@ -232,7 +320,7 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     assert 'data-t7-inline-regression="pass"' in completed.stdout, completed.stdout
 
 
-@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1024, 900), (1280, 900), (1440, 900)])
+@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(960, 900), (1280, 900), (1440, 900)])
 def test_real_browser_renders_production_candidates_in_the_shared_graph(
     tmp_path: Path,
     explorer_data: dict,
@@ -252,7 +340,11 @@ def test_real_browser_renders_production_candidates_in_the_shared_graph(
     page = site / "index.html"
     page.write_text(
         page.read_text(encoding="utf-8").replace(
-            "</body>", '<script src="t7-production-candidate-dom.js"></script></body>',
+            "</body>",
+            (
+                f'<script>window.T7_EXPECTED_VIEWPORT = [{viewport_width}, {viewport_height}];</script>'
+                '<script src="t7-production-candidate-dom.js"></script></body>'
+            ),
         ),
         encoding="utf-8",
     )
@@ -271,10 +363,13 @@ def test_real_browser_renders_production_candidates_in_the_shared_graph(
 
 
 @pytest.mark.parametrize("parent_module_id", REMAINING_CANDIDATE_MODULES)
+@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(960, 900), (1280, 900), (1440, 900)])
 def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_graph(
     tmp_path: Path,
     explorer_data: dict,
     parent_module_id: str,
+    viewport_width: int,
+    viewport_height: int,
 ) -> None:
     browser = _desktop_browser()
     if browser is None:
@@ -292,6 +387,7 @@ def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_grap
             "</body>",
             (
                 f'<script>window.T7_TEST_PARENT = "{parent_module_id}";</script>'
+                f'<script>window.T7_EXPECTED_VIEWPORT = [{viewport_width}, {viewport_height}];</script>'
                 '<script src="t7-remaining-candidate-dom.js"></script></body>'
             ),
         ),
@@ -303,8 +399,8 @@ def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_grap
         page,
         tmp_path / "browser-profile",
         virtual_time_budget=3500,
-        viewport_width=1280,
-        viewport_height=900,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
     )
 
     assert completed.returncode == 0, completed.stderr

@@ -270,6 +270,20 @@
     if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
   };
 
+  const showCandidateEvidence = (evidenceId) => {
+    detailContent.replaceChildren();
+    delete detailContent.dataset.relationshipId;
+    delete detailContent.dataset.collaborationId;
+    detailContent.dataset.evidenceId = evidenceId;
+    const title = text("h2", "源码证据详情", "detail-title"); title.id = "detail-title";
+    detailContent.append(
+      text("p", "候选节点源码依据", "eyebrow"),
+      title,
+      candidateEvidenceCard(evidenceId),
+    );
+    openDialog();
+  };
+
   const relationshipPlainExplanation = (relation, guide) => {
     if (relation.id !== "relationship:production-control:launches:translation-execution") return null;
     return `可以把“${guide.source_module_name}”看作调度员：它准备启动条件并发起任务；“${guide.target_module_name}”像接手具体工作的工人，接收参数后进入执行流程。这样调度和执行可以各自处理自己的步骤；现有证据只证明代码中存在这条有条件的协作路径，不代表某次运行真的启动过 Worker。`;
@@ -287,7 +301,7 @@
 
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
-    detailContent.replaceChildren(); delete detailContent.dataset.collaborationId;
+    detailContent.replaceChildren(); delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.relationshipId = relation.id;
     const title = text("h2", `${guide.source_module_name} → ${guide.target_module_name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
@@ -342,7 +356,7 @@
   const showCandidateCollaboration = (collaboration) => {
     const source = childById[collaboration.source_node_id];
     const target = childById[collaboration.target_node_id];
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
+    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.collaborationId = collaboration.id;
     const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
@@ -374,7 +388,7 @@
     const isCandidate = module.review_status === "candidate";
     const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId;
+    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
@@ -561,7 +575,17 @@
     inlineDetail.append(text("p", module.responsibility, "module-responsibility"));
     if (!isChild && modulePlainExplanations[module.id]) inlineDetail.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
     if (isChild && module.plain_explanation) inlineDetail.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
-    if (isChild && module.source_assignment.evidence_ids?.length) inlineDetail.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
+    if (isChild && module.source_assignment.evidence_ids?.length) {
+      inlineDetail.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
+      const evidenceLinks = document.createElement("div"); evidenceLinks.className = "module-evidence-links candidate-inline-evidence-links";
+      for (const evidenceId of module.source_assignment.evidence_ids) {
+        const button = text("button", `Evidence ID：${evidenceId}`, "evidence-link candidate-evidence-link");
+        button.type = "button"; button.dataset.evidenceId = evidenceId;
+        button.addEventListener("click", (event) => { event.stopPropagation(); showCandidateEvidence(evidenceId); });
+        evidenceLinks.append(button);
+      }
+      inlineDetail.append(evidenceLinks);
+    }
     inlineDetail.addEventListener("click", (event) => event.stopPropagation()); article.append(inlineDetail);
     const statuses = document.createElement("div"); statuses.className = "statuses";
     if (isChild) statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));

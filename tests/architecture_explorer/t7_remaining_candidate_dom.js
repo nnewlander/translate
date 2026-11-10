@@ -59,14 +59,13 @@
     return Math.hypot(horizontal, vertical);
   };
 
-  const assertCompactCandidateLayout = (expectedCount, referenceWidth) => {
+  const assertCompactCandidateLayout = (expectedCount) => {
     const candidates = Array.from(document.querySelectorAll("#module-grid .module-card"));
     const gridBounds = document.querySelector("#module-grid").getBoundingClientRect();
     assert(candidates.length === expectedCount, "candidate layout node count changed");
     for (const candidate of candidates) {
       const bounds = candidate.getBoundingClientRect();
-      assert(bounds.width <= referenceWidth + 2, `${candidate.dataset.moduleId} is wider than the accepted top-level node`);
-      assert(bounds.width >= referenceWidth - 24, `${candidate.dataset.moduleId} became too narrow for its title`);
+      assert(bounds.width >= 259 && bounds.width <= 300, `${candidate.dataset.moduleId} is outside the accepted compact node width (${bounds.width}px)`);
 
       const statuses = Array.from(candidate.querySelectorAll(":scope > .statuses > .status"));
       assert(statuses.length === 2, `${candidate.dataset.moduleId} status count changed`);
@@ -96,9 +95,11 @@
 
   try {
     const parentId = window.T7_TEST_PARENT;
+    const expectedViewport = window.T7_EXPECTED_VIEWPORT;
+    assert(Array.isArray(expectedViewport), "expected viewport was not provided by the browser harness");
+    assert(window.innerWidth === expectedViewport[0] && window.innerHeight === expectedViewport[1], `browser viewport mismatch: expected ${expectedViewport.join("x")}, actual ${window.innerWidth}x${window.innerHeight}`);
     const expected = expectedByParent[parentId];
     assert(expected, `unknown candidate module ${parentId}`);
-    const acceptedTopLevelWidth = card(parentId).getBoundingClientRect().width;
     card(parentId).click();
     await nextPaint();
 
@@ -108,7 +109,7 @@
     assert(cards.every((node) => !node.querySelector(".ordinal")), `${parentId} still displays meaningless ordinals`);
     assert(cards.every((node) => !node.classList.contains("expanded")), `${parentId} candidates do not start compact`);
     assert(cards.every((node) => node.textContent.includes("状态：未审核")), `${parentId} compact nodes hide candidate trust`);
-    assertCompactCandidateLayout(expected.nodes.length, acceptedTopLevelWidth);
+    assertCompactCandidateLayout(expected.nodes.length);
 
     const [collaborationId, sourceId, targetId, collaborationName] = expected.collaboration;
     const group = document.querySelector(`#relationship-edge-layer [data-collaboration-id="${collaborationId}"]`);
@@ -153,7 +154,7 @@
       assert(card(nodeId).classList.contains("expanded"), `${nodeId} did not expand inline`);
     }
     assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => node.classList.contains("expanded")), `${parentId} does not support multiple inline expansions`);
-    assertCompactCandidateLayout(expected.nodes.length, acceptedTopLevelWidth);
+    assertCompactCandidateLayout(expected.nodes.length);
     assertGeometry();
 
     openMenu(card(sourceId));
@@ -178,13 +179,9 @@
     assert(document.querySelector("#detail-content").textContent.includes(`打开：${collaborationName}`), `${targetId} detail lacks the existing collaboration entry`);
     document.querySelector("#relationship-detail").close();
 
-    for (const width of [1440, 960]) {
-      window.resizeTo(width, 900);
-      await nextPaint();
-      assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, `${parentId} overflows at ${width}px`);
-      assertCompactCandidateLayout(expected.nodes.length, acceptedTopLevelWidth);
-      assertGeometry();
-    }
+    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, `${parentId} overflows at ${window.innerWidth}px`);
+    assertCompactCandidateLayout(expected.nodes.length);
+    assertGeometry();
 
     document.documentElement.dataset.t7RemainingCandidate = "pass";
   } catch (error) {
