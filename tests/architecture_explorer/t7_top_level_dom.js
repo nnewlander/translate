@@ -28,6 +28,16 @@
     const touchesY = Math.abs(point.y - bounds.top) <= epsilon || Math.abs(point.y - bounds.bottom) <= epsilon;
     return (touchesX && withinY) || (touchesY && withinX);
   };
+  const assertReviewedLabelClearsEveryNode = () => {
+    const label = document.querySelector('.graph-edge-label[data-relationship-id="relationship:production-control:launches:translation-execution"]');
+    const labelBounds = label.getBoundingClientRect();
+    for (const node of document.querySelectorAll("#module-grid .module-card")) {
+      const bounds = node.getBoundingClientRect();
+      const separated = labelBounds.right <= bounds.left || labelBounds.left >= bounds.right
+        || labelBounds.bottom <= bounds.top || labelBounds.top >= bounds.bottom;
+      assert(separated, `reviewed relationship label overlaps ${node.dataset.moduleId}`);
+    }
+  };
 
   try {
     await nextPaint();
@@ -54,6 +64,7 @@
     assert(Math.abs(points.end.y - points.start.y) <= 2, "collapsed reviewed relationship should be horizontal");
     assert(onBoundary(points.start, cardBoundsInSurface(card("production-control"))), "edge does not start on production-control boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("translation-execution"))), "edge does not end on translation-execution boundary");
+    assertReviewedLabelClearsEveryNode();
 
     openMenu(card("production-control"));
     assert(toggle?.textContent === "详细展示", "collapsed card menu lacks detail action");
@@ -66,6 +77,7 @@
     points = coordinates(expandedEdge);
     assert(onBoundary(points.start, cardBoundsInSurface(card("production-control"))), "expanded edge left source boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("translation-execution"))), "expanded edge left target boundary");
+    assertReviewedLabelClearsEveryNode();
 
     openMenu(card("translation-execution"));
     toggle.click();
