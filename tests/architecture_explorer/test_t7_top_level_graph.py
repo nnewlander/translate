@@ -20,7 +20,71 @@ from booktrans.architecture_explorer.source_scanner import (
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 WEB_ASSETS = REPOSITORY / "architecture-explorer/web"
-PRODUCTION_FRAGMENT = REPOSITORY / "architecture-explorer/candidates/production-control.v1.json"
+CANDIDATE_FRAGMENTS = tuple(
+    REPOSITORY / "architecture-explorer/candidates" / filename
+    for filename in (
+        "document-understanding.v1.json",
+        "scope-and-request.v1.json",
+        "production-control.v1.json",
+        "translation-execution.v1.json",
+        "quality-and-repair.v1.json",
+        "production-evidence.v1.json",
+        "candidate-and-release.v1.json",
+    )
+)
+
+REMAINING_CANDIDATE_MODULES = (
+    "document-understanding",
+    "scope-and-request",
+    "translation-execution",
+    "quality-and-repair",
+    "production-evidence",
+    "candidate-and-release",
+)
+
+EXPECTED_CANDIDATE_GRAPH_IDS = {
+    "document-understanding": (
+        ("document-package-extraction", "document-translation-view"),
+        ("candidate-collaboration:document-extraction-to-view",),
+    ),
+    "scope-and-request": (
+        ("scope-logical-work-order-selection", "scope-request-context-assembly"),
+        ("candidate-collaboration:scope-selection-to-request",),
+    ),
+    "production-control": (
+        (
+            "supervisor-orchestration",
+            "worker-launch-boundary",
+            "state-and-control-decisions",
+            "production-control-adapters",
+            "deterministic-worker-wrapper",
+        ),
+        (
+            "candidate-collaboration:supervisor-to-control-adapters",
+            "candidate-collaboration:supervisor-to-worker-wrapper",
+        ),
+    ),
+    "translation-execution": (
+        ("translation-routing-and-acquisition", "translation-provider-adapters"),
+        ("candidate-collaboration:translation-routing-to-provider",),
+    ),
+    "quality-and-repair": (
+        ("quality-deterministic-qa", "quality-semantic-review-and-repair"),
+        ("candidate-collaboration:quality-qa-to-semantic-repair",),
+    ),
+    "production-evidence": (
+        ("checkpoint-evidence-persistence", "checkpoint-manifest-seal"),
+        ("candidate-collaboration:checkpoint-evidence-to-manifest-seal",),
+    ),
+    "candidate-and-release": (
+        (
+            "candidate-document-projection",
+            "package-preservation-verifier",
+            "release-membership-derivation",
+        ),
+        ("candidate-collaboration:projection-to-package-verification",),
+    ),
+}
 
 
 def _json(path: Path) -> dict:
@@ -40,7 +104,7 @@ def explorer_data() -> dict:
     )
     with_facts = attach_python_source_facts(reviewed, scan_python_source_facts(REPOSITORY))
     navigable = apply_navigation(with_facts, _json(REPOSITORY / "architecture-explorer/navigation.v1.json"))
-    return apply_candidate_fragments(navigable, [_json(PRODUCTION_FRAGMENT)])
+    return apply_candidate_fragments(navigable, [_json(path) for path in CANDIDATE_FRAGMENTS])
 
 
 def _desktop_browser() -> Path | None:
@@ -48,8 +112,8 @@ def _desktop_browser() -> Path | None:
         (
             path
             for path in (
-                Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
                 Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+                Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
             )
             if path.is_file()
         ),
@@ -90,6 +154,30 @@ def _dump_dom(
         errors="replace",
         timeout=30,
     )
+
+
+def test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids(
+    explorer_data: dict,
+) -> None:
+    drilldowns = {
+        item["parent_module_id"]: item for item in explorer_data["navigation"]["drilldowns"]
+    }
+
+    assert set(drilldowns) == set(EXPECTED_CANDIDATE_GRAPH_IDS)
+    for parent_module_id, (
+        node_ids,
+        collaboration_ids,
+    ) in EXPECTED_CANDIDATE_GRAPH_IDS.items():
+        drilldown = drilldowns[parent_module_id]
+        assert tuple(node["id"] for node in drilldown["children"]) == node_ids
+        assert tuple(item["id"] for item in drilldown["collaborations"]) == collaboration_ids
+        assert all(node["review_status"] == "candidate" for node in drilldown["children"])
+        assert all(
+            item["review_status"] == "candidate" for item in drilldown["collaborations"]
+        )
+
+    assert sum(len(item["children"]) for item in drilldowns.values()) == 18
+    assert sum(len(item["collaborations"]) for item in drilldowns.values()) == 8
 
 
 def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation() -> None:
@@ -180,6 +268,47 @@ def test_real_browser_renders_production_candidates_in_the_shared_graph(
 
     assert completed.returncode == 0, completed.stderr
     assert 'data-t7-production-candidate="pass"' in completed.stdout, completed.stdout
+
+
+@pytest.mark.parametrize("parent_module_id", REMAINING_CANDIDATE_MODULES)
+def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_graph(
+    tmp_path: Path,
+    explorer_data: dict,
+    parent_module_id: str,
+) -> None:
+    browser = _desktop_browser()
+    if browser is None:
+        pytest.skip("Chrome or Edge headless browser is unavailable")
+
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t7_remaining_candidate_dom.js",
+        site / "t7-remaining-candidate-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>",
+            (
+                f'<script>window.T7_TEST_PARENT = "{parent_module_id}";</script>'
+                '<script src="t7-remaining-candidate-dom.js"></script></body>'
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=3500,
+        viewport_width=1280,
+        viewport_height=900,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert 'data-t7-remaining-candidate="pass"' in completed.stdout, completed.stdout
 
 
 def test_degraded_relationship_never_receives_reviewed_graph_treatment(

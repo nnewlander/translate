@@ -420,7 +420,6 @@
   const visibleGraphEdges = () => {
     const drilldown = currentDrilldown();
     if (drilldown) {
-      if (drilldown.parent_module_id !== "production-control") return [];
       const visibleNodeIds = new Set(drilldown.children.map((node) => node.id));
       return (drilldown.collaborations || [])
         .filter((collaboration) => (
@@ -566,15 +565,13 @@
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
 
-  const cardFor = (module, index, isChild) => {
+  const cardFor = (module, isChild) => {
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const hasChildren = Boolean(drilldownByParent[module.id]);
-    const usesCompactCandidateGraph = isChild && state.parentModuleId === "production-control";
-    const expanded = (isChild && !usesCompactCandidateGraph) || state.expandedNodeIds.includes(module.id);
+    const expanded = state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
-    if (isChild && !usesCompactCandidateGraph) article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
@@ -608,8 +605,9 @@
   const renderModules = () => {
     const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
     grid.classList.toggle("top-level-grid", !drilldown);
+    grid.classList.toggle("candidate-graph-grid", Boolean(drilldown));
     grid.classList.toggle("production-candidate-grid", drilldown?.parent_module_id === "production-control");
-    grid.replaceChildren(); visible.forEach((module, index) => grid.append(cardFor(module, index, Boolean(drilldown))));
+    grid.replaceChildren(); visible.forEach((module) => grid.append(cardFor(module, Boolean(drilldown))));
     moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
     const collaborations = drilldown?.collaborations || [];
     candidateCollaborations.hidden = collaborations.length === 0;
@@ -644,14 +642,12 @@
   const renderContextMenu = () => {
     if (!state.contextMenu) { contextMenu.hidden = true; return; }
     contextMenu.hidden = false; contextMenu.dataset.moduleId = state.contextMenu.moduleId;
-    const drilldown = currentDrilldown();
-    const canToggleDetail = !drilldown || drilldown.parent_module_id === "production-control";
-    contextDetailToggle.hidden = !canToggleDetail;
+    contextDetailToggle.hidden = false;
     contextDetailToggle.textContent = state.expandedNodeIds.includes(state.contextMenu.moduleId) ? "关闭展示" : "详细展示";
     const maxLeft = Math.max(8, window.innerWidth - contextMenu.offsetWidth - 8);
     const maxTop = Math.max(8, window.innerHeight - contextMenu.offsetHeight - 8);
     contextMenu.style.left = `${Math.min(state.contextMenu.x, maxLeft)}px`; contextMenu.style.top = `${Math.min(state.contextMenu.y, maxTop)}px`;
-    (canToggleDetail ? contextDetailToggle : contextEvidence).focus({ preventScroll: true });
+    contextDetailToggle.focus({ preventScroll: true });
   };
   const render = () => { renderNavigation(); renderModules(); renderContextMenu(); scheduleRelationshipGraph(); };
 
