@@ -254,7 +254,13 @@ h2 {
 }
 
 .module-grid.candidate-graph-grid { row-gap: 58px; }
-.module-grid.production-candidate-grid { row-gap: 120px; }
+.module-grid.production-candidate-grid {
+  grid-template-columns: repeat(2, 300px);
+  justify-content: center;
+  column-gap: clamp(96px, 12vw, 140px);
+  row-gap: 120px;
+}
+.module-grid.production-candidate-grid .module-card h3 { max-width: 82%; }
 .candidate-graph-grid:not(.production-candidate-grid) {
   row-gap: 96px;
   padding-bottom: 84px;
@@ -601,6 +607,7 @@ h2 {
 @media (min-width: 1180px) {
   .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .production-candidate-grid {
+    grid-template-columns: repeat(3, 300px);
     grid-template-areas:
       "supervisor worker state"
       "adapter wrapper .";
@@ -639,6 +646,10 @@ h2 {
 }
 
 @media (min-width: 761px) {
+  .production-candidate-grid [data-module-id="state-and-control-decisions"] {
+    width: 300px;
+    justify-self: center;
+  }
   .candidate-graph-grid:not(.production-candidate-grid) {
     grid-template-columns: repeat(auto-fit, minmax(259px, 283px));
     justify-content: center;
