@@ -348,6 +348,9 @@
     detailContent.append(
       text("p", "候选协作 · 未审核", "eyebrow"),
       title,
+      text("p", collaboration.name, "plain-relation-name"),
+      text("p", "关系类型：候选协作", "candidate-collaboration-type"),
+      text("p", `Candidate Collaboration ID：${collaboration.id}`, "candidate-collaboration-id"),
       text("p", collaboration.professional_description, "relationship-summary"),
       text("p", collaboration.plain_explanation, "plain-collaboration-explanation")
     );
@@ -507,12 +510,13 @@
       hit.addEventListener("click", () => activateGraphEdge(edge));
       group.append(title, hit, line); relationshipEdgeLayer.append(group);
 
-      const labelText = edge.kind === "candidate" ? "候选·未审核" : `当前已审核 · ${edge.record.type}`;
+      const labelText = edge.kind === "candidate" ? edge.record.name : edge.record.presentation_zh.relationship_name;
+      const trustLabel = edge.kind === "candidate" ? "候选关系，未经审核" : "当前已审核关系";
       const label = text("button", labelText, `graph-edge-label ${edge.kind}`);
       label.type = "button";
       if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;
-      label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，打开关系证据`);
+      label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，${trustLabel}，打开关系证据`);
       const deltaX = end.x - start.x; const deltaY = end.y - start.y;
       const edgeLength = Math.max(1, Math.hypot(deltaX, deltaY));
       let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
@@ -559,7 +563,7 @@
     const expanded = (isChild && !usesCompactCandidateGraph) || state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
-    if (isChild) article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
+    if (isChild && !usesCompactCandidateGraph) article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;

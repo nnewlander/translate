@@ -34,20 +34,23 @@
 
     const cards = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(cards.length === 5, "production candidate node count changed");
+    assert(cards.every((candidate) => !candidate.querySelector(".ordinal")), "production candidates still show 01-05 ordinals");
     assert(cards.every((card) => !card.classList.contains("expanded")), "candidate nodes must start compact");
     assert(cards.every((card) => card.querySelector(".module-inline-detail")?.hidden), "compact candidates expose detail");
+    assert(cards.every((candidate) => candidate.getBoundingClientRect().height <= 165), "production candidate remains taller than the accepted compact node");
+    assert(cards.every((candidate) => Number.parseFloat(getComputedStyle(candidate).paddingTop) <= 18), "production candidate retains excessive padding");
     assert(cards.filter((card) => card.textContent.includes("候选职责")).length === 3, "candidate responsibility count changed");
     assert(cards.filter((card) => card.textContent.includes("候选组件")).length === 2, "candidate component count changed");
     assert(card("worker-launch-boundary").textContent.includes("职责状态：未审核"), "worker boundary lost candidate status");
     assert(card("worker-launch-boundary").textContent.includes("源码归属：部分核验"), "worker partial assignment was hidden or promoted");
 
     const expected = [
-      ["candidate-collaboration:supervisor-to-control-adapters", "supervisor-orchestration", "production-control-adapters"],
-      ["candidate-collaboration:supervisor-to-worker-wrapper", "worker-launch-boundary", "deterministic-worker-wrapper"],
+      ["candidate-collaboration:supervisor-to-control-adapters", "supervisor-orchestration", "production-control-adapters", "Supervisor 装载控制适配器"],
+      ["candidate-collaboration:supervisor-to-worker-wrapper", "worker-launch-boundary", "deterministic-worker-wrapper", "启动边界指向 Worker 包装入口"],
     ];
     const edges = Array.from(document.querySelectorAll(".graph-edge.candidate"));
     assert(edges.length === 2, "production candidate edge count changed");
-    for (const [id, source, target] of expected) {
+    for (const [id, source, target, name] of expected) {
       const group = document.querySelector(`[data-collaboration-id="${id}"]`);
       assert(group, `missing stable candidate collaboration ${id}`);
       assert(group.dataset.sourceNodeId === source, `${id} source changed`);
@@ -58,8 +61,10 @@
       const points = coordinates(edge);
       assert(Math.hypot(points.end.x - points.start.x, points.end.y - points.start.y) >= 48, `${id} is too short to show a clear dashed line`);
       const label = document.querySelector(`.graph-edge-label[data-collaboration-id="${id}"]`);
-      assert(label?.textContent.includes("候选·未审核"), `${id} lacks explicit unreviewed label`);
+      assert(label?.textContent === name, `${id} does not prioritize its existing collaboration name`);
+      assert(!label.textContent.includes("候选·未审核"), `${id} still uses trust state as its main label`);
     }
+    assert(document.querySelector("#graph-legend")?.textContent.includes("候选关系·未经审核"), "candidate graph lacks a concise unreviewed legend");
 
     const candidateStroke = getComputedStyle(edges[0]).stroke;
     const candidateLabelBorder = getComputedStyle(document.querySelector(".graph-edge-label.candidate")).borderColor;
@@ -95,6 +100,10 @@
     const candidateLabel = document.querySelector('[data-collaboration-id="candidate-collaboration:supervisor-to-worker-wrapper"].graph-edge-label');
     candidateLabel.click();
     assert(document.querySelector("#detail-content").dataset.collaborationId === "candidate-collaboration:supervisor-to-worker-wrapper", "candidate edge opened a copied or different record");
+    assert(document.querySelector("#detail-content").textContent.includes("启动边界指向 Worker 包装入口"), "candidate detail omits the existing collaboration name");
+    assert(document.querySelector("#detail-content").textContent.includes("关系类型：候选协作"), "candidate detail omits its collaboration type");
+    assert(document.querySelector("#detail-content").textContent.includes("协作状态：未审核"), "candidate detail omits its review status");
+    assert(document.querySelector("#detail-content").textContent.includes("candidate-collaboration:supervisor-to-worker-wrapper"), "candidate detail hides its stable Collaboration ID");
     assert(document.querySelectorAll("#detail-content .candidate-evidence-card").length === 2, "candidate edge evidence IDs changed");
     document.querySelector("#relationship-detail").close();
 
