@@ -489,11 +489,16 @@
     const width = Math.max(1, graphSurface.scrollWidth); const height = Math.max(1, graphSurface.scrollHeight);
     relationshipGraph.setAttribute("viewBox", `0 0 ${width} ${height}`);
     relationshipGraph.setAttribute("width", String(width)); relationshipGraph.setAttribute("height", String(height));
-    for (const edge of visibleEdges) {
+    const positionedEdges = visibleEdges.map((edge) => {
       const sourceCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.sourceId)}"]`);
       const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.targetId)}"]`);
-      if (!sourceCard || !targetCard) continue;
+      if (!sourceCard || !targetCard) return null;
       const { start, end } = edgeEndpoints(sourceCard.getBoundingClientRect(), targetCard.getBoundingClientRect(), surfaceRect);
+      return { edge, sourceCard, targetCard, start, end };
+    }).filter(Boolean);
+    const verticalEdges = positionedEdges.filter(({ start, end }) => Math.abs(end.y - start.y) >= Math.abs(end.x - start.x));
+    const verticalCenterX = verticalEdges.reduce((total, { start, end }) => total + (start.x + end.x) / 2, 0) / Math.max(1, verticalEdges.length);
+    for (const { edge, start, end } of positionedEdges) {
       const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
       group.dataset.sourceNodeId = edge.sourceId; group.dataset.targetNodeId = edge.targetId;
@@ -520,18 +525,24 @@
       const deltaX = end.x - start.x; const deltaY = end.y - start.y;
       const edgeLength = Math.max(1, Math.hypot(deltaX, deltaY));
       let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
-      const labelOffset = edgeLength < 80 ? 120 : 34;
-      if (edgeLength < 80 && Math.abs(deltaY) >= Math.abs(deltaX)) {
-        labelX += labelX > width / 2 ? -labelOffset : labelOffset;
+      relationshipLabelLayer.append(label);
+      const labelWidth = label.offsetWidth; const labelHeight = label.offsetHeight;
+      const isVertical = Math.abs(deltaY) >= Math.abs(deltaX);
+      if (isVertical) {
+        const direction = verticalEdges.length > 1
+          ? (labelX < verticalCenterX ? -1 : 1)
+          : (labelX > width / 2 ? -1 : 1);
+        labelX += direction * (labelWidth / 2 + 24);
       } else {
+        const labelOffset = 34;
         const normalX = -deltaY / edgeLength; const normalY = deltaX / edgeLength;
         const direction = labelY + normalY * labelOffset > height - 24 ? -1 : 1;
         labelX += normalX * labelOffset * direction;
         labelY += normalY * labelOffset * direction;
       }
-      label.style.left = `${Math.max(90, Math.min(width - 90, labelX))}px`;
-      label.style.top = `${Math.max(18, Math.min(height - 18, labelY))}px`;
-      label.addEventListener("click", () => activateGraphEdge(edge)); relationshipLabelLayer.append(label);
+      label.style.left = `${Math.max(labelWidth / 2 + 8, Math.min(width - labelWidth / 2 - 8, labelX))}px`;
+      label.style.top = `${Math.max(labelHeight / 2 + 8, Math.min(height - labelHeight / 2 - 8, labelY))}px`;
+      label.addEventListener("click", () => activateGraphEdge(edge));
     }
   };
 

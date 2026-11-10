@@ -144,7 +144,7 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     assert 'data-t7-inline-regression="pass"' in completed.stdout, completed.stdout
 
 
-@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (1440, 900)])
+@pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1024, 900), (1280, 900), (1440, 900)])
 def test_real_browser_renders_production_candidates_in_the_shared_graph(
     tmp_path: Path,
     explorer_data: dict,

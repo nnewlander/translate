@@ -387,6 +387,7 @@ h2 {
   cursor: pointer;
 }
 .graph-edge-label:hover, .graph-edge-label:focus-visible { border-color: #526b49; outline: 3px solid rgba(120, 148, 107, 0.2); }
+.graph-edge-label.candidate { max-width: 150px; white-space: normal; }
 
 .module-card p {
   margin: 0 0 30px;

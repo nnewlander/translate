@@ -27,6 +27,34 @@
     const touchesY = Math.abs(point.y - bounds.top) <= epsilon || Math.abs(point.y - bounds.bottom) <= epsilon;
     return (touchesX && withinY) || (touchesY && withinX);
   };
+  const rectangleDistance = (first, second) => {
+    const horizontal = Math.max(0, first.left - second.right, second.left - first.right);
+    const vertical = Math.max(0, first.top - second.bottom, second.top - first.bottom);
+    return Math.hypot(horizontal, vertical);
+  };
+  const assertCandidateLabelGeometry = () => {
+    const surfaceLeft = document.querySelector("#graph-surface").getBoundingClientRect().left;
+    const records = Array.from(document.querySelectorAll(".graph-edge-label.candidate"), (label) => {
+      const id = label.dataset.collaborationId;
+      const edge = document.querySelector(`[data-collaboration-id="${id}"] .graph-edge.candidate`);
+      const points = coordinates(edge);
+      const bounds = label.getBoundingClientRect();
+      return { id, bounds, centerX: (bounds.left + bounds.right) / 2, edgeX: surfaceLeft + (points.start.x + points.end.x) / 2 };
+    }).sort((left, right) => left.edgeX - right.edgeX);
+    assert(records.length === 2, "candidate label geometry requires the two published collaborations");
+    assert(rectangleDistance(records[0].bounds, records[1].bounds) >= 24, "candidate relationship labels lack 24px separation");
+    assert(records[0].centerX < records[0].edgeX, "left candidate label is pushed inward toward the other relationship");
+    assert(records[1].centerX > records[1].edgeX, "right candidate label is pushed inward toward the other relationship");
+    for (const [index, record] of records.entries()) {
+      const other = records[1 - index];
+      assert(Math.abs(record.centerX - record.edgeX) < Math.abs(record.centerX - other.edgeX), `${record.id} appears closer to the other arrow`);
+      const lineGap = record.edgeX < record.bounds.left ? record.bounds.left - record.edgeX : record.edgeX > record.bounds.right ? record.edgeX - record.bounds.right : 0;
+      assert(lineGap >= 18, `${record.id} label crowds its arrow`);
+      for (const candidate of document.querySelectorAll("#module-grid .module-card")) {
+        assert(rectangleDistance(record.bounds, candidate.getBoundingClientRect()) >= 8, `${record.id} label crowds a candidate node`);
+      }
+    }
+  };
 
   try {
     document.querySelector('[data-module-id="production-control"]').click();
@@ -65,6 +93,7 @@
       assert(!label.textContent.includes("候选·未审核"), `${id} still uses trust state as its main label`);
     }
     assert(document.querySelector("#graph-legend")?.textContent.includes("候选关系·未经审核"), "candidate graph lacks a concise unreviewed legend");
+    assertCandidateLabelGeometry();
 
     const candidateStroke = getComputedStyle(edges[0]).stroke;
     const candidateLabelBorder = getComputedStyle(document.querySelector(".graph-edge-label.candidate")).borderColor;
@@ -84,18 +113,21 @@
     let points = coordinates(workerEdge());
     assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "expanded candidate edge left source boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "expanded candidate edge left target boundary");
+    assertCandidateLabelGeometry();
 
     openMenu(card("supervisor-orchestration"));
     document.querySelector("#context-detail-toggle").click();
     await nextPaint();
     assert(card("worker-launch-boundary").classList.contains("expanded"), "second expansion collapsed worker candidate");
     assert(card("supervisor-orchestration").classList.contains("expanded"), "second candidate did not expand independently");
+    assertCandidateLabelGeometry();
     openMenu(card("worker-launch-boundary"));
     assert(document.querySelector("#context-detail-toggle").textContent === "关闭展示", "expanded candidate menu lacks close action");
     document.querySelector("#context-detail-toggle").click();
     await nextPaint();
     assert(!card("worker-launch-boundary").classList.contains("expanded"), "worker candidate did not collapse");
     assert(card("supervisor-orchestration").classList.contains("expanded"), "collapsing worker collapsed another candidate");
+    assertCandidateLabelGeometry();
 
     const candidateLabel = document.querySelector('[data-collaboration-id="candidate-collaboration:supervisor-to-worker-wrapper"].graph-edge-label');
     candidateLabel.click();
@@ -126,6 +158,7 @@
     points = coordinates(workerEdge());
     assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "reflowed candidate edge left source boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "reflowed candidate edge left target boundary");
+    assertCandidateLabelGeometry();
 
     document.documentElement.dataset.t7ProductionCandidate = "pass";
   } catch (error) {
