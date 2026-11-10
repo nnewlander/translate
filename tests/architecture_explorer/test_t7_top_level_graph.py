@@ -311,6 +311,47 @@ def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_grap
     assert 'data-t7-remaining-candidate="pass"' in completed.stdout, completed.stdout
 
 
+def test_real_browser_draws_no_inferred_edge_without_a_candidate_collaboration(
+    tmp_path: Path,
+    explorer_data: dict,
+) -> None:
+    browser = _desktop_browser()
+    if browser is None:
+        pytest.skip("Chrome or Edge headless browser is unavailable")
+
+    without_collaboration = deepcopy(explorer_data)
+    document_drilldown = next(
+        item
+        for item in without_collaboration["navigation"]["drilldowns"]
+        if item["parent_module_id"] == "document-understanding"
+    )
+    document_drilldown["collaborations"] = []
+    site = tmp_path / "site"
+    write_site(without_collaboration, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t7_no_collaboration_dom.js",
+        site / "t7-no-collaboration-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>",
+            '<script src="t7-no-collaboration-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=1500,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert 'data-t7-no-collaboration="pass"' in completed.stdout, completed.stdout
+
+
 def test_degraded_relationship_never_receives_reviewed_graph_treatment(
     tmp_path: Path,
     explorer_data: dict,
