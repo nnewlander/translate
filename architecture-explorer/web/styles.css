@@ -254,6 +254,10 @@ h2 {
 }
 
 .module-grid.candidate-graph-grid { row-gap: 58px; }
+.candidate-graph-grid:not(.production-candidate-grid) {
+  row-gap: 96px;
+  padding-bottom: 84px;
+}
 
 .module-card {
   position: relative;
@@ -330,6 +334,14 @@ h2 {
 .candidate-graph-grid .status { padding: 6px 7px; font-size: 0.72rem; }
 .top-level-grid .statuses,
 .candidate-graph-grid .statuses { gap: 6px 5px; }
+.candidate-graph-grid .statuses {
+  align-items: flex-start;
+  flex-direction: column;
+}
+.candidate-graph-grid .module-card h3 {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
 .top-level-grid .module-inline-detail,
 .candidate-graph-grid .module-inline-detail { margin-top: 4px; }
 .top-level-grid .module-card p,
@@ -613,12 +625,18 @@ h2 {
       "adapter wrapper"
       "state state";
   }
+  .candidate-graph-grid:not(.production-candidate-grid) > .module-card:last-child:nth-child(odd) {
+    width: 283px;
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
 }
 
 @media (min-width: 761px) {
   .candidate-graph-grid:not(.production-candidate-grid) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 240px;
+    grid-template-columns: repeat(auto-fit, minmax(259px, 283px));
+    justify-content: center;
+    column-gap: clamp(96px, 10vw, 140px);
   }
 }
 

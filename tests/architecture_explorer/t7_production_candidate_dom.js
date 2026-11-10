@@ -32,6 +32,18 @@
     const vertical = Math.max(0, first.top - second.bottom, second.top - first.bottom);
     return Math.hypot(horizontal, vertical);
   };
+  const assertVerticalCandidateStatuses = () => {
+    for (const candidate of document.querySelectorAll("#module-grid .module-card")) {
+      const statuses = Array.from(candidate.querySelectorAll(":scope > .statuses > .status"));
+      assert(statuses.length === 2, `${candidate.dataset.moduleId} status count changed`);
+      const first = statuses[0].getBoundingClientRect();
+      const second = statuses[1].getBoundingClientRect();
+      assert(second.top >= first.bottom - 1, `${candidate.dataset.moduleId} statuses are not stacked vertically`);
+      assert(Math.abs(second.left - first.left) <= 1, `${candidate.dataset.moduleId} statuses are not left aligned`);
+      const title = candidate.querySelector("h3");
+      assert(title.scrollWidth <= title.clientWidth + 1, `${candidate.dataset.moduleId} title is horizontally clipped`);
+    }
+  };
   const assertCandidateLabelGeometry = () => {
     const surfaceLeft = document.querySelector("#graph-surface").getBoundingClientRect().left;
     const records = Array.from(document.querySelectorAll(".graph-edge-label.candidate"), (label) => {
@@ -71,6 +83,7 @@
     assert(cards.filter((card) => card.textContent.includes("候选组件")).length === 2, "candidate component count changed");
     assert(card("worker-launch-boundary").textContent.includes("职责状态：未审核"), "worker boundary lost candidate status");
     assert(card("worker-launch-boundary").textContent.includes("源码归属：部分核验"), "worker partial assignment was hidden or promoted");
+    assertVerticalCandidateStatuses();
 
     const expected = [
       ["candidate-collaboration:supervisor-to-control-adapters", "supervisor-orchestration", "production-control-adapters", "Supervisor 装载控制适配器"],
@@ -109,6 +122,7 @@
     document.querySelector("#context-detail-toggle").click();
     await nextPaint();
     assert(card("worker-launch-boundary").classList.contains("expanded"), "worker candidate did not expand inline");
+    assertVerticalCandidateStatuses();
     assert(workerEdge().getAttribute("d") !== initialWorkerPath, "candidate edge did not recompute after expansion");
     let points = coordinates(workerEdge());
     assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "expanded candidate edge left source boundary");
@@ -155,6 +169,7 @@
     window.resizeTo(960, 900);
     await nextPaint();
     assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "candidate graph overflows after desktop reflow");
+    assertVerticalCandidateStatuses();
     points = coordinates(workerEdge());
     assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "reflowed candidate edge left source boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "reflowed candidate edge left target boundary");

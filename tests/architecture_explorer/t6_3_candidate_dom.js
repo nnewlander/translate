@@ -46,6 +46,14 @@
       `module status badges do not share a row when space is available (${container.clientWidth}px: ${widths.join("+")})`,
     );
   };
+  const assertCandidateStatusesStack = (moduleCard) => {
+    const badges = Array.from(moduleCard.querySelectorAll(":scope > .statuses > .status"));
+    assert(badges.length >= 2, "candidate status badges missing");
+    const first = badges[0].getBoundingClientRect();
+    const second = badges[1].getBoundingClientRect();
+    assert(second.top >= first.bottom - 1, "candidate status badges must use separate rows");
+    assert(Math.abs(second.left - first.left) <= 1, "candidate status badges must be left aligned");
+  };
   const assertStatusesWrapAsWholeBadges = () => {
     const source = card("translation-execution");
     const sourceBadgeHeight = source.querySelector(".status").getBoundingClientRect().height;
@@ -105,7 +113,7 @@
       assert(candidateCard.scrollWidth <= candidateCard.clientWidth + 1, "candidate card overflows horizontally");
       assert(professional.scrollWidth <= professional.clientWidth + 1, "professional text is clipped");
       assert(plain.scrollWidth <= plain.clientWidth + 1, "plain text is clipped");
-      if (innerWidth >= 1280) assertStatusesShareRow(candidateCard);
+      assertCandidateStatusesStack(candidateCard);
     }
     assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "page overflows horizontally");
     return standard;

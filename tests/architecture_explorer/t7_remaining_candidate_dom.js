@@ -59,10 +59,46 @@
     return Math.hypot(horizontal, vertical);
   };
 
+  const assertCompactCandidateLayout = (expectedCount, referenceWidth) => {
+    const candidates = Array.from(document.querySelectorAll("#module-grid .module-card"));
+    const gridBounds = document.querySelector("#module-grid").getBoundingClientRect();
+    assert(candidates.length === expectedCount, "candidate layout node count changed");
+    for (const candidate of candidates) {
+      const bounds = candidate.getBoundingClientRect();
+      assert(bounds.width <= referenceWidth + 2, `${candidate.dataset.moduleId} is wider than the accepted top-level node`);
+      assert(bounds.width >= referenceWidth - 24, `${candidate.dataset.moduleId} became too narrow for its title`);
+
+      const statuses = Array.from(candidate.querySelectorAll(":scope > .statuses > .status"));
+      assert(statuses.length === 2, `${candidate.dataset.moduleId} status count changed`);
+      const firstStatus = statuses[0].getBoundingClientRect();
+      const secondStatus = statuses[1].getBoundingClientRect();
+      assert(secondStatus.top >= firstStatus.bottom - 1, `${candidate.dataset.moduleId} statuses are not stacked vertically`);
+      assert(Math.abs(secondStatus.left - firstStatus.left) <= 1, `${candidate.dataset.moduleId} statuses are not left aligned`);
+
+      const title = candidate.querySelector("h3");
+      assert(title.scrollWidth <= title.clientWidth + 1, `${candidate.dataset.moduleId} title is horizontally clipped`);
+      const type = candidate.querySelector(".candidate-node-type");
+      const typeBounds = type?.getBoundingClientRect();
+      assert(typeBounds && typeBounds.right <= bounds.right && typeBounds.top < title.getBoundingClientRect().bottom, `${candidate.dataset.moduleId} lost its top-right candidate marker`);
+    }
+
+    const tops = candidates.map((candidate) => Math.round(candidate.getBoundingClientRect().top));
+    if (window.innerWidth >= 1180 || expectedCount === 2) {
+      assert(new Set(tops).size === 1, `${expectedCount}-node candidate layout does not share one compact row at ${window.innerWidth}px`);
+    } else if (expectedCount === 3) {
+      assert(tops[0] === tops[1] && tops[2] > tops[0], "three-node candidate layout does not reflow to two plus one at 960px");
+      const lastBounds = candidates[2].getBoundingClientRect();
+      const lastCenter = (lastBounds.left + lastBounds.right) / 2;
+      const gridCenter = (gridBounds.left + gridBounds.right) / 2;
+      assert(Math.abs(lastCenter - gridCenter) <= 2, "three-node candidate layout does not center its final row");
+    }
+  };
+
   try {
     const parentId = window.T7_TEST_PARENT;
     const expected = expectedByParent[parentId];
     assert(expected, `unknown candidate module ${parentId}`);
+    const acceptedTopLevelWidth = card(parentId).getBoundingClientRect().width;
     card(parentId).click();
     await nextPaint();
 
@@ -72,6 +108,7 @@
     assert(cards.every((node) => !node.querySelector(".ordinal")), `${parentId} still displays meaningless ordinals`);
     assert(cards.every((node) => !node.classList.contains("expanded")), `${parentId} candidates do not start compact`);
     assert(cards.every((node) => node.textContent.includes("状态：未审核")), `${parentId} compact nodes hide candidate trust`);
+    assertCompactCandidateLayout(expected.nodes.length, acceptedTopLevelWidth);
 
     const [collaborationId, sourceId, targetId, collaborationName] = expected.collaboration;
     const group = document.querySelector(`#relationship-edge-layer [data-collaboration-id="${collaborationId}"]`);
@@ -104,6 +141,7 @@
       assert(card(nodeId).classList.contains("expanded"), `${nodeId} did not expand inline`);
     }
     assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((node) => node.classList.contains("expanded")), `${parentId} does not support multiple inline expansions`);
+    assertCompactCandidateLayout(expected.nodes.length, acceptedTopLevelWidth);
     assertGeometry();
 
     openMenu(card(sourceId));
@@ -132,6 +170,7 @@
       window.resizeTo(width, 900);
       await nextPaint();
       assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, `${parentId} overflows at ${width}px`);
+      assertCompactCandidateLayout(expected.nodes.length, acceptedTopLevelWidth);
       assertGeometry();
     }
 
