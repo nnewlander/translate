@@ -50,6 +50,24 @@ Evidence 事实。
 #1 以及 T7 Issues #22–#25 保持可追溯，但不与本文件并列充当当前验收规范。历史材料不因
 本契约而被删除或重写。
 
+## 规范性验收条款
+
+下表是正文关键职责的稳定索引。条款值只用于最小结构一致性检查；其解释和产品边界以紧随
+其后的对应章节为准，运行时不得读取本表来生成架构或审核数据。
+
+| 条款 ID | 封闭值 |
+| --- | --- |
+| AE-NODE-DETAIL | responsibility+plain-explanation+required-trust-state |
+| AE-EVIDENCE-ENTRY | context-menu-detail-only |
+| AE-REVIEWED-RELATIONSHIP | solid+current-reviewed+exact-match |
+| AE-CANDIDATE-COLLABORATION | dashed+candidate-unreviewed |
+| AE-CHROME | required-automated |
+| AE-FIREFOX | owner-manual |
+| AE-EDGE | supplemental+blocked-never-pass |
+| AE-REVIEWER-INPUTS | contract+ticket-delta+owner-overrides+fixed-base-head |
+| AE-REVIEWER-CONFLICT | report-and-block |
+| AE-T8-INHERITANCE | contract+inherits+delta+owner-overrides |
+
 ## 当前验收清单
 
 七个已批准的顶层逻辑模块是：
