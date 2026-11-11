@@ -1,0 +1,35 @@
+name: Architecture Explorer
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-chrome:
+    name: Windows / Chrome
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Create isolated project environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          & .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          & .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+
+      - name: Run Architecture Explorer validation
+        shell: pwsh
+        run: |
+          & .\scripts\architecture_explorer\verify.ps1
