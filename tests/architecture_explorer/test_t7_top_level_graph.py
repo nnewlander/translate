@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -108,18 +109,68 @@ def explorer_data() -> dict:
     return apply_candidate_fragments(navigable, [_json(path) for path in CANDIDATE_FRAGMENTS])
 
 
-def _desktop_browser() -> Path | None:
-    return next(
-        (
-            path
-            for path in (
-                Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-                Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
-            )
-            if path.is_file()
-        ),
-        None,
+DESKTOP_BROWSERS = {
+    "chrome": Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+    "edge": Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+}
+
+
+def _desktop_browser() -> tuple[str, Path]:
+    browser_name = os.environ.get("ARCHITECTURE_EXPLORER_BROWSER", "").strip().lower()
+    if browser_name not in DESKTOP_BROWSERS:
+        raise RuntimeError(
+            "set ARCHITECTURE_EXPLORER_BROWSER explicitly to chrome or edge"
+        )
+    browser = DESKTOP_BROWSERS[browser_name]
+    if not browser.is_file():
+        raise RuntimeError(
+            f"selected {browser_name} browser is unavailable at {browser}"
+        )
+    return browser_name, browser
+
+
+def test_desktop_browser_requires_an_explicit_supported_browser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ARCHITECTURE_EXPLORER_BROWSER", raising=False)
+
+    with pytest.raises(RuntimeError, match="ARCHITECTURE_EXPLORER_BROWSER"):
+        _desktop_browser()
+
+    monkeypatch.setenv("ARCHITECTURE_EXPLORER_BROWSER", "safari")
+    with pytest.raises(RuntimeError, match="chrome or edge"):
+        _desktop_browser()
+
+
+def test_desktop_browser_honours_an_explicit_edge_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    edge = tmp_path / "msedge.exe"
+    edge.touch()
+    monkeypatch.setitem(DESKTOP_BROWSERS, "edge", edge)
+    monkeypatch.setenv("ARCHITECTURE_EXPLORER_BROWSER", "edge")
+
+    browser_name, browser = _desktop_browser()
+
+    assert browser_name == "edge"
+    assert browser.name == "msedge.exe"
+
+
+def test_empty_browser_dom_cannot_be_reported_as_success() -> None:
+    completed = subprocess.CompletedProcess(
+        args=["msedge.exe", "--dump-dom"],
+        returncode=0,
+        stdout="",
+        stderr="",
     )
+
+    with pytest.raises(AssertionError, match="edge returned empty DOM"):
+        _assert_browser_dom(
+            completed,
+            browser_name="edge",
+            pass_marker='data-t7-example="pass"',
+        )
 
 
 _VIEWPORT_FRAME_INSETS: dict[Path, tuple[int, int]] = {}
@@ -209,6 +260,23 @@ def _dump_dom(
     )
 
 
+def _assert_browser_dom(
+    completed: subprocess.CompletedProcess[str],
+    *,
+    browser_name: str,
+    pass_marker: str | None,
+) -> str:
+    assert completed.returncode == 0, (
+        f"{browser_name} exited with {completed.returncode}: {completed.stderr}"
+    )
+    assert completed.stdout.strip(), (
+        f"{browser_name} returned empty DOM; stderr: {completed.stderr or '<empty>'}"
+    )
+    if pass_marker is not None:
+        assert pass_marker in completed.stdout, completed.stdout
+    return completed.stdout
+
+
 def test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids(
     explorer_data: dict,
 ) -> None:
@@ -247,13 +315,11 @@ def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation
     assert "all assertions passed" in completed.stdout
 
 
-def test_real_browser_opens_locatable_candidate_evidence_from_every_inline_node(
+def test_real_browser_opens_candidate_evidence_from_every_node_context_menu(
     tmp_path: Path,
     explorer_data: dict,
 ) -> None:
-    browser = _desktop_browser()
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name, browser = _desktop_browser()
 
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)
@@ -278,8 +344,11 @@ def test_real_browser_opens_locatable_candidate_evidence_from_every_inline_node(
         viewport_height=900,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert 'data-t7-candidate-inline-evidence="pass"' in completed.stdout, completed.stdout
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t7-candidate-inline-evidence="pass"',
+    )
 
 
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (1440, 900)])
@@ -289,9 +358,7 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     viewport_width: int,
     viewport_height: int,
 ) -> None:
-    browser = _desktop_browser()
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name, browser = _desktop_browser()
 
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)
@@ -316,8 +383,11 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
         viewport_height=viewport_height,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert 'data-t7-inline-regression="pass"' in completed.stdout, completed.stdout
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t7-inline-regression="pass"',
+    )
 
 
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(960, 900), (1280, 900), (1440, 900)])
@@ -327,9 +397,7 @@ def test_real_browser_renders_production_candidates_in_the_shared_graph(
     viewport_width: int,
     viewport_height: int,
 ) -> None:
-    browser = _desktop_browser()
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name, browser = _desktop_browser()
 
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)
@@ -358,8 +426,11 @@ def test_real_browser_renders_production_candidates_in_the_shared_graph(
         viewport_height=viewport_height,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert 'data-t7-production-candidate="pass"' in completed.stdout, completed.stdout
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t7-production-candidate="pass"',
+    )
 
 
 @pytest.mark.parametrize("parent_module_id", REMAINING_CANDIDATE_MODULES)
@@ -371,9 +442,7 @@ def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_grap
     viewport_width: int,
     viewport_height: int,
 ) -> None:
-    browser = _desktop_browser()
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name, browser = _desktop_browser()
 
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)
@@ -403,17 +472,18 @@ def test_real_browser_renders_each_remaining_candidate_module_in_the_shared_grap
         viewport_height=viewport_height,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert 'data-t7-remaining-candidate="pass"' in completed.stdout, completed.stdout
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t7-remaining-candidate="pass"',
+    )
 
 
 def test_real_browser_draws_no_inferred_edge_without_a_candidate_collaboration(
     tmp_path: Path,
     explorer_data: dict,
 ) -> None:
-    browser = _desktop_browser()
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name, browser = _desktop_browser()
 
     without_collaboration = deepcopy(explorer_data)
     document_drilldown = next(
@@ -444,17 +514,18 @@ def test_real_browser_draws_no_inferred_edge_without_a_candidate_collaboration(
         virtual_time_budget=1500,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert 'data-t7-no-collaboration="pass"' in completed.stdout, completed.stdout
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t7-no-collaboration="pass"',
+    )
 
 
 def test_degraded_relationship_never_receives_reviewed_graph_treatment(
     tmp_path: Path,
     explorer_data: dict,
 ) -> None:
-    browser = _desktop_browser()
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name, browser = _desktop_browser()
 
     degraded = deepcopy(explorer_data)
     relationship = degraded["architecture"]["relationships"][0]
@@ -470,6 +541,6 @@ def test_degraded_relationship_never_receives_reviewed_graph_treatment(
         virtual_time_budget=500,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert 'class="graph-edge reviewed"' not in completed.stdout
-    assert 'class="relationship-line review-needs-review"' in completed.stdout
+    dom = _assert_browser_dom(completed, browser_name=browser_name, pass_marker=None)
+    assert 'class="graph-edge reviewed"' not in dom
+    assert 'class="relationship-line review-needs-review"' in dom
