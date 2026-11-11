@@ -11,20 +11,24 @@
     assert(card("production-evidence").textContent.includes("源码覆盖：未核验"), "production evidence coverage was promoted");
     assert(card("candidate-and-release").textContent.includes("源码覆盖：未核验"), "candidate release coverage was promoted");
 
-    const workflowHelp = document.querySelector("#workflow-help");
-    assert(workflowHelp?.textContent.includes("Supervisor → Worker"), "workflow helper omits the highlighted path");
-    assert(workflowHelp?.textContent.includes("不表示七模块按此顺序执行"), "workflow helper omits its boundary");
+    const workflowToggle = document.querySelector("#workflow-toggle");
+    const workflowControl = workflowToggle.closest(".workflow-control");
+    assert(!document.querySelector("#workflow-help"), "workflow helper remains visible");
+    assert(!workflowToggle.hasAttribute("aria-describedby"), "workflow toggle retains a dangling helper reference");
+    assert(Math.abs(workflowControl.getBoundingClientRect().height - workflowToggle.getBoundingClientRect().height) <= 1, "workflow control retains helper whitespace");
     const positions = new Map(Array.from(document.querySelectorAll("#module-grid .module-card"), (item) => {
       const rect = item.getBoundingClientRect();
       return [item.dataset.moduleId, [rect.left, rect.top, rect.width, rect.height]];
     }));
-    document.querySelector("#workflow-toggle").click();
+    workflowToggle.click();
     assert(document.body.classList.contains("workflow-highlight"), "workflow highlight did not activate");
     for (const item of document.querySelectorAll("#module-grid .module-card")) {
       const rect = item.getBoundingClientRect();
       assert(JSON.stringify(positions.get(item.dataset.moduleId)) === JSON.stringify([rect.left, rect.top, rect.width, rect.height]), "workflow highlight moved module cards");
     }
     assert(document.querySelectorAll("#module-grid .module-card").length === 7, "workflow highlight changed module count");
+    workflowToggle.click();
+    assert(!document.body.classList.contains("workflow-highlight") && workflowToggle.getAttribute("aria-pressed") === "false", "workflow highlight did not deactivate");
 
     card("production-evidence").click();
     assert(document.querySelector(".hero h1")?.textContent === "生产证据与 Checkpoint", "production evidence drilldown did not open");

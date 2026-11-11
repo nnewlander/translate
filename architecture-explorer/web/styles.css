@@ -186,7 +186,6 @@ h2 {
 
 .heading-actions { display: flex; align-items: flex-start; gap: 14px; }
 .workflow-control { display: grid; justify-items: end; gap: 7px; }
-.workflow-help { max-width: 390px; margin: 0; color: #596158; font-size: 0.78rem; line-height: 1.5; text-align: right; }
 
 .workflow-toggle, .copy-location {
   padding: 8px 13px;
@@ -682,7 +681,6 @@ h2 {
   .section-heading { align-items: flex-end; gap: 16px; }
   .heading-actions { align-items: flex-end; flex-direction: column-reverse; }
   .workflow-control { justify-items: end; }
-  .workflow-help { max-width: 230px; }
   .module-card h3 { max-width: 100%; margin-top: 25px; }
   .relationship-detail { padding: 24px; }
   .detail-facts { grid-template-columns: 1fr; }

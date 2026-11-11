@@ -148,10 +148,17 @@
     window.scrollTo(0, 0);
 
     const workflowToggle = document.querySelector("#workflow-toggle");
+    const workflowControl = workflowToggle.closest(".workflow-control");
+    assert(!document.querySelector("#workflow-help"), "workflow explanation remains visible below the toggle");
+    assert(!workflowToggle.hasAttribute("aria-describedby"), "workflow toggle retains a dangling description reference");
+    assert(Math.abs(workflowControl.getBoundingClientRect().height - workflowToggle.getBoundingClientRect().height) <= 1, "workflow control retains empty helper space");
     workflowToggle.click(); await nextPaint();
     assert(document.body.classList.contains("workflow-highlight"), "workflow highlight no longer activates");
+    assert(workflowToggle.getAttribute("aria-pressed") === "true" && workflowToggle.textContent === "取消流程高亮", "workflow toggle active state changed");
     assert(document.querySelector(".graph-edge.reviewed").getAttribute("d") === stablePath, "workflow highlight changed edge geometry");
-    workflowToggle.click();
+    workflowToggle.click(); await nextPaint();
+    assert(!document.body.classList.contains("workflow-highlight"), "workflow highlight no longer deactivates");
+    assert(workflowToggle.getAttribute("aria-pressed") === "false" && workflowToggle.textContent === "高亮最小生产流程", "workflow toggle did not restore its idle state");
 
     const releaseCard = card("candidate-and-release");
     releaseCard.focus();
