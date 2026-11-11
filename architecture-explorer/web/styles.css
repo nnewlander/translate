@@ -603,12 +603,9 @@ h2 {
 .detail-statuses { margin-bottom: 20px; }
 .candidate-warning, .empty-evidence { padding: 16px 18px; border-left: 4px solid #78946b; border-radius: 0 12px 12px 0; background: #f7f9f6; line-height: 1.7; }
 .module-evidence-links { display: flex; flex-wrap: wrap; gap: 10px; }
-.candidate-inline-evidence-links { margin-bottom: 14px; }
-.candidate-inline-evidence-links .candidate-evidence-link {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
+.candidate-evidence-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.candidate-evidence-summary .candidate-evidence-count { margin: 0; }
+.candidate-evidence-summary .candidate-evidence-link { padding: 6px 10px; font-size: 0.78rem; }
 
 @media (min-width: 1180px) {
   .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

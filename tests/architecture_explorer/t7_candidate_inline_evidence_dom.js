@@ -37,29 +37,35 @@
 
         const expandedNode = card(candidate.id);
         assert(expandedNode.classList.contains("expanded"), `${candidate.id} did not expand`);
-        const links = Array.from(expandedNode.querySelectorAll(".candidate-evidence-link"));
         const expectedIds = candidate.source_assignment.evidence_ids;
-        assert(links.length === expectedIds.length, `${candidate.id} does not expose every stable Evidence ID inline`);
         assert(
-          links.map((link) => link.dataset.evidenceId).join("|") === expectedIds.join("|"),
-          `${candidate.id} inline Evidence IDs changed or were duplicated`,
+          expectedIds.every((evidenceId) => !expandedNode.textContent.includes(evidenceId)),
+          `${candidate.id} lays out full Evidence IDs inside the expanded card`,
         );
         assert(
-          links.every((link, index) => link.textContent.includes(expectedIds[index])),
-          `${candidate.id} inline Evidence ID is not visible and locatable`,
+          expandedNode.querySelector(".candidate-evidence-count")?.textContent.includes(`源码依据：${expectedIds.length} 条`),
+          `${candidate.id} inline evidence count changed`,
         );
+        const links = Array.from(expandedNode.querySelectorAll(".candidate-evidence-link"));
+        assert(links.length === 1, `${candidate.id} does not use one compact evidence entry`);
 
         const firstLink = links[0];
+        assert(firstLink.textContent === "查看源码依据", `${candidate.id} evidence entry label changed`);
         assert(firstLink.tagName === "BUTTON" && firstLink.type === "button", `${candidate.id} Evidence reference lacks native keyboard activation semantics`);
         firstLink.focus();
         assert(document.activeElement === firstLink, `${candidate.id} Evidence reference is not keyboard focusable`);
         firstLink.click();
         await nextPaint();
         const detail = document.querySelector("#detail-content");
-        assert(detail.dataset.evidenceId === expectedIds[0], `${candidate.id} opened the wrong evidence record`);
-        assert(detail.querySelector("#detail-title")?.textContent === "源码证据详情", `${candidate.id} evidence dialog lacks an accessible title`);
-        assert(detail.querySelector(".candidate-evidence-card")?.textContent.includes(expectedIds[0]), `${candidate.id} evidence detail omits its stable ID`);
-        assert(detail.querySelector(".raw-evidence-facts")?.textContent.includes("源码定位"), `${candidate.id} evidence detail is not locatable`);
+        assert(detail.dataset.moduleId === candidate.id, `${candidate.id} opened evidence for a different node`);
+        assert(detail.querySelector("#detail-title")?.textContent.includes(candidate.name), `${candidate.id} evidence dialog lacks an accessible node title`);
+        const evidenceCards = Array.from(detail.querySelectorAll(".candidate-evidence-card"));
+        assert(evidenceCards.length === expectedIds.length, `${candidate.id} evidence detail changed its evidence count`);
+        assert(
+          evidenceCards.every((evidenceCard, index) => evidenceCard.textContent.includes(expectedIds[index])),
+          `${candidate.id} evidence detail changed stable Evidence IDs or order`,
+        );
+        assert(evidenceCards.every((evidenceCard) => evidenceCard.querySelector(".raw-evidence-facts")?.textContent.includes("源码定位") && evidenceCard.querySelector(".raw-evidence-facts")?.textContent.includes("事实种类")), `${candidate.id} evidence detail is not locatable`);
         assert(card(candidate.id).classList.contains("expanded"), `${candidate.id} Evidence click collapsed its node`);
         assert(document.querySelector(".crumb.current")?.textContent === drilldown.name, `${candidate.id} Evidence click triggered navigation`);
         document.querySelector("#relationship-detail").close();
