@@ -324,13 +324,13 @@ def test_real_browser_opens_candidate_evidence_from_every_node_context_menu(
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)
     shutil.copyfile(
-        REPOSITORY / "tests/architecture_explorer/t7_candidate_inline_evidence_dom.js",
-        site / "t7-candidate-inline-evidence-dom.js",
+        REPOSITORY / "tests/architecture_explorer/t7_candidate_context_evidence_dom.js",
+        site / "t7-candidate-context-evidence-dom.js",
     )
     page = site / "index.html"
     page.write_text(
         page.read_text(encoding="utf-8").replace(
-            "</body>", '<script src="t7-candidate-inline-evidence-dom.js"></script></body>',
+            "</body>", '<script src="t7-candidate-context-evidence-dom.js"></script></body>',
         ),
         encoding="utf-8",
     )
@@ -347,7 +347,7 @@ def test_real_browser_opens_candidate_evidence_from_every_node_context_menu(
     _assert_browser_dom(
         completed,
         browser_name=browser_name,
-        pass_marker='data-t7-candidate-inline-evidence="pass"',
+        pass_marker='data-t7-candidate-context-evidence="pass"',
     )
 
 

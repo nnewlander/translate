@@ -30,7 +30,7 @@
       for (const candidate of drilldown.children) {
         const node = card(candidate.id);
         const inlineDetail = node.querySelector(".module-inline-detail");
-        assert(inlineDetail?.hidden, `${candidate.id} exposes inline evidence while collapsed`);
+        assert(inlineDetail?.hidden, `${candidate.id} exposes candidate detail while collapsed`);
         openMenu(node);
         document.querySelector("#context-detail-toggle").click();
         await nextPaint();
@@ -75,9 +75,9 @@
       await nextPaint();
     }
 
-    document.documentElement.dataset.t7CandidateInlineEvidence = "pass";
+    document.documentElement.dataset.t7CandidateContextEvidence = "pass";
   } catch (error) {
-    document.documentElement.dataset.t7CandidateInlineEvidence = "fail";
-    document.documentElement.dataset.t7CandidateInlineEvidenceError = String(error?.message || error);
+    document.documentElement.dataset.t7CandidateContextEvidence = "fail";
+    document.documentElement.dataset.t7CandidateContextEvidenceError = String(error?.message || error);
   }
 })();
