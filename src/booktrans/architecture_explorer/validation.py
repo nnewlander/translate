@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from enum import Enum
+import json
 import os
 from pathlib import Path
 import re
@@ -108,9 +109,117 @@ _EXPLICIT_EXCLUSIONS = (
     ),
 )
 
+_CRITICAL_NODEIDS = (
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_real_browser_opens_candidate_evidence_from_every_node_context_menu",
+    "tests/architecture_explorer/test_acceptance_contract.py::"
+    "test_contract_trust_semantics_match_the_published_explorer",
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_degraded_relationship_never_receives_reviewed_graph_treatment",
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids",
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_real_browser_renders_production_candidates_in_the_shared_graph[1440-900]",
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_real_browser_renders_production_candidates_in_the_shared_graph[1280-900]",
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_real_browser_renders_production_candidates_in_the_shared_graph[960-900]",
+    "tests/architecture_explorer/test_t7_top_level_graph.py::"
+    "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip",
+)
+_VIEWPORT_SEQUENCE = ((1440, 900), (1280, 900), (960, 900), (1440, 900))
+_GRAPH_IDS = {
+    "top-level",
+    "document-understanding",
+    "scope-and-request",
+    "production-control",
+    "translation-execution",
+    "quality-and-repair",
+    "production-evidence",
+    "candidate-and-release",
+}
+
 
 def _report(*stages: StageResult) -> ValidationReport:
     return ValidationReport(stages + _EXPLICIT_EXCLUSIONS)
+
+
+def _collected_nodeids(output: str) -> frozenset[str]:
+    nodeids = set()
+    for line in output.splitlines():
+        value = line.strip()
+        if not value.startswith(("tests/", "tests\\")) or "::" not in value:
+            continue
+        path, separator, test_id = value.partition("::")
+        nodeids.add(path.replace("\\", "/") + separator + test_id)
+    return frozenset(nodeids)
+
+
+def _junit_nodeid(case: ElementTree.Element) -> str:
+    class_name = case.attrib.get("classname", "")
+    return class_name.replace(".", "/") + ".py::" + case.attrib.get("name", "")
+
+
+def _validated_viewport_evidence(path: Path) -> str:
+    evidence = json.loads(path.read_text(encoding="utf-8"))
+    if evidence.get("schema") != "architecture-explorer.chrome-viewport-evidence.v1":
+        raise ValueError("unexpected viewport evidence schema")
+    if evidence.get("requested_browser") != "chrome":
+        raise ValueError("viewport evidence did not request Chrome")
+
+    browser = evidence.get("browser")
+    if not isinstance(browser, dict):
+        raise ValueError("viewport evidence has no browser identity")
+    product = browser.get("product")
+    user_agent = browser.get("user_agent")
+    if not isinstance(product, str) or "Chrome/" not in product:
+        raise ValueError(f"viewport evidence browser product is not Chrome: {product!r}")
+    if not isinstance(user_agent, str) or "Chrome/" not in user_agent:
+        raise ValueError("viewport evidence has no Chrome user agent")
+
+    page_identity = evidence.get("page_identity")
+    if not isinstance(page_identity, dict):
+        raise ValueError("viewport evidence has no page identity")
+    if page_identity.get("navigation_count") != 1:
+        raise ValueError("viewport evidence did not preserve one page navigation")
+    if not isinstance(page_identity.get("time_origin"), (int, float)):
+        raise ValueError("viewport evidence has no time origin")
+
+    graphs = evidence.get("graphs")
+    if not isinstance(graphs, list):
+        raise ValueError("viewport evidence has no graph observations")
+    graph_ids = [graph.get("graph_id") for graph in graphs if isinstance(graph, dict)]
+    if len(graph_ids) != len(set(graph_ids)) or set(graph_ids) != _GRAPH_IDS:
+        raise ValueError(f"viewport evidence graph set changed: {graph_ids}")
+
+    expected_sequence = [list(viewport) for viewport in _VIEWPORT_SEQUENCE]
+    for graph in graphs:
+        observations = graph.get("observations")
+        if not isinstance(observations, list):
+            raise ValueError(f"{graph['graph_id']} has no viewport observations")
+        requested = [observation.get("requested") for observation in observations]
+        actual = [observation.get("actual") for observation in observations]
+        if requested != expected_sequence:
+            raise ValueError(
+                f"{graph['graph_id']} requested viewport sequence changed: {requested}"
+            )
+        if actual != requested:
+            raise ValueError(
+                f"{graph['graph_id']} actual viewport sequence {actual} "
+                f"did not match requested {requested}"
+            )
+        if any(
+            observation.get("navigation_identity") != page_identity
+            for observation in observations
+        ):
+            raise ValueError(
+                f"{graph['graph_id']} navigation identity changed during resize"
+            )
+
+    actual_sequence = " -> ".join(
+        f"{width}x{height}" for width, height in _VIEWPORT_SEQUENCE
+    )
+    return f"browser={product}; actual viewport sequence={actual_sequence} across 8 graphs"
 
 
 def render_report(report: ValidationReport) -> str:
@@ -249,9 +358,62 @@ def validate(
         )
     pytest_xml = scratch_root / "pytest.xml"
     pytest_temp = scratch_root / "pytest"
+    viewport_evidence = scratch_root / "chrome-viewport-evidence.json"
     test_environment = dict(os.environ)
     test_environment["PYTHONPATH"] = str((context.repository / "src").resolve())
     test_environment["ARCHITECTURE_EXPLORER_BROWSER"] = "chrome"
+    test_environment["ARCHITECTURE_EXPLORER_VIEWPORT_EVIDENCE"] = str(
+        viewport_evidence
+    )
+    collection_command = (
+        str(context.python_executable),
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "tests/architecture_explorer",
+    )
+    collection = runner.run(
+        collection_command,
+        cwd=context.repository,
+        env=test_environment,
+    )
+    if collection.returncode != 0:
+        detail = collection.stderr.strip() or collection.stdout.strip()
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.BLOCKED,
+                f"pytest collection blocked: {detail or f'exit {collection.returncode}'}",
+            ),
+        )
+    expected_nodeids = _collected_nodeids(collection.stdout)
+    if not expected_nodeids:
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.BLOCKED,
+                "pytest collection returned no Architecture Explorer nodeids",
+            ),
+        )
+    missing_critical_collection = tuple(
+        nodeid for nodeid in _CRITICAL_NODEIDS if nodeid not in expected_nodeids
+    )
+    if missing_critical_collection:
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.FAIL,
+                "missing critical test scenarios from collection: "
+                + ", ".join(missing_critical_collection),
+            ),
+        )
     pytest_command = (
         str(context.python_executable),
         "-m",
@@ -309,6 +471,40 @@ def validate(
         )
 
     test_cases = tuple(ElementTree.parse(pytest_xml).getroot().iter("testcase"))
+    skipped_critical = tuple(
+        case.attrib.get("name", "<unknown>")
+        for case in test_cases
+        if _junit_nodeid(case) in _CRITICAL_NODEIDS
+        and case.find("skipped") is not None
+    )
+    if skipped_critical:
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.BLOCKED,
+                "required Chrome tests skipped: " + ", ".join(skipped_critical),
+            ),
+        )
+    executed_nodeids = frozenset(_junit_nodeid(case) for case in test_cases)
+    missing_executions = tuple(sorted(expected_nodeids - executed_nodeids))
+    unexpected_executions = tuple(sorted(executed_nodeids - expected_nodeids))
+    if missing_executions or unexpected_executions:
+        details = []
+        if missing_executions:
+            details.append("not executed: " + ", ".join(missing_executions))
+        if unexpected_executions:
+            details.append("not collected: " + ", ".join(unexpected_executions))
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.FAIL,
+                "; ".join(details),
+            ),
+        )
     required_browser_cases = tuple(
         case
         for case in test_cases
@@ -349,6 +545,29 @@ def validate(
             ),
         )
 
+    if not viewport_evidence.is_file():
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.BLOCKED,
+                "real Chrome viewport evidence was not produced",
+            ),
+        )
+    try:
+        viewport_summary = _validated_viewport_evidence(viewport_evidence)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.FAIL,
+                f"invalid Chrome viewport evidence: {error}",
+            ),
+        )
+
     return _report(
         environment_stage,
         StageResult("static", ValidationStatus.PASS, "all static checks passed"),
@@ -357,8 +576,7 @@ def validate(
             ValidationStatus.PASS,
             (
                 f"{len(test_cases)} tests executed; {len(required_browser_cases)} required "
-                "Chrome tests passed; browser=chrome; actual viewports verified by suite: "
-                "1440x900,1280x900,960x900 and continuous 1440->1280->960->1440"
+                f"Chrome tests passed; requested browser=chrome; {viewport_summary}"
             ),
         ),
     )

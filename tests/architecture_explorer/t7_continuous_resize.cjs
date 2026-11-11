@@ -4,9 +4,9 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const [browserPath, pageUrl, profilePath] = process.argv.slice(2);
-if (!browserPath || !pageUrl || !profilePath) {
-  throw new Error("usage: node t7_continuous_resize.cjs BROWSER PAGE_URL PROFILE_PATH");
+const [browserPath, pageUrl, profilePath, evidencePath] = process.argv.slice(2);
+if (!browserPath || !pageUrl || !profilePath || !evidencePath) {
+  throw new Error("usage: node t7_continuous_resize.cjs BROWSER PAGE_URL PROFILE_PATH EVIDENCE_PATH");
 }
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -94,8 +94,21 @@ async function main() {
       if (await evaluate("document.readyState === 'complete' && document.querySelectorAll('#module-grid .module-card').length === 7")) break;
       await delay(50);
     }
-    const initialIdentity = await evaluate("JSON.stringify({ timeOrigin: performance.timeOrigin, navigationCount: performance.getEntriesByType('navigation').length })");
+    const initialIdentity = await evaluate("JSON.stringify({ time_origin: performance.timeOrigin, navigation_count: performance.getEntriesByType('navigation').length })");
     const { windowId } = await cdp.send("Browser.getWindowForTarget");
+    const browserVersion = await cdp.send("Browser.getVersion");
+    const evidence = {
+      schema: "architecture-explorer.chrome-viewport-evidence.v1",
+      requested_browser: "chrome",
+      browser: {
+        product: browserVersion.product,
+        user_agent: browserVersion.userAgent,
+        protocol_version: browserVersion.protocolVersion,
+        executable: browserPath,
+      },
+      page_identity: JSON.parse(initialIdentity),
+      graphs: [],
+    };
 
     const resize = async (width, height) => {
       const current = await evaluate("({ width: window.innerWidth, height: window.innerHeight })");
@@ -149,7 +162,7 @@ async function main() {
         });
         return {
           viewport: [window.innerWidth, window.innerHeight],
-          identity: JSON.stringify({ timeOrigin: performance.timeOrigin, navigationCount: performance.getEntriesByType('navigation').length }),
+          identity: JSON.stringify({ time_origin: performance.timeOrigin, navigation_count: performance.getEntriesByType('navigation').length }),
           order: JSON.stringify(cards.map(node => node.dataset.moduleId)),
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           edges,
@@ -160,6 +173,7 @@ async function main() {
     const sequence = [[1440, 900], [1280, 900], [960, 900], [1440, 900]];
     const assertResizeSequence = async (graphId, expectedEdgeCount, expectedMarker) => {
       const initialOrder = await evaluate("JSON.stringify(Array.from(document.querySelectorAll('#module-grid .module-card'), node => node.dataset.moduleId))");
+      const graphEvidence = { graph_id: graphId, observations: [] };
       for (const [width, height] of sequence) {
         const observation = await resize(width, height);
         assert(observation.viewport[0] === width && observation.viewport[1] === height, `${graphId} actual viewport was ${observation.viewport.join("x")}, expected ${width}x${height}`);
@@ -170,7 +184,13 @@ async function main() {
         assert(observation.edges.every((edge) => edge.sourceAttached && edge.targetAttached), `${graphId} detached an edge at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
         assert(observation.edges.every((edge) => edge.marker === expectedMarker), `${graphId} lost target arrow direction at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
         assert(observation.edges.every((edge) => edge.labelClearsCards), `${graphId} placed a relationship label over a node at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+        graphEvidence.observations.push({
+          requested: [width, height],
+          actual: observation.viewport,
+          navigation_identity: JSON.parse(observation.identity),
+        });
       }
+      evidence.graphs.push(graphEvidence);
     };
 
     await assertResizeSequence("top-level", 1, "url(#reviewed-arrowhead)");
@@ -190,6 +210,7 @@ async function main() {
       await evaluate("document.querySelector('#home-button').click()");
       await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 80))))");
     }
+    fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), "utf8");
     console.log("1440x900 -> 1280x900 -> 960x900 -> 1440x900");
     console.log("9 edges across 8 graphs");
     cdp.close();
