@@ -194,9 +194,10 @@
 
     openMenu(card("worker-launch-boundary"));
     document.querySelector("#context-evidence").click();
-    assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "worker formal evidence entry changed stable Relationship ID");
-    assert(!document.querySelector("#detail-content").dataset.collaborationId, "formal evidence retained candidate collaboration identity");
-    assert(document.querySelectorAll("#detail-content .evidence-group .evidence-card").length === 13, "formal relationship evidence count changed");
+    assert(document.querySelector("#detail-title").textContent === "Worker 启动边界", "worker context evidence opened a different candidate node");
+    assert(document.querySelectorAll("#detail-content .candidate-evidence-card").length === 3, "worker candidate evidence count changed");
+    assert(document.querySelector("#detail-content").textContent.includes("源码归属：部分核验"), "worker context evidence promoted source assignment");
+    assert(document.querySelector('#detail-content [data-relationship-id="relationship:production-control:launches:translation-execution"]'), "worker detail lost the stable formal Relationship entry");
     document.querySelector("#relationship-detail").close();
 
     const stablePaths = Array.from(document.querySelectorAll(".graph-edge.candidate"), (edge) => edge.getAttribute("d"));

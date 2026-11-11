@@ -89,9 +89,9 @@
       const candidateType = candidateCard.querySelector(".candidate-node-type");
       const professional = candidateCard.querySelector(".module-responsibility");
       const plain = candidateCard.querySelector(".candidate-plain-explanation");
-      const evidence = candidateCard.querySelector(".candidate-evidence-count");
       const statuses = candidateCard.querySelector(".statuses");
-      assert(candidateType && professional && plain && evidence && statuses, "candidate metadata layers missing");
+      assert(candidateType && professional && plain && statuses, "candidate metadata layers missing");
+      assert(!candidateCard.querySelector(".candidate-evidence-count") && !candidateCard.querySelector(".candidate-evidence-link"), "candidate card repeats evidence controls inline");
       const actual = captureCardStandard(candidateCard, ".candidate-plain-explanation");
       for (const key of ["card", "heading", "professional", "plain", "headingTop", "headingToProfessional", "professionalToPlain"]) {
         assert(
@@ -108,8 +108,7 @@
       );
       assert(heading.getBoundingClientRect().bottom <= professional.getBoundingClientRect().top, "candidate title overlaps professional text");
       assert(professional.getBoundingClientRect().bottom <= plain.getBoundingClientRect().top, "candidate text layers overlap");
-      assert(plain.getBoundingClientRect().bottom <= evidence.getBoundingClientRect().top, "candidate evidence precedes plain explanation");
-      assert(evidence.getBoundingClientRect().bottom <= statuses.getBoundingClientRect().top, "candidate evidence overlaps statuses");
+      assert(plain.getBoundingClientRect().bottom <= statuses.getBoundingClientRect().top, "candidate explanation overlaps statuses");
       assert(candidateCard.scrollWidth <= candidateCard.clientWidth + 1, "candidate card overflows horizontally");
       assert(professional.scrollWidth <= professional.clientWidth + 1, "professional text is clipped");
       assert(plain.scrollWidth <= plain.clientWidth + 1, "plain text is clipped");
