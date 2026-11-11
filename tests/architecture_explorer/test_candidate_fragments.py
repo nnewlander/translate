@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -970,13 +971,16 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
     viewport_width: int,
     viewport_height: int,
 ) -> None:
-    browser_candidates = (
-        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
-        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-    )
-    browser = next((path for path in browser_candidates if path.is_file()), None)
-    if browser is None:
-        pytest.skip("Chrome or Edge headless browser is unavailable")
+    browser_name = os.environ.get("ARCHITECTURE_EXPLORER_BROWSER", "chrome").strip().lower()
+    browsers = {
+        "chrome": Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        "edge": Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+    }
+    if browser_name not in browsers:
+        raise RuntimeError("ARCHITECTURE_EXPLORER_BROWSER must be chrome or edge")
+    browser = browsers[browser_name]
+    if not browser.is_file():
+        pytest.skip(f"selected {browser_name} headless browser is unavailable")
     data = apply_candidate_fragments(
         _explorer_with_source_facts(),
         [

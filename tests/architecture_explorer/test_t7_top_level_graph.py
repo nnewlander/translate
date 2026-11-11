@@ -390,6 +390,38 @@ def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     )
 
 
+def test_real_chrome_reconnects_edges_during_same_page_resize_round_trip(
+    tmp_path: Path,
+    explorer_data: dict,
+) -> None:
+    browser_name, browser = _desktop_browser()
+    if browser_name != "chrome":
+        pytest.skip("same-page resize is a required Chrome acceptance test")
+
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    completed = subprocess.run(
+        [
+            "node",
+            str(REPOSITORY / "tests/architecture_explorer/t7_continuous_resize.cjs"),
+            str(browser),
+            (site / "index.html").resolve().as_uri(),
+            str(tmp_path / "continuous-resize-profile"),
+        ],
+        cwd=REPOSITORY,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    assert "1440x900 -> 1280x900 -> 960x900 -> 1440x900" in completed.stdout
+    assert "9 edges across 8 graphs" in completed.stdout
+
+
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(960, 900), (1280, 900), (1440, 900)])
 def test_real_browser_renders_production_candidates_in_the_shared_graph(
     tmp_path: Path,

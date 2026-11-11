@@ -631,6 +631,11 @@ h2 {
 }
 
 @media (min-width: 761px) and (max-width: 1179px) {
+  .top-level-grid {
+    grid-template-columns: repeat(2, 300px);
+    justify-content: center;
+    column-gap: 96px;
+  }
   .production-candidate-grid {
     grid-template-areas:
       "supervisor worker"
