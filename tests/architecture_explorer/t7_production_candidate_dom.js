@@ -32,24 +32,67 @@
     const vertical = Math.max(0, first.top - second.bottom, second.top - first.bottom);
     return Math.hypot(horizontal, vertical);
   };
+  const assertVerticalCandidateStatuses = () => {
+    for (const candidate of document.querySelectorAll("#module-grid .module-card")) {
+      const statuses = Array.from(candidate.querySelectorAll(":scope > .statuses > .status"));
+      assert(statuses.length === 2, `${candidate.dataset.moduleId} status count changed`);
+      const first = statuses[0].getBoundingClientRect();
+      const second = statuses[1].getBoundingClientRect();
+      assert(second.top >= first.bottom - 1, `${candidate.dataset.moduleId} statuses are not stacked vertically`);
+      assert(Math.abs(second.left - first.left) <= 1, `${candidate.dataset.moduleId} statuses are not left aligned`);
+      const title = candidate.querySelector("h3");
+      assert(title.scrollWidth <= title.clientWidth + 1, `${candidate.dataset.moduleId} title is horizontally clipped`);
+    }
+  };
+  const assertCompactProductionLayout = () => {
+    const candidates = Array.from(document.querySelectorAll("#module-grid .module-card"));
+    const gridBounds = document.querySelector("#module-grid").getBoundingClientRect();
+    assert(candidates.length === 5, "production candidate layout node count changed");
+    for (const candidate of candidates) {
+      const width = candidate.getBoundingClientRect().width;
+      assert(width >= 259 && width <= 300, `${candidate.dataset.moduleId} is not close to the accepted top-level node width (${width}px)`);
+    }
+    const rowGroups = new Map();
+    for (const candidate of candidates) {
+      const top = Math.round(candidate.getBoundingClientRect().top);
+      rowGroups.set(top, [...(rowGroups.get(top) || []), candidate]);
+    }
+    const rows = Array.from(rowGroups.entries()).sort(([left], [right]) => left - right).map(([, row]) => row);
+    const expectedRows = window.innerWidth >= 1180 ? [3, 2] : [2, 2, 1];
+    assert(rows.map((row) => row.length).join("|") === expectedRows.join("|"), `production candidate rows changed at ${window.innerWidth}px`);
+    const firstRowBounds = rows[0].map((candidate) => candidate.getBoundingClientRect());
+    const leftWhitespace = Math.min(...firstRowBounds.map((bounds) => bounds.left)) - gridBounds.left;
+    const rightWhitespace = gridBounds.right - Math.max(...firstRowBounds.map((bounds) => bounds.right));
+    assert(Math.abs(leftWhitespace - rightWhitespace) <= 2, `production candidate first row leaves asymmetric whitespace at ${window.innerWidth}px`);
+    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, `production candidate layout overflows at ${window.innerWidth}px`);
+  };
   const assertCandidateLabelGeometry = () => {
-    const surfaceLeft = document.querySelector("#graph-surface").getBoundingClientRect().left;
+    const surface = document.querySelector("#graph-surface").getBoundingClientRect();
     const records = Array.from(document.querySelectorAll(".graph-edge-label.candidate"), (label) => {
       const id = label.dataset.collaborationId;
       const edge = document.querySelector(`[data-collaboration-id="${id}"] .graph-edge.candidate`);
       const points = coordinates(edge);
       const bounds = label.getBoundingClientRect();
-      return { id, bounds, centerX: (bounds.left + bounds.right) / 2, edgeX: surfaceLeft + (points.start.x + points.end.x) / 2 };
-    }).sort((left, right) => left.edgeX - right.edgeX);
+      const deltaX = points.end.x - points.start.x;
+      const deltaY = points.end.y - points.start.y;
+      const edgeLength = Math.hypot(deltaX, deltaY);
+      const unitX = deltaX / edgeLength;
+      const unitY = deltaY / edgeLength;
+      return {
+        id, bounds,
+        centerX: (bounds.left + bounds.right) / 2,
+        centerY: (bounds.top + bounds.bottom) / 2,
+        midpointX: surface.left + (points.start.x + points.end.x) / 2,
+        midpointY: surface.top + (points.start.y + points.end.y) / 2,
+        runway: edgeLength / 2 - (Math.abs(unitX) * bounds.width / 2 + Math.abs(unitY) * bounds.height / 2),
+      };
+    }).sort((left, right) => left.midpointX - right.midpointX);
     assert(records.length === 2, "candidate label geometry requires the two published collaborations");
     assert(rectangleDistance(records[0].bounds, records[1].bounds) >= 24, "candidate relationship labels lack 24px separation");
-    assert(records[0].centerX < records[0].edgeX, "left candidate label is pushed inward toward the other relationship");
-    assert(records[1].centerX > records[1].edgeX, "right candidate label is pushed inward toward the other relationship");
-    for (const [index, record] of records.entries()) {
-      const other = records[1 - index];
-      assert(Math.abs(record.centerX - record.edgeX) < Math.abs(record.centerX - other.edgeX), `${record.id} appears closer to the other arrow`);
-      const lineGap = record.edgeX < record.bounds.left ? record.bounds.left - record.edgeX : record.edgeX > record.bounds.right ? record.edgeX - record.bounds.right : 0;
-      assert(lineGap >= 18, `${record.id} label crowds its arrow`);
+    for (const record of records) {
+      assert(Math.abs(record.centerX - record.midpointX) <= 2, `${record.id} label is not horizontally centered on its line`);
+      assert(Math.abs(record.centerY - record.midpointY) <= 2, `${record.id} label is not vertically centered on its line`);
+      assert(record.runway >= 12, `${record.id} lacks visible line on both sides of its label`);
       for (const candidate of document.querySelectorAll("#module-grid .module-card")) {
         assert(rectangleDistance(record.bounds, candidate.getBoundingClientRect()) >= 8, `${record.id} label crowds a candidate node`);
       }
@@ -57,6 +100,9 @@
   };
 
   try {
+    const expectedViewport = window.T7_EXPECTED_VIEWPORT;
+    assert(Array.isArray(expectedViewport), "expected viewport was not provided by the browser harness");
+    assert(window.innerWidth === expectedViewport[0] && window.innerHeight === expectedViewport[1], `browser viewport mismatch: expected ${expectedViewport.join("x")}, actual ${window.innerWidth}x${window.innerHeight}`);
     document.querySelector('[data-module-id="production-control"]').click();
     await nextPaint();
 
@@ -65,12 +111,15 @@
     assert(cards.every((candidate) => !candidate.querySelector(".ordinal")), "production candidates still show 01-05 ordinals");
     assert(cards.every((card) => !card.classList.contains("expanded")), "candidate nodes must start compact");
     assert(cards.every((card) => card.querySelector(".module-inline-detail")?.hidden), "compact candidates expose detail");
-    assert(cards.every((candidate) => candidate.getBoundingClientRect().height <= 165), "production candidate remains taller than the accepted compact node");
+    const compactHeights = cards.map((candidate) => `${candidate.dataset.moduleId}:${candidate.getBoundingClientRect().height}`);
+    assert(cards.every((candidate) => candidate.getBoundingClientRect().height <= 165), `production candidate remains taller than the accepted compact node (${compactHeights.join(", ")})`);
     assert(cards.every((candidate) => Number.parseFloat(getComputedStyle(candidate).paddingTop) <= 18), "production candidate retains excessive padding");
     assert(cards.filter((card) => card.textContent.includes("候选职责")).length === 3, "candidate responsibility count changed");
     assert(cards.filter((card) => card.textContent.includes("候选组件")).length === 2, "candidate component count changed");
     assert(card("worker-launch-boundary").textContent.includes("职责状态：未审核"), "worker boundary lost candidate status");
     assert(card("worker-launch-boundary").textContent.includes("源码归属：部分核验"), "worker partial assignment was hidden or promoted");
+    assertVerticalCandidateStatuses();
+    assertCompactProductionLayout();
 
     const expected = [
       ["candidate-collaboration:supervisor-to-control-adapters", "supervisor-orchestration", "production-control-adapters", "Supervisor 装载控制适配器"],
@@ -109,6 +158,9 @@
     document.querySelector("#context-detail-toggle").click();
     await nextPaint();
     assert(card("worker-launch-boundary").classList.contains("expanded"), "worker candidate did not expand inline");
+    assertVerticalCandidateStatuses();
+    assertCompactProductionLayout();
+    assert(card("worker-launch-boundary").scrollHeight <= card("worker-launch-boundary").clientHeight + 1, "expanded worker candidate clips its explanation or evidence summary");
     assert(workerEdge().getAttribute("d") !== initialWorkerPath, "candidate edge did not recompute after expansion");
     let points = coordinates(workerEdge());
     assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "expanded candidate edge left source boundary");
@@ -120,6 +172,7 @@
     await nextPaint();
     assert(card("worker-launch-boundary").classList.contains("expanded"), "second expansion collapsed worker candidate");
     assert(card("supervisor-orchestration").classList.contains("expanded"), "second candidate did not expand independently");
+    assertCompactProductionLayout();
     assertCandidateLabelGeometry();
     openMenu(card("worker-launch-boundary"));
     assert(document.querySelector("#context-detail-toggle").textContent === "关闭展示", "expanded candidate menu lacks close action");
@@ -141,9 +194,10 @@
 
     openMenu(card("worker-launch-boundary"));
     document.querySelector("#context-evidence").click();
-    assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "worker formal evidence entry changed stable Relationship ID");
-    assert(!document.querySelector("#detail-content").dataset.collaborationId, "formal evidence retained candidate collaboration identity");
-    assert(document.querySelectorAll("#detail-content .evidence-group .evidence-card").length === 13, "formal relationship evidence count changed");
+    assert(document.querySelector("#detail-title").textContent === "Worker 启动边界", "worker context evidence opened a different candidate node");
+    assert(document.querySelectorAll("#detail-content .candidate-evidence-card").length === 3, "worker candidate evidence count changed");
+    assert(document.querySelector("#detail-content").textContent.includes("源码归属：部分核验"), "worker context evidence promoted source assignment");
+    assert(document.querySelector('#detail-content [data-relationship-id="relationship:production-control:launches:translation-execution"]'), "worker detail lost the stable formal Relationship entry");
     document.querySelector("#relationship-detail").close();
 
     const stablePaths = Array.from(document.querySelectorAll(".graph-edge.candidate"), (edge) => edge.getAttribute("d"));
@@ -151,14 +205,6 @@
     await nextPaint();
     assert(Array.from(document.querySelectorAll(".graph-edge.candidate"), (edge) => edge.getAttribute("d")).every((path, index) => path === stablePaths[index]), "scroll introduced candidate endpoint drift");
     window.scrollTo(0, 0);
-
-    window.resizeTo(960, 900);
-    await nextPaint();
-    assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "candidate graph overflows after desktop reflow");
-    points = coordinates(workerEdge());
-    assert(onBoundary(points.start, cardBoundsInSurface(card("worker-launch-boundary"))), "reflowed candidate edge left source boundary");
-    assert(onBoundary(points.end, cardBoundsInSurface(card("deterministic-worker-wrapper"))), "reflowed candidate edge left target boundary");
-    assertCandidateLabelGeometry();
 
     document.documentElement.dataset.t7ProductionCandidate = "pass";
   } catch (error) {

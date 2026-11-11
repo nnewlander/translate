@@ -10,24 +10,30 @@
   };
   const captureCardStandard = (moduleCard, plainSelector) => {
     const cardRect = moduleCard.getBoundingClientRect();
-    const ordinal = moduleCard.querySelector(".ordinal");
     const heading = moduleCard.querySelector("h3");
     const professional = moduleCard.querySelector(".module-responsibility");
     const plain = moduleCard.querySelector(plainSelector);
     const statuses = moduleCard.querySelector(".statuses");
-    assert(ordinal && heading && professional && plain && statuses, "card text layers missing");
+    assert(!moduleCard.querySelector(".ordinal") && heading && professional && plain && statuses, "compact candidate text layers changed");
     const textProperties = ["fontFamily", "fontSize", "fontWeight", "lineHeight", "color", "marginTop", "marginBottom"];
     return {
       card: styleValues(moduleCard, ["backgroundColor", "borderColor", "borderRadius", "boxShadow", "padding"]),
-      ordinal: styleValues(ordinal, ["fontFamily", "fontSize", "fontWeight", "lineHeight", "color", "letterSpacing"]),
       heading: styleValues(heading, textProperties),
       professional: styleValues(professional, textProperties),
       plain: styleValues(plain, textProperties),
       headingTop: Math.round(heading.getBoundingClientRect().top - cardRect.top),
-      ordinalToHeading: Math.round(heading.getBoundingClientRect().top - ordinal.getBoundingClientRect().bottom),
       headingToProfessional: Math.round(professional.getBoundingClientRect().top - heading.getBoundingClientRect().bottom),
       professionalToPlain: Math.round(plain.getBoundingClientRect().top - professional.getBoundingClientRect().bottom),
     };
+  };
+  const expandAllCandidates = () => {
+    for (const moduleCard of document.querySelectorAll("#module-grid .module-card")) {
+      moduleCard.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true, cancelable: true, clientX: 40, clientY: 40,
+      }));
+      document.querySelector("#context-detail-toggle").click();
+    }
+    document.activeElement?.blur();
   };
   const assertStatusesShareRow = (moduleCard) => {
     const container = moduleCard.querySelector(".statuses");
@@ -39,6 +45,14 @@
       tops.every((top) => top === tops[0]),
       `module status badges do not share a row when space is available (${container.clientWidth}px: ${widths.join("+")})`,
     );
+  };
+  const assertCandidateStatusesStack = (moduleCard) => {
+    const badges = Array.from(moduleCard.querySelectorAll(":scope > .statuses > .status"));
+    assert(badges.length >= 2, "candidate status badges missing");
+    const first = badges[0].getBoundingClientRect();
+    const second = badges[1].getBoundingClientRect();
+    assert(second.top >= first.bottom - 1, "candidate status badges must use separate rows");
+    assert(Math.abs(second.left - first.left) <= 1, "candidate status badges must be left aligned");
   };
   const assertStatusesWrapAsWholeBadges = () => {
     const source = card("translation-execution");
@@ -75,26 +89,30 @@
       const candidateType = candidateCard.querySelector(".candidate-node-type");
       const professional = candidateCard.querySelector(".module-responsibility");
       const plain = candidateCard.querySelector(".candidate-plain-explanation");
-      const evidence = candidateCard.querySelector(".candidate-evidence-count");
       const statuses = candidateCard.querySelector(".statuses");
-      assert(candidateType && professional && plain && evidence && statuses, "candidate metadata layers missing");
+      assert(candidateType && professional && plain && statuses, "candidate metadata layers missing");
+      assert(!candidateCard.querySelector(".candidate-evidence-count") && !candidateCard.querySelector(".candidate-evidence-link"), "candidate card repeats evidence controls inline");
       const actual = captureCardStandard(candidateCard, ".candidate-plain-explanation");
-      for (const key of ["card", "ordinal", "heading", "professional", "plain", "headingTop", "ordinalToHeading", "headingToProfessional", "professionalToPlain"]) {
+      for (const key of ["card", "heading", "professional", "plain", "headingTop", "headingToProfessional", "professionalToPlain"]) {
         assert(
           JSON.stringify(actual[key]) === JSON.stringify(standard[key]),
           `candidate ${key} differs from candidate standard: ${JSON.stringify(actual[key])} != ${JSON.stringify(standard[key])}`,
         );
       }
       const heading = candidateCard.querySelector("h3");
-      assert(candidateType.getBoundingClientRect().bottom <= heading.getBoundingClientRect().top, "candidate type obscures title rhythm");
+      const typeRect = candidateType.getBoundingClientRect();
+      const headingRect = heading.getBoundingClientRect();
+      assert(
+        headingRect.right <= typeRect.left || typeRect.right <= headingRect.left || headingRect.bottom <= typeRect.top || typeRect.bottom <= headingRect.top,
+        "candidate type overlaps its title",
+      );
       assert(heading.getBoundingClientRect().bottom <= professional.getBoundingClientRect().top, "candidate title overlaps professional text");
       assert(professional.getBoundingClientRect().bottom <= plain.getBoundingClientRect().top, "candidate text layers overlap");
-      assert(plain.getBoundingClientRect().bottom <= evidence.getBoundingClientRect().top, "candidate evidence precedes plain explanation");
-      assert(evidence.getBoundingClientRect().bottom <= statuses.getBoundingClientRect().top, "candidate evidence overlaps statuses");
+      assert(plain.getBoundingClientRect().bottom <= statuses.getBoundingClientRect().top, "candidate explanation overlaps statuses");
       assert(candidateCard.scrollWidth <= candidateCard.clientWidth + 1, "candidate card overflows horizontally");
       assert(professional.scrollWidth <= professional.clientWidth + 1, "professional text is clipped");
       assert(plain.scrollWidth <= plain.clientWidth + 1, "plain text is clipped");
-      if (innerWidth >= 1280) assertStatusesShareRow(candidateCard);
+      assertCandidateStatusesStack(candidateCard);
     }
     assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "page overflows horizontally");
     return standard;
@@ -114,10 +132,12 @@
     assertStatusesWrapAsWholeBadges();
     card("translation-execution").click();
     assert(title() === "翻译执行与模型接入", "translation drilldown did not open");
-    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((item) => item.classList.contains("expanded")), "T7-2 expanded beyond production-control candidates");
-    assert(document.querySelector("#relationship-graph").hidden, "T7-2 drew a candidate graph outside production-control");
+    assert(Array.from(document.querySelectorAll("#module-grid .module-card")).every((item) => !item.classList.contains("expanded")), "translation candidates do not start compact");
+    assert(!document.querySelector("#relationship-graph").hidden, "translation candidates are missing the shared graph");
+    assert(document.querySelectorAll(".graph-edge.candidate").length === 1, "translation candidate edge count changed");
     let children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "translation candidate count changed");
+    expandAllCandidates();
     const candidateStandard = assertCandidateMatchesStandard();
     assert(card("translation-routing-and-acquisition").textContent.includes("Worker/pipeline") && card("translation-routing-and-acquisition").textContent.includes("RAW 投影"), "Worker orchestration boundary missing");
     assert(card("translation-provider-adapters").textContent.includes("Provider") && card("translation-provider-adapters").textContent.includes("不负责 Worker 的流程编排"), "Provider adapter boundary missing");
@@ -136,6 +156,9 @@
     assert(title() === "质量判断与受限修复", "quality drilldown did not open");
     children = Array.from(document.querySelectorAll("#module-grid .module-card"));
     assert(children.length === 2, "quality candidate count changed");
+    assert(children.every((item) => !item.classList.contains("expanded")), "quality candidates do not start compact");
+    assert(document.querySelectorAll(".graph-edge.candidate").length === 1, "quality candidate edge count changed");
+    expandAllCandidates();
     assertCandidateMatchesStandard(candidateStandard);
     assert(card("quality-deterministic-qa").textContent.includes("固定量规"), "deterministic QA explanation missing");
     assert(card("quality-semantic-review-and-repair").textContent.includes("组件状态：未审核"), "semantic repair is not visibly unreviewed");

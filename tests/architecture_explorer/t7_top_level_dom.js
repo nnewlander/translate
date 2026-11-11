@@ -28,6 +28,16 @@
     const touchesY = Math.abs(point.y - bounds.top) <= epsilon || Math.abs(point.y - bounds.bottom) <= epsilon;
     return (touchesX && withinY) || (touchesY && withinX);
   };
+  const assertReviewedLabelClearsEveryNode = () => {
+    const label = document.querySelector('.graph-edge-label[data-relationship-id="relationship:production-control:launches:translation-execution"]');
+    const labelBounds = label.getBoundingClientRect();
+    for (const node of document.querySelectorAll("#module-grid .module-card")) {
+      const bounds = node.getBoundingClientRect();
+      const separated = labelBounds.right <= bounds.left || labelBounds.left >= bounds.right
+        || labelBounds.bottom <= bounds.top || labelBounds.top >= bounds.bottom;
+      assert(separated, `reviewed relationship label overlaps ${node.dataset.moduleId}`);
+    }
+  };
 
   try {
     await nextPaint();
@@ -54,6 +64,7 @@
     assert(Math.abs(points.end.y - points.start.y) <= 2, "collapsed reviewed relationship should be horizontal");
     assert(onBoundary(points.start, cardBoundsInSurface(card("production-control"))), "edge does not start on production-control boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("translation-execution"))), "edge does not end on translation-execution boundary");
+    assertReviewedLabelClearsEveryNode();
 
     openMenu(card("production-control"));
     assert(toggle?.textContent === "详细展示", "collapsed card menu lacks detail action");
@@ -66,6 +77,7 @@
     points = coordinates(expandedEdge);
     assert(onBoundary(points.start, cardBoundsInSurface(card("production-control"))), "expanded edge left source boundary");
     assert(onBoundary(points.end, cardBoundsInSurface(card("translation-execution"))), "expanded edge left target boundary");
+    assertReviewedLabelClearsEveryNode();
 
     openMenu(card("translation-execution"));
     toggle.click();
@@ -102,10 +114,16 @@
       labelRect.right < targetRect.left || labelRect.left > targetRect.right || labelRect.bottom < targetRect.top || labelRect.top > targetRect.bottom,
       "reviewed relationship label overlaps the target node",
     );
-    assert(
-      pathMidpoint.x < labelRect.left || pathMidpoint.x > labelRect.right || pathMidpoint.y < labelRect.top || pathMidpoint.y > labelRect.bottom,
-      "short reviewed edge is completely hidden by its label",
-    );
+    const deltaX = labelledPoints.end.x - labelledPoints.start.x;
+    const deltaY = labelledPoints.end.y - labelledPoints.start.y;
+    const edgeLength = Math.hypot(deltaX, deltaY);
+    const unitX = deltaX / edgeLength;
+    const unitY = deltaY / edgeLength;
+    const labelProjection = Math.abs(unitX) * labelRect.width / 2 + Math.abs(unitY) * labelRect.height / 2;
+    assert(Math.abs((labelRect.left + labelRect.right) / 2 - pathMidpoint.x) <= 2, "reviewed relationship label is not centered on its line");
+    assert(Math.abs((labelRect.top + labelRect.bottom) / 2 - pathMidpoint.y) <= 2, "reviewed relationship label is not centered on its line");
+    assert(edgeLength / 2 - labelProjection >= 12, "reviewed relationship lacks visible line on both sides of its label");
+    assert(getComputedStyle(graphLabel).backgroundColor !== "rgba(0, 0, 0, 0)", "reviewed relationship label does not create a visible line break");
     graphLabel.click();
     assert(document.querySelector("#detail-content").dataset.relationshipId === "relationship:production-control:launches:translation-execution", "graph edge opened a different relationship record");
     assert(document.querySelector("#detail-content").textContent.includes("当前已审核"), "relationship detail no longer exposes full review status");
@@ -130,10 +148,17 @@
     window.scrollTo(0, 0);
 
     const workflowToggle = document.querySelector("#workflow-toggle");
+    const workflowControl = workflowToggle.closest(".workflow-control");
+    assert(!document.querySelector("#workflow-help"), "workflow explanation remains visible below the toggle");
+    assert(!workflowToggle.hasAttribute("aria-describedby"), "workflow toggle retains a dangling description reference");
+    assert(Math.abs(workflowControl.getBoundingClientRect().height - workflowToggle.getBoundingClientRect().height) <= 1, "workflow control retains empty helper space");
     workflowToggle.click(); await nextPaint();
     assert(document.body.classList.contains("workflow-highlight"), "workflow highlight no longer activates");
+    assert(workflowToggle.getAttribute("aria-pressed") === "true" && workflowToggle.textContent === "取消流程高亮", "workflow toggle active state changed");
     assert(document.querySelector(".graph-edge.reviewed").getAttribute("d") === stablePath, "workflow highlight changed edge geometry");
-    workflowToggle.click();
+    workflowToggle.click(); await nextPaint();
+    assert(!document.body.classList.contains("workflow-highlight"), "workflow highlight no longer deactivates");
+    assert(workflowToggle.getAttribute("aria-pressed") === "false" && workflowToggle.textContent === "高亮最小生产流程", "workflow toggle did not restore its idle state");
 
     const releaseCard = card("candidate-and-release");
     releaseCard.focus();

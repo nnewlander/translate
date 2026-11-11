@@ -19,7 +19,7 @@
     assert(card("document-translation-view").textContent.includes("组件状态：未审核"), "candidate component is not visibly unreviewed");
     assert(children.every((item) => item.querySelector(".candidate-plain-explanation")?.textContent), "document candidate plain explanation missing");
     assert(children.some((item) => item.textContent.includes("档案拆包员")), "document explanation is not specific");
-    assert(children.every((item) => item.querySelector(".candidate-evidence-count")?.textContent.includes("源码依据")), "document evidence count missing");
+    assert(children.every((item) => !item.querySelector(".candidate-evidence-count") && !item.querySelector(".candidate-evidence-link")), "document candidates repeat evidence controls inline");
     let collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));
     assert(collaborations.length === 1, "document candidate collaboration missing");
     assert(collaborations[0].textContent.includes("未审核") && collaborations[0].textContent.includes("档案拆包员"), "document collaboration explanation or state missing");

@@ -287,7 +287,7 @@
 
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
-    detailContent.replaceChildren(); delete detailContent.dataset.collaborationId;
+    detailContent.replaceChildren(); delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.relationshipId = relation.id;
     const title = text("h2", `${guide.source_module_name} → ${guide.target_module_name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
@@ -342,7 +342,7 @@
   const showCandidateCollaboration = (collaboration) => {
     const source = childById[collaboration.source_node_id];
     const target = childById[collaboration.target_node_id];
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId;
+    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.collaborationId = collaboration.id;
     const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
@@ -374,7 +374,7 @@
     const isCandidate = module.review_status === "candidate";
     const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId;
+    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
@@ -420,7 +420,6 @@
   const visibleGraphEdges = () => {
     const drilldown = currentDrilldown();
     if (drilldown) {
-      if (drilldown.parent_module_id !== "production-control") return [];
       const visibleNodeIds = new Set(drilldown.children.map((node) => node.id));
       return (drilldown.collaborations || [])
         .filter((collaboration) => (
@@ -494,10 +493,8 @@
       const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.targetId)}"]`);
       if (!sourceCard || !targetCard) return null;
       const { start, end } = edgeEndpoints(sourceCard.getBoundingClientRect(), targetCard.getBoundingClientRect(), surfaceRect);
-      return { edge, sourceCard, targetCard, start, end };
+      return { edge, start, end };
     }).filter(Boolean);
-    const verticalEdges = positionedEdges.filter(({ start, end }) => Math.abs(end.y - start.y) >= Math.abs(end.x - start.x));
-    const verticalCenterX = verticalEdges.reduce((total, { start, end }) => total + (start.x + end.x) / 2, 0) / Math.max(1, verticalEdges.length);
     for (const { edge, start, end } of positionedEdges) {
       const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
@@ -522,24 +519,9 @@
       if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;
       label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，${trustLabel}，打开关系证据`);
-      const deltaX = end.x - start.x; const deltaY = end.y - start.y;
-      const edgeLength = Math.max(1, Math.hypot(deltaX, deltaY));
-      let labelX = (start.x + end.x) / 2; let labelY = (start.y + end.y) / 2;
+      const labelX = (start.x + end.x) / 2; const labelY = (start.y + end.y) / 2;
       relationshipLabelLayer.append(label);
       const labelWidth = label.offsetWidth; const labelHeight = label.offsetHeight;
-      const isVertical = Math.abs(deltaY) >= Math.abs(deltaX);
-      if (isVertical) {
-        const direction = verticalEdges.length > 1
-          ? (labelX < verticalCenterX ? -1 : 1)
-          : (labelX > width / 2 ? -1 : 1);
-        labelX += direction * (labelWidth / 2 + 24);
-      } else {
-        const labelOffset = 34;
-        const normalX = -deltaY / edgeLength; const normalY = deltaX / edgeLength;
-        const direction = labelY + normalY * labelOffset > height - 24 ? -1 : 1;
-        labelX += normalX * labelOffset * direction;
-        labelY += normalY * labelOffset * direction;
-      }
       label.style.left = `${Math.max(labelWidth / 2 + 8, Math.min(width - labelWidth / 2 - 8, labelX))}px`;
       label.style.top = `${Math.max(labelHeight / 2 + 8, Math.min(height - labelHeight / 2 - 8, labelY))}px`;
       label.addEventListener("click", () => activateGraphEdge(edge));
@@ -566,22 +548,19 @@
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
 
-  const cardFor = (module, index, isChild) => {
+  const cardFor = (module, isChild) => {
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const hasChildren = Boolean(drilldownByParent[module.id]);
-    const usesCompactCandidateGraph = isChild && state.parentModuleId === "production-control";
-    const expanded = (isChild && !usesCompactCandidateGraph) || state.expandedNodeIds.includes(module.id);
+    const expanded = state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
-    if (isChild && !usesCompactCandidateGraph) article.append(text("span", String(index + 1).padStart(2, "0"), "ordinal"));
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
     inlineDetail.append(text("p", module.responsibility, "module-responsibility"));
     if (!isChild && modulePlainExplanations[module.id]) inlineDetail.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
     if (isChild && module.plain_explanation) inlineDetail.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
-    if (isChild && module.source_assignment.evidence_ids?.length) inlineDetail.append(text("p", `源码依据：${module.source_assignment.evidence_ids.length} 条`, "candidate-evidence-count"));
     inlineDetail.addEventListener("click", (event) => event.stopPropagation()); article.append(inlineDetail);
     const statuses = document.createElement("div"); statuses.className = "statuses";
     if (isChild) statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
@@ -608,8 +587,9 @@
   const renderModules = () => {
     const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
     grid.classList.toggle("top-level-grid", !drilldown);
+    grid.classList.toggle("candidate-graph-grid", Boolean(drilldown));
     grid.classList.toggle("production-candidate-grid", drilldown?.parent_module_id === "production-control");
-    grid.replaceChildren(); visible.forEach((module, index) => grid.append(cardFor(module, index, Boolean(drilldown))));
+    grid.replaceChildren(); visible.forEach((module) => grid.append(cardFor(module, Boolean(drilldown))));
     moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
     const collaborations = drilldown?.collaborations || [];
     candidateCollaborations.hidden = collaborations.length === 0;
@@ -644,14 +624,12 @@
   const renderContextMenu = () => {
     if (!state.contextMenu) { contextMenu.hidden = true; return; }
     contextMenu.hidden = false; contextMenu.dataset.moduleId = state.contextMenu.moduleId;
-    const drilldown = currentDrilldown();
-    const canToggleDetail = !drilldown || drilldown.parent_module_id === "production-control";
-    contextDetailToggle.hidden = !canToggleDetail;
+    contextDetailToggle.hidden = false;
     contextDetailToggle.textContent = state.expandedNodeIds.includes(state.contextMenu.moduleId) ? "关闭展示" : "详细展示";
     const maxLeft = Math.max(8, window.innerWidth - contextMenu.offsetWidth - 8);
     const maxTop = Math.max(8, window.innerHeight - contextMenu.offsetHeight - 8);
     contextMenu.style.left = `${Math.min(state.contextMenu.x, maxLeft)}px`; contextMenu.style.top = `${Math.min(state.contextMenu.y, maxTop)}px`;
-    (canToggleDetail ? contextDetailToggle : contextEvidence).focus({ preventScroll: true });
+    contextDetailToggle.focus({ preventScroll: true });
   };
   const render = () => { renderNavigation(); renderModules(); renderContextMenu(); scheduleRelationshipGraph(); };
 
@@ -664,6 +642,9 @@
   });
   contextEvidence.addEventListener("click", () => {
     const module = moduleById[state.contextMenu?.moduleId]; if (!module) return;
+    if (module.review_status === "candidate") {
+      dispatch({ type: "MENU_EVIDENCE", relationshipId: null }); renderContextMenu(); showModuleDetail(module); return;
+    }
     const related = relationshipsForModule(module.id); dispatch({ type: "MENU_EVIDENCE", relationshipId: related[0]?.id || null }); renderContextMenu();
     if (state.relationshipId) showRelationship(relationshipById[state.relationshipId]); else showModuleDetail(module);
   });
