@@ -13,6 +13,7 @@ from booktrans.architecture_explorer.generator import (
     ExplorerInputError,
     build_explorer,
     scan_snapshot,
+    validate_cli_output_path,
     write_json,
     write_site,
 )
@@ -22,6 +23,21 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 MAPPING = REPOSITORY / "architecture-explorer" / "modules.json"
 WEB_ASSETS = REPOSITORY / "architecture-explorer" / "web"
 CLI = REPOSITORY / "scripts" / "architecture_explorer" / "generate_top_level.py"
+
+
+def test_output_path_validation_supports_python_without_path_is_junction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    monkeypatch.delattr(Path, "is_junction", raising=False)
+
+    assert validate_cli_output_path(
+        repository,
+        Path("output/snapshot.json"),
+        directory=False,
+    ) == repository / "output/snapshot.json"
 
 
 def _git(repository: Path, *args: str) -> None:
@@ -62,7 +78,7 @@ def _make_windows_junction_or_skip(link: Path, target: Path) -> None:
     )
     if junction.returncode != 0:
         pytest.skip("Windows junction creation is unavailable in this test environment")
-    assert link.is_junction()
+    assert link.stat(follow_symlinks=False).st_file_attributes & 0x400
 
 
 @pytest.fixture()

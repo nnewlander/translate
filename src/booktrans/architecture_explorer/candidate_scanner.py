@@ -829,7 +829,7 @@ def _validated_source_path(repository: Path, relative: str) -> Path:
     cursor = repository
     for part in relative_path.parts:
         cursor /= part
-        if cursor.is_symlink() or cursor.is_junction() or _is_reparse_point(cursor):
+        if cursor.is_symlink() or _is_reparse_point(cursor):
             raise ExplorerInputError(f"T2 scan input path contains a link or reparse point: {relative}")
     try:
         resolved = candidate.resolve(strict=True)
