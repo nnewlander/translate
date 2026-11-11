@@ -485,7 +485,7 @@
     relationshipGraph.hidden = visibleEdges.length === 0;
     if (!visibleEdges.length) return;
     const surfaceRect = graphSurface.getBoundingClientRect();
-    const width = Math.max(1, graphSurface.scrollWidth); const height = Math.max(1, graphSurface.scrollHeight);
+    const width = Math.max(1, graphSurface.clientWidth); const height = Math.max(1, graphSurface.clientHeight);
     relationshipGraph.setAttribute("viewBox", `0 0 ${width} ${height}`);
     relationshipGraph.setAttribute("width", String(width)); relationshipGraph.setAttribute("height", String(height));
     const positionedEdges = visibleEdges.map((edge) => {
