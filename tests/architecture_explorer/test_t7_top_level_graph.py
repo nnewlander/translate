@@ -315,7 +315,7 @@ def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation
     assert "all assertions passed" in completed.stdout
 
 
-def test_real_browser_opens_candidate_evidence_from_every_node_context_menu(
+def test_negative_probe_opens_candidate_evidence_from_every_node_context_menu(
     tmp_path: Path,
     explorer_data: dict,
 ) -> None:
