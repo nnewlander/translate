@@ -15,6 +15,7 @@ from booktrans.architecture_explorer.candidate_scanner import (
     REQUIRED_EVIDENCE_KINDS,
     SCAN_FILES,
     scan_supervisor_worker_candidate,
+    validated_source_path,
 )
 from booktrans.architecture_explorer.candidate_report import render_candidate_report
 from booktrans.architecture_explorer.generator import ExplorerInputError
@@ -22,6 +23,19 @@ from booktrans.architecture_explorer.generator import ExplorerInputError
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 CLI = REPOSITORY / "scripts" / "architecture_explorer" / "generate_supervisor_worker_candidate.py"
+
+
+def test_source_path_validation_supports_python_without_path_is_junction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    source = repository / "source.py"
+    source.parent.mkdir()
+    source.write_text("pass\n", encoding="utf-8")
+    monkeypatch.delattr(Path, "is_junction", raising=False)
+
+    assert validated_source_path(repository, "source.py") == source
 
 
 SUPERVISOR = r'''$deterministicWorkerScript = Join-Path $Root "scripts\production\run_qwen_deterministic_worker.py"

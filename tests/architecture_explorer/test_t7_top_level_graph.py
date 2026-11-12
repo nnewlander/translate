@@ -400,6 +400,12 @@ def test_real_chrome_reconnects_edges_during_same_page_resize_round_trip(
 
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)
+    evidence_path = Path(
+        os.environ.get(
+            "ARCHITECTURE_EXPLORER_VIEWPORT_EVIDENCE",
+            str(tmp_path / "chrome-viewport-evidence.json"),
+        )
+    )
     completed = subprocess.run(
         [
             "node",
@@ -407,6 +413,7 @@ def test_real_chrome_reconnects_edges_during_same_page_resize_round_trip(
             str(browser),
             (site / "index.html").resolve().as_uri(),
             str(tmp_path / "continuous-resize-profile"),
+            str(evidence_path),
         ],
         cwd=REPOSITORY,
         check=False,
@@ -420,6 +427,25 @@ def test_real_chrome_reconnects_edges_during_same_page_resize_round_trip(
     assert completed.returncode == 0, completed.stderr or completed.stdout
     assert "1440x900 -> 1280x900 -> 960x900 -> 1440x900" in completed.stdout
     assert "9 edges across 8 graphs" in completed.stdout
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["schema"] == "architecture-explorer.chrome-viewport-evidence.v1"
+    assert evidence["requested_browser"] == "chrome"
+    assert "Chrome/" in evidence["browser"]["product"]
+    assert len(evidence["graphs"]) == 8
+    for graph in evidence["graphs"]:
+        assert [item["requested"] for item in graph["observations"]] == [
+            [1440, 900],
+            [1280, 900],
+            [960, 900],
+            [1440, 900],
+        ]
+        assert [item["actual"] for item in graph["observations"]] == [
+            item["requested"] for item in graph["observations"]
+        ]
+        assert all(
+            item["navigation_identity"] == evidence["page_identity"]
+            for item in graph["observations"]
+        )
 
 
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(960, 900), (1280, 900), (1440, 900)])

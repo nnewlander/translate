@@ -23,7 +23,8 @@ def main() -> None:
         if (m := re.fullmatch(r'full_book_progress_v(\d+)\.json', path.name))
     ]
     prior = max(progress_paths)[1]
-    progress_path = RUN / f'full_book_progress_v{int(re.search(r"v(\d+)", prior.name).group(1))+1}.json'
+    prior_version = int(re.search(r"v(\d+)", prior.name).group(1))
+    progress_path = RUN / f'full_book_progress_v{prior_version + 1}.json'
     # Replaying a completed close-only operation must derive the same
     # completion payload.  Its generated progress is not a new prior batch;
     # recover the original prior from its immutable supersession binding.

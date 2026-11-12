@@ -153,7 +153,6 @@ def validate_cli_output_path(
     artifact_root_path = repository / "output"
     if (
         artifact_root_path.is_symlink()
-        or artifact_root_path.is_junction()
         or _is_reparse_point(artifact_root_path)
     ):
         raise ExplorerInputError("Repository output root cannot be a link, junction, or reparse point")
