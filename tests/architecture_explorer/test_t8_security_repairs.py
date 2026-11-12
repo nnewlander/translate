@@ -26,6 +26,8 @@ from test_t8_node_review import (
     _fixture_policy,
     _fixture_source,
     _published_explorer,
+    _source_evidence_record,
+    _target,
     REPOSITORY,
 )
 from t5_lite_fixture import commit, create_source_repository
@@ -146,6 +148,65 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     with pytest.raises(ExplorerInputError, match="independently trusted"):
         review_main(import_args, github_api=github_api)
 
+    if decision_result == "APPROVED":
+        evidence_id = _target(explorer)["source_assignment"]["evidence_ids"][0]
+        for mutation in (
+            "snippet",
+            "normalized-snippet-hash",
+            "structural-anchor",
+            "role",
+            "duplicate-id",
+        ):
+            tampered = deepcopy(explorer)
+            evidence = _source_evidence_record(tampered, evidence_id)
+            if mutation == "snippet":
+                evidence["snippet"] += "\n# changed launch behavior"
+            elif mutation == "normalized-snippet-hash":
+                evidence["normalized_snippet_sha256"] = "0" * 64
+            elif mutation == "structural-anchor":
+                evidence["structural_anchor"] = "powershell:function:NearbyLaunch"
+            elif mutation == "role":
+                evidence["evidence_kind"] = "powershell_script_binding"
+            else:
+                tampered["source_facts"]["modules"][0]["entries"].append(
+                    {"kind": "duplicate-fixture", "evidence": deepcopy(evidence)}
+                )
+            explorer_input.write_text(
+                json.dumps(tampered, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            with pytest.raises(
+                ExplorerInputError,
+                match="Evidence|duplicate|ambiguous",
+            ):
+                _review_main_with_test_policy(
+                    import_args,
+                    github_api=github_api,
+                    node_review_trust_policy=policy,
+                )
+            assert not decision_path.exists()
+            assert not source_path.exists()
+
+        relocatable = deepcopy(explorer)
+        evidence = _source_evidence_record(relocatable, evidence_id)
+        evidence["current_location"] = {"line_start": 1224, "line_end": 1291}
+        evidence["file_sha256"] = "f" * 64
+        unrelated = next(
+            item
+            for module in relocatable["source_facts"]["modules"]
+            for collection in (module.get("entries", []), module.get("direct_imports", []))
+            for item in collection
+            if isinstance(item.get("evidence"), dict)
+            and item["evidence"].get("evidence_id")
+            not in _target(relocatable)["source_assignment"]["evidence_ids"]
+        )["evidence"]
+        unrelated["snippet"] = "unrelated source fact changed"
+        unrelated["file_sha256"] = "e" * 64
+        explorer_input.write_text(
+            json.dumps(relocatable, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
     assert _review_main_with_test_policy(
         import_args,
         github_api=github_api,
@@ -153,17 +214,16 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     ) == 0
 
     review_state = repository / "output/review-state.json"
-    assert review_main(
-        [
-            "update-review-state",
-            "--repository", str(repository),
-            "--candidate", str(REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"),
-            "--review-mapping", str(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"),
-            "--review-source", str(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"),
-            "--review-state", "output/review-state.json",
-            "--assessed-at", "2026-11-12T00:00:00Z",
-        ]
-    ) == 0
+    review_state_args = [
+        "update-review-state",
+        "--repository", str(repository),
+        "--candidate", str(REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"),
+        "--review-mapping", str(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"),
+        "--review-source", str(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"),
+        "--review-state", "output/review-state.json",
+        "--assessed-at", "2026-11-12T00:00:00Z",
+    ]
+    assert review_main(review_state_args) == 0
 
     site = repository / "output/site"
     fragments = [

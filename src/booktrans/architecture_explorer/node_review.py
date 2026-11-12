@@ -12,6 +12,7 @@ from .review_source import (
     review_source_sha256,
     _verify_owner_admin_review_source_against_anchor,
 )
+from .source_primitives import build_static_evidence
 
 
 NODE_REVIEW_OBJECT_KEY = {
@@ -66,6 +67,46 @@ FORMAL_EVIDENCE_IDS = (
 T3_DECISION_ID = "github-comment:6516894339"
 T3_REVIEWED_SNAPSHOT = "857a4b85cf4763b74ecff0d02e660b005a0c8bae"
 NODE_REVIEW_IMPORT_NOTE = "Imported from a pinned GitHub Owner/admin review source."
+CANDIDATE_EVIDENCE_FINGERPRINTS = (
+    {
+        "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+        "source_role": "automatic_source_fact",
+        "evidence_kind": "powershell_function_entry",
+        "path": "scripts/production/production_campaign_supervisor.ps1",
+        "symbol": "Start-DeterministicWorkerProcess",
+        "structural_anchor": "powershell:function:Start-DeterministicWorkerProcess",
+        "syntax_position": "supervisor/function:Start-DeterministicWorkerProcess",
+        "normalized_snippet_sha256": (
+            "113a6afaad9335832b31e72e6a446e45ec25f4b21dbd76431d8f70421e351dfa"
+        ),
+    },
+    {
+        "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "source_role": "automatic_source_fact",
+        "evidence_kind": "powershell_script_binding",
+        "path": "scripts/production/production_campaign_supervisor.ps1",
+        "symbol": "$deterministicWorkerScript",
+        "structural_anchor": "powershell:assignment:$deterministicWorkerScript",
+        "syntax_position": "supervisor/assignment:$deterministicWorkerScript",
+        "normalized_snippet_sha256": (
+            "32249443cf0e783808c579a69bf04b14b75eb6b796d756cc562551f2a591ea0a"
+        ),
+    },
+    {
+        "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+        "source_role": "automatic_source_fact",
+        "evidence_kind": "deterministic_worker_wrapper",
+        "path": "scripts/production/run_qwen_deterministic_worker.py",
+        "symbol": "main",
+        "structural_anchor": (
+            "python:worker-wrapper/import:booktrans.production_worker.worker.main/main-guard"
+        ),
+        "syntax_position": "module/main-guard:1",
+        "normalized_snippet_sha256": (
+            "6033fff73548e19f3c2a68f692078c2c58ea34357472d17e1f6d0f84c459f5f0"
+        ),
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -106,6 +147,9 @@ VERSIONED_INPUTS = {
     ),
     "candidate_scanner_version": "architecture-explorer-t6-4/1.5",
     "relationship_candidate_scanner_version": "architecture-explorer-t2/1.3",
+    "candidate_evidence_fingerprint_sha256": (
+        "1fb5703461195ea8a3f314a01ddfce1c2b1d0ffa493f63f566d7f3fcce6954c7"
+    ),
 }
 EXPECTED_CANDIDATE_FACT = {
     "id": "worker-launch-boundary",
@@ -221,14 +265,23 @@ def _validate_authoritative_t3_dependency(
         raise ExplorerInputError("Node review current versioned input binding mismatch")
 
 
-def _source_evidence(explorer: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _source_evidence(
+    explorer: dict[str, Any],
+    candidate_ids: list[str],
+) -> dict[str, dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {}
+    expected = set(candidate_ids)
 
     def visit(value: Any) -> None:
         if isinstance(value, dict):
             evidence = value.get("evidence")
-            if isinstance(evidence, dict) and isinstance(evidence.get("evidence_id"), str):
-                found[evidence["evidence_id"]] = evidence
+            evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
+            if isinstance(evidence_id, str) and evidence_id in expected:
+                if evidence_id in found:
+                    raise ExplorerInputError(
+                        f"Node review Candidate Evidence is duplicate or ambiguous: {evidence_id}"
+                    )
+                found[evidence_id] = evidence
             for nested in value.values():
                 visit(nested)
         elif isinstance(value, list):
@@ -237,6 +290,64 @@ def _source_evidence(explorer: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
     visit(explorer.get("source_facts", {}))
     return found
+
+
+def _candidate_evidence_fingerprint(explorer: dict[str, Any]) -> str:
+    candidate_ids = list(EXPECTED_CANDIDATE_FACT["source_assignment"]["evidence_ids"])
+    evidence_by_id = _source_evidence(explorer, candidate_ids)
+    fingerprints = []
+    fingerprint_fields = tuple(CANDIDATE_EVIDENCE_FINGERPRINTS[0])
+    for evidence_id in candidate_ids:
+        evidence = evidence_by_id.get(evidence_id)
+        if evidence is None:
+            raise ExplorerInputError(
+                f"Node review Candidate Evidence is missing: {evidence_id}"
+            )
+        location = evidence.get("current_location")
+        required_strings = (
+            "source_role",
+            "evidence_kind",
+            "path",
+            "symbol",
+            "structural_anchor",
+            "syntax_position",
+            "snippet",
+            "normalized_snippet_sha256",
+            "file_sha256",
+        )
+        if (
+            not all(isinstance(evidence.get(field), str) for field in required_strings)
+            or not isinstance(location, dict)
+            or not isinstance(location.get("line_start"), int)
+            or not isinstance(location.get("line_end"), int)
+        ):
+            raise ExplorerInputError(
+                f"Node review Candidate Evidence record is incomplete: {evidence_id}"
+            )
+        rebuilt = build_static_evidence(
+            path=evidence["path"],
+            source_role=evidence["source_role"],
+            evidence_kind=evidence["evidence_kind"],
+            symbol=evidence["symbol"],
+            structural_anchor=evidence["structural_anchor"],
+            syntax_position=evidence["syntax_position"],
+            snippet=evidence["snippet"],
+            line_start=location["line_start"],
+            line_end=location["line_end"],
+            file_sha256=evidence["file_sha256"],
+        )
+        if (
+            evidence["normalized_snippet_sha256"]
+            != rebuilt["normalized_snippet_sha256"]
+            or evidence_id != rebuilt["evidence_id"]
+        ):
+            raise ExplorerInputError(
+                f"Node review Candidate Evidence content hash mismatch: {evidence_id}"
+            )
+        fingerprints.append({field: evidence.get(field) for field in fingerprint_fields})
+    if tuple(fingerprints) != CANDIDATE_EVIDENCE_FINGERPRINTS:
+        raise ExplorerInputError("Node review Candidate Evidence fingerprint mismatch")
+    return _canonical_sha256(fingerprints)
 
 
 def _candidate_fact(target: dict[str, Any]) -> dict[str, Any]:
@@ -278,6 +389,9 @@ def _current_versioned_inputs(
         "relationship_candidate_scanner_version": formal_decision.get(
             "reviewed_source_snapshot", {}
         ).get("scanner_version"),
+        "candidate_evidence_fingerprint_sha256": _candidate_evidence_fingerprint(
+            explorer
+        ),
     }
 
 
@@ -286,8 +400,8 @@ def _expected_claims(
     target: dict[str, Any],
     relationship: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    evidence = _source_evidence(explorer)
     candidate_ids = target.get("source_assignment", {}).get("evidence_ids", [])
+    evidence = _source_evidence(explorer, candidate_ids)
     candidate_evidence = []
     for evidence_id in candidate_ids:
         item = evidence.get(evidence_id)

@@ -147,6 +147,25 @@ def _target(explorer: dict) -> dict:
     )
 
 
+def _source_evidence_record(explorer: dict, evidence_id: str) -> dict:
+    matches = []
+
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            evidence = value.get("evidence")
+            if isinstance(evidence, dict) and evidence.get("evidence_id") == evidence_id:
+                matches.append(evidence)
+            for nested in value.values():
+                visit(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                visit(nested)
+
+    visit(explorer["source_facts"])
+    assert len(matches) == 1
+    return matches[0]
+
+
 CLASSIFICATION_RATIONALE = (
     "worker-launch-boundary 描述的是生产控制把受参数和守卫约束的启动请求跨越进程边界"
     "交给翻译执行这一稳定架构职责，而不是某一个文件、函数、脚本包装器或可部署组件。"
@@ -381,6 +400,9 @@ def _fixture_decision(explorer: dict, result: str = "APPROVED") -> dict:
             ),
             "candidate_scanner_version": "architecture-explorer-t6-4/1.5",
             "relationship_candidate_scanner_version": "architecture-explorer-t2/1.3",
+            "candidate_evidence_fingerprint_sha256": (
+                "1fb5703461195ea8a3f314a01ddfce1c2b1d0ffa493f63f566d7f3fcce6954c7"
+            ),
             "candidate_fact_sha256": _canonical_sha256(candidate_fact),
             "claims_sha256": _canonical_sha256(claims),
         },
@@ -727,6 +749,80 @@ def test_candidate_and_formal_evidence_stay_exact_and_separate_without_mutation(
     )
 
 
+def test_duplicate_candidate_evidence_id_is_rejected() -> None:
+    explorer = _published_explorer()
+    source, decision = _fixture_materials(explorer)
+    evidence_id = _target(explorer)["source_assignment"]["evidence_ids"][0]
+    duplicate = deepcopy(_source_evidence_record(explorer, evidence_id))
+    explorer["source_facts"]["modules"][0]["entries"].append(
+        {"kind": "duplicate-fixture", "evidence": duplicate}
+    )
+
+    with pytest.raises(ExplorerInputError, match="duplicate|ambiguous"):
+        apply_node_review(
+            explorer,
+            decision=decision,
+            review_source=source,
+            trust_policy=_fixture_policy(),
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("snippet", "normalized-snippet-hash", "structural-anchor", "role"),
+)
+def test_candidate_evidence_content_and_structure_are_bound(mutation: str) -> None:
+    explorer = _published_explorer()
+    source, decision = _fixture_materials(explorer)
+    evidence_id = _target(explorer)["source_assignment"]["evidence_ids"][0]
+    evidence = _source_evidence_record(explorer, evidence_id)
+    if mutation == "snippet":
+        evidence["snippet"] += "\n# changed launch behavior"
+    elif mutation == "normalized-snippet-hash":
+        evidence["normalized_snippet_sha256"] = "0" * 64
+    elif mutation == "structural-anchor":
+        evidence["structural_anchor"] = "powershell:function:NearbyLaunch"
+    else:
+        evidence["evidence_kind"] = "powershell_script_binding"
+
+    with pytest.raises(ExplorerInputError, match="Evidence|Claim binding"):
+        apply_node_review(
+            explorer,
+            decision=decision,
+            review_source=source,
+            trust_policy=_fixture_policy(),
+        )
+
+
+def test_candidate_evidence_locator_and_unrelated_changes_preserve_binding() -> None:
+    explorer = _published_explorer()
+    source, decision = _fixture_materials(explorer)
+    evidence_id = _target(explorer)["source_assignment"]["evidence_ids"][0]
+    evidence = _source_evidence_record(explorer, evidence_id)
+    evidence["current_location"] = {"line_start": 1224, "line_end": 1291}
+    evidence["file_sha256"] = "f" * 64
+    unrelated = next(
+        item
+        for module in explorer["source_facts"]["modules"]
+        for collection in (module.get("entries", []), module.get("direct_imports", []))
+        for item in collection
+        if isinstance(item.get("evidence"), dict)
+        and item["evidence"].get("evidence_id")
+        not in _target(explorer)["source_assignment"]["evidence_ids"]
+    )["evidence"]
+    unrelated["snippet"] = "unrelated source fact changed"
+    unrelated["file_sha256"] = "e" * 64
+
+    result = apply_node_review(
+        explorer,
+        decision=decision,
+        review_source=source,
+        trust_policy=_fixture_policy(),
+    )
+
+    assert _target(result)["node_review"]["projection"] == "Current · Approved"
+
+
 @pytest.mark.parametrize(
     "source_mutation",
     (
@@ -808,6 +904,7 @@ def test_decision_result_cannot_change_independently_of_the_source_comment() -> 
         "t3_review_source_sha256",
         "candidate_scanner_version",
         "relationship_candidate_scanner_version",
+        "candidate_evidence_fingerprint_sha256",
         "candidate_fact_sha256",
         "claims_sha256",
     ),
