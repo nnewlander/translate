@@ -13,6 +13,14 @@
   const coverageLabels = { unverified: "源码覆盖：未核验", partial: "源码覆盖：部分核验", verified: "源码覆盖：已核验" };
   const reviewLabels = { candidate: "候选", "historical-reviewed": "历史审核", "current-reviewed": "当前已审核", "needs-review": "需要复核", unknown: "未知" };
   const assignmentLabels = { unverified: "源码归属：未核验", partial: "源码归属：部分核验" };
+  const nodeReviewLabels = {
+    "Pending Review": "待审核",
+    "Current · Approved": "已批准 · 当前有效",
+    "Current · Rejected": "已拒绝 · 当前有效",
+    "Historical · Approved": "曾批准 · 需复核",
+    "Historical · Rejected": "曾拒绝 · 需复核",
+    Unknown: "审核有效性未知",
+  };
   const modules = data.architecture.modules;
   const relationships = Array.isArray(data.architecture.relationships) ? data.architecture.relationships : [];
   const navigation = data.navigation || {
@@ -373,13 +381,8 @@
   const appendNodeReviewStatuses = (statuses, module) => {
     const review = module.node_review;
     if (!review) return;
-    const decisionClass = review.projection.includes("Approved")
-      ? "approved"
-      : review.projection.includes("Rejected") ? "needs-review" : "candidate";
-    statuses.append(
-      text("span", `节点决定：${review.projection}`, `status node-review-decision ${decisionClass}`),
-      text("span", `Node Review State：${review.state.status} · ${review.state.continuity}`, "status node-review-state coverage-unverified"),
-    );
+    statuses.classList.add("node-review-statuses");
+    statuses.append(text("span", `人工审核：${nodeReviewLabels[review.projection] || nodeReviewLabels.Unknown}`, "candidate-card-status node-review-status"));
   };
 
   const appendNodeReviewDetail = (module) => {
@@ -620,8 +623,12 @@
     inlineDetail.addEventListener("click", (event) => event.stopPropagation()); article.append(inlineDetail);
     const statuses = document.createElement("div"); statuses.className = "statuses";
     if (isChild) {
-      statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
-      appendNodeReviewStatuses(statuses, module);
+      if (module.node_review) {
+        statuses.append(text("span", assignmentLabels[module.source_assignment.status], "candidate-card-status source-assignment-status"));
+        appendNodeReviewStatuses(statuses, module);
+      } else {
+        statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+      }
     }
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);

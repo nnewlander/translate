@@ -587,17 +587,20 @@ def test_decision_cannot_redefine_the_fixed_candidate_fact_and_resign_it() -> No
 
 
 @pytest.mark.parametrize(
-    ("decision_result", "expected_projection"),
+    ("decision_result", "expected_projection", "expected_review_label"),
     (
-        (None, "Pending Review"),
-        ("APPROVED", "Current · Approved"),
-        ("REJECTED", "Current · Rejected"),
+        (None, "Pending Review", "待审核"),
+        ("APPROVED", "Current · Approved", "已批准 · 当前有效"),
+        ("REJECTED", "Current · Rejected", "已拒绝 · 当前有效"),
     ),
 )
+@pytest.mark.parametrize("viewport_width", (1440, 1280, 960))
 def test_real_browser_reuses_candidate_card_and_context_evidence_detail(
     tmp_path: Path,
     decision_result: str | None,
     expected_projection: str,
+    expected_review_label: str,
+    viewport_width: int,
 ) -> None:
     browser_name, browser = _desktop_browser()
     site = tmp_path / "site"
@@ -621,6 +624,8 @@ def test_real_browser_reuses_candidate_card_and_context_evidence_detail(
         page.read_text(encoding="utf-8").replace(
             "</body>",
             f"<script>window.T8_EXPECTED_PROJECTION = {json.dumps(expected_projection)};"
+            f"window.T8_EXPECTED_REVIEW_LABEL = {json.dumps(expected_review_label)};"
+            f"window.T8_EXPECTED_DECISION_RESULT = {json.dumps(decision_result)};"
             "</script><script src=\"t8-node-review-dom.js\"></script></body>",
         ),
         encoding="utf-8",
@@ -631,7 +636,7 @@ def test_real_browser_reuses_candidate_card_and_context_evidence_detail(
         page,
         tmp_path / "browser-profile",
         virtual_time_budget=4000,
-        viewport_width=1280,
+        viewport_width=viewport_width,
         viewport_height=900,
     )
     _assert_browser_dom(

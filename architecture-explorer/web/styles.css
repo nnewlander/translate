@@ -431,6 +431,18 @@ h2 {
 
 .statuses { display: flex; flex-wrap: wrap; gap: 8px 6px; margin-top: auto; }
 
+.candidate-graph-grid .node-review-statuses { width: 100%; gap: 5px; }
+.candidate-card-status {
+  display: block;
+  max-width: 100%;
+  color: #526b49;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.node-review-status { color: #354b35; }
+
 .status {
   display: inline-flex;
   flex: 0 0 auto;
