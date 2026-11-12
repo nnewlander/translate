@@ -10,6 +10,7 @@ from .generator import ExplorerInputError, validate_cli_output_path, write_json,
 from .candidate_fragments import apply_candidate_fragments
 from .continuity import update_review_state
 from .navigation import apply_navigation
+from .node_review import NODE_REVIEW_OBJECT_KEY, apply_node_review
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .review_source import (
@@ -144,8 +145,21 @@ def main(argv: list[str] | None = None) -> int:
         review_state_path=review_state_path,
     )
     data = attach_python_source_facts(data, scan_python_source_facts(args.repository))
+    data["generation_inputs"]["review_mapping"] = {
+        "path": args.review_mapping.name,
+        "sha256": hashlib.sha256(args.review_mapping.read_bytes()).hexdigest(),
+    }
+    if args.review_source is not None:
+        data["generation_inputs"]["review_source"] = {
+            "path": args.review_source.name,
+            "sha256": hashlib.sha256(args.review_source.read_bytes()).hexdigest(),
+        }
     if args.navigation is not None:
         data = apply_navigation(data, _object(args.navigation))
+        data["generation_inputs"]["navigation"] = {
+            "path": args.navigation.name,
+            "sha256": hashlib.sha256(args.navigation.read_bytes()).hexdigest(),
+        }
     if args.candidate_fragment:
         data = apply_candidate_fragments(
             data,
@@ -158,6 +172,16 @@ def main(argv: list[str] | None = None) -> int:
             }
             for path in args.candidate_fragment
         ]
+    has_node_review_target = any(
+        drilldown.get("parent_module_id") == NODE_REVIEW_OBJECT_KEY["parent_module_id"]
+        and any(
+            child.get("id") == NODE_REVIEW_OBJECT_KEY["node_id"]
+            for child in drilldown.get("children", [])
+        )
+        for drilldown in data.get("navigation", {}).get("drilldowns", [])
+    )
+    if has_node_review_target:
+        data = apply_node_review(data)
     write_site(data, output, args.web_assets)
     relation = data["architecture"]["relationships"][0]
     print(f"site={output / 'index.html'}")

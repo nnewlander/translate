@@ -370,6 +370,60 @@
 
   const candidateKindFor = (module) => module.node_type === "component" ? "组件" : "职责";
 
+  const appendNodeReviewStatuses = (statuses, module) => {
+    const review = module.node_review;
+    if (!review) return;
+    const decisionClass = review.projection.includes("Approved")
+      ? "approved"
+      : review.projection.includes("Rejected") ? "needs-review" : "candidate";
+    statuses.append(
+      text("span", `节点决定：${review.projection}`, `status node-review-decision ${decisionClass}`),
+      text("span", `Node Review State：${review.state.status} · ${review.state.continuity}`, "status node-review-state coverage-unverified"),
+    );
+  };
+
+  const appendNodeReviewDetail = (module) => {
+    const review = module.node_review;
+    if (!review) return;
+    detailContent.append(text("h3", "节点审核（只读）"));
+    const identity = document.createElement("dl"); identity.className = "raw-evidence-facts node-review-identity";
+    const identityRows = [
+      ["对象键", `${review.object_key.kind} + ${review.object_key.parent_module_id} + ${review.object_key.node_id}`],
+      ["Decision", review.decision?.result || "Pending Review"],
+      ["Node Review State", `${review.state.status} · ${review.state.continuity}`],
+    ];
+    if (review.decision) {
+      identityRows.push(
+        ["Decision ID", review.decision.decision_id],
+        ["可信来源", `${review.source.author} · ${review.source.author_association} · ${review.source.permission}`],
+        ["来源收据", review.source.sha256],
+      );
+    }
+    for (const [term, value] of identityRows) identity.append(text("dt", term), text("dd", value));
+    detailContent.append(identity);
+    if (!review.decision) {
+      detailContent.append(text("p", "当前没有可用的可信 Owner/admin 节点审核决定。", "candidate-warning"));
+      return;
+    }
+
+    detailContent.append(text("h3", "Review Claims"));
+    for (const claim of review.decision.claims) {
+      const item = document.createElement("article"); item.className = "node-review-claim";
+      item.append(
+        text("h4", claim.kind),
+        text("p", `绑定来源：${claim.source} · 校验：精确匹配`, "group-description"),
+      );
+      if (claim.kind === "CLASSIFICATION") {
+        item.append(text("p", `Classification Rationale：${claim.value.rationale}`, "candidate-warning"));
+      }
+      if (claim.kind === "FORMAL_DEPENDENCY_AND_LIMITS") {
+        item.append(text("p", `正式依赖：${claim.value.relationship_id} · ${claim.value.t3_decision_id} · ${claim.value.formal_evidence_ids.length} 条正式 Evidence`, "candidate-warning"));
+      }
+      item.append(text("pre", JSON.stringify(claim.value, null, 2)));
+      detailContent.append(item);
+    }
+  };
+
   const showModuleDetail = (module) => {
     const isCandidate = module.review_status === "candidate";
     const candidateKind = candidateKindFor(module);
@@ -380,6 +434,7 @@
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
     statuses.append(text("span", isCandidate ? `${candidateKind}状态：未审核` : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
+    appendNodeReviewStatuses(statuses, module);
     if (isCandidate) {
       statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
@@ -400,6 +455,7 @@
     } else {
       statuses.append(text("span", coverageLabels[module.source_coverage.status], `status coverage-${module.source_coverage.status}`)); detailContent.append(statuses);
     }
+    appendNodeReviewDetail(module);
     detailContent.append(text("h3", "关系与源码证据"));
     if (related.length) {
       const list = document.createElement("div"); list.className = "module-evidence-links";
@@ -563,7 +619,10 @@
     if (isChild && module.plain_explanation) inlineDetail.append(text("p", module.plain_explanation, "candidate-plain-explanation"));
     inlineDetail.addEventListener("click", (event) => event.stopPropagation()); article.append(inlineDetail);
     const statuses = document.createElement("div"); statuses.className = "statuses";
-    if (isChild) statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+    if (isChild) {
+      statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+      appendNodeReviewStatuses(statuses, module);
+    }
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);
     const activate = () => {

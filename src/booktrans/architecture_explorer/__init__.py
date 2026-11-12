@@ -6,13 +6,16 @@ from .candidate_scanner import scan_supervisor_worker_candidate
 from .review_mapping import import_review_mapping, parse_review_decision, publish_reviewed_explorer
 from .review_source import fetch_github_review_source, verify_trusted_review_source
 from .navigation import NAVIGATION_SCHEMA, apply_navigation
+from .node_review import NODE_REVIEW_OBJECT_KEY, apply_node_review
 from .continuity import evaluate_review_state, update_review_state
 from .source_scanner import scan_python_source_facts
 
 __all__ = [
     "SCANNER_VERSION",
     "NAVIGATION_SCHEMA",
+    "NODE_REVIEW_OBJECT_KEY",
     "apply_navigation",
+    "apply_node_review",
     "build_explorer",
     "evaluate_review_state",
     "fetch_github_review_source",
