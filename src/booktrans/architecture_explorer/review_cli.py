@@ -4,13 +4,20 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .generator import ExplorerInputError, validate_cli_output_path, write_json, write_site
 from .candidate_fragments import apply_candidate_fragments
 from .continuity import update_review_state
 from .navigation import apply_navigation
-from .node_review import NODE_REVIEW_OBJECT_KEY, apply_node_review
+from .node_review import (
+    NODE_REVIEW_OBJECT_KEY,
+    PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+    NodeReviewTrustPolicy,
+    apply_node_review,
+    import_node_review_from_github,
+    verify_node_review_materials,
+)
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .review_source import (
@@ -20,6 +27,8 @@ from .review_source import (
     fetch_github_review_source,
     review_source_sha256,
     verify_trusted_review_source,
+    _gh_api,
+    _gh_preflight,
 )
 
 
@@ -44,6 +53,16 @@ def _parser() -> argparse.ArgumentParser:
     review.add_argument("--comment-id", type=int, default=TRUSTED_COMMENT_ID)
     review.add_argument("--output", type=Path, required=True)
     review.add_argument("--source-output", type=Path, required=True)
+    node_review = commands.add_parser(
+        "import-node-review",
+        help="fetch one pinned T8 Owner/admin review and create versioned materials",
+    )
+    node_review.add_argument("--repository", type=Path, required=True)
+    node_review.add_argument("--explorer-data", type=Path, required=True)
+    node_review.add_argument("--issue", type=int, required=True)
+    node_review.add_argument("--comment-id", type=int, required=True)
+    node_review.add_argument("--decision-output", type=Path, required=True)
+    node_review.add_argument("--source-output", type=Path, required=True)
     update = commands.add_parser(
         "update-review-state",
         help="explicitly assess and atomically update the T5-Lite Git review state",
@@ -64,12 +83,19 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--review-state", type=Path)
     build.add_argument("--navigation", type=Path)
     build.add_argument("--candidate-fragment", type=Path, action="append", default=[])
+    build.add_argument("--node-review-decision", type=Path)
+    build.add_argument("--node-review-source", type=Path)
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    github_api: Callable[[str], dict[str, Any]] = _gh_api,
+    node_review_trust_policy: NodeReviewTrustPolicy = PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+) -> int:
     args = _parser().parse_args(argv)
     if args.command == "import-review":
         output = validate_cli_output_path(
@@ -99,6 +125,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"review_source_sha256={review_source_sha256(source)}")
         print(f"validation={mapping['validation']['status']}")
         return 0 if mapping["validation"]["status"] == "valid" else 2
+    if args.command == "import-node-review":
+        decision_output = validate_cli_output_path(
+            args.repository,
+            args.decision_output,
+            directory=False,
+            inputs=(args.explorer_data,),
+        )
+        source_output = validate_cli_output_path(
+            args.repository,
+            args.source_output,
+            directory=False,
+            inputs=(args.explorer_data,),
+        )
+        if source_output == decision_output:
+            raise ExplorerInputError(
+                "Node Review Decision and source receipt outputs must be different files"
+            )
+        if github_api is _gh_api:
+            _gh_preflight()
+        source, decision = import_node_review_from_github(
+            _object(args.explorer_data),
+            issue_number=args.issue,
+            comment_id=args.comment_id,
+            trust_policy=node_review_trust_policy,
+            api=github_api,
+        )
+        write_json(source_output, source)
+        write_json(decision_output, decision)
+        print(f"node_review_decision={decision_output}")
+        print(f"node_review_source={source_output}")
+        print(f"node_review_source_sha256={review_source_sha256(source)}")
+        return 0
     if args.command == "update-review-state":
         state_path = validate_cli_output_path(
             args.repository,
@@ -130,7 +188,9 @@ def main(argv: list[str] | None = None) -> int:
         inputs=tuple(
             path for path in (
                 args.snapshot, args.mapping, args.candidate, args.review_mapping, args.review_source,
-                args.navigation, args.web_assets, review_state_path, *args.candidate_fragment
+                args.navigation, args.web_assets, review_state_path,
+                args.node_review_decision, args.node_review_source,
+                *args.candidate_fragment
             ) if path is not None
         ),
         output_files=("explorer-data.json", "explorer-data.js", "index.html", "t4-state.js", "app.js", "styles.css"),
@@ -181,7 +241,30 @@ def main(argv: list[str] | None = None) -> int:
         for drilldown in data.get("navigation", {}).get("drilldowns", [])
     )
     if has_node_review_target:
-        data = apply_node_review(data)
+        if (args.node_review_decision is None) != (args.node_review_source is None):
+            raise ExplorerInputError(
+                "Node Review Decision and source receipt must be supplied together"
+            )
+        verified_review = None
+        if args.node_review_decision is not None and args.node_review_source is not None:
+            verified_review = verify_node_review_materials(
+                data,
+                _object(args.node_review_decision),
+                _object(args.node_review_source),
+                trust_policy=node_review_trust_policy,
+            )
+        data = apply_node_review(data, verified_review=verified_review)
+        if args.node_review_decision is not None and args.node_review_source is not None:
+            data["generation_inputs"]["node_review"] = {
+                "decision": {
+                    "path": args.node_review_decision.name,
+                    "sha256": hashlib.sha256(args.node_review_decision.read_bytes()).hexdigest(),
+                },
+                "source": {
+                    "path": args.node_review_source.name,
+                    "sha256": hashlib.sha256(args.node_review_source.read_bytes()).hexdigest(),
+                },
+            }
     write_site(data, output, args.web_assets)
     relation = data["architecture"]["relationships"][0]
     print(f"site={output / 'index.html'}")

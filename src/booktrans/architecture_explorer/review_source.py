@@ -78,6 +78,8 @@ def build_review_source_receipt(
     issue: dict[str, Any],
     comment: dict[str, Any],
     permission: dict[str, Any],
+    *,
+    fixed_t3_identity: bool = True,
 ) -> dict[str, Any]:
     owner = repository.get("owner") if isinstance(repository.get("owner"), dict) else {}
     comment_user = comment.get("user") if isinstance(comment.get("user"), dict) else {}
@@ -104,7 +106,10 @@ def build_review_source_receipt(
             "user": _select(permission_user, ("login", "id", "node_id", "type")),
         },
     }
-    _validate_receipt_identity(receipt)
+    if fixed_t3_identity:
+        _validate_receipt_identity(receipt)
+    else:
+        _validate_owner_admin_receipt(receipt)
     return receipt
 
 
@@ -224,12 +229,12 @@ def verify_trusted_review_source(source: dict[str, Any] | None) -> list[str]:
     return []
 
 
-def verify_owner_admin_review_source(
+def _verify_owner_admin_review_source_against_anchor(
     source: dict[str, Any] | None,
     *,
     expected_sha256: str,
 ) -> list[str]:
-    """Verify an exact versioned receipt while reusing the T3 Owner/admin gate."""
+    """Verify against a digest supplied by the host's independent anchor policy."""
 
     if source is None:
         return ["trusted_review_source:missing"]
@@ -251,6 +256,5 @@ __all__ = [
     "build_review_source_receipt",
     "fetch_github_review_source",
     "review_source_sha256",
-    "verify_owner_admin_review_source",
     "verify_trusted_review_source",
 ]

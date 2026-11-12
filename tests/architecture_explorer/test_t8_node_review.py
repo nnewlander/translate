@@ -13,7 +13,13 @@ from booktrans.architecture_explorer.candidate_fragments import apply_candidate_
 from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.generator import write_site
 from booktrans.architecture_explorer.navigation import apply_navigation
-from booktrans.architecture_explorer.node_review import apply_node_review
+from booktrans.architecture_explorer.node_review import (
+    NODE_REVIEW_IMPORT_NOTE,
+    NodeReviewApprovalAnchor,
+    NodeReviewTrustPolicy,
+    apply_node_review as _apply_node_review,
+    verify_node_review_materials,
+)
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
 from booktrans.architecture_explorer.source_scanner import (
     attach_python_source_facts,
@@ -317,8 +323,8 @@ def _claims(explorer: dict) -> list[dict]:
                 "t3_decision_id": "github-comment:6516894339",
                 "t3_result": "APPROVED",
                 "t3_reviewed_snapshot": "857a4b85cf4763b74ecff0d02e660b005a0c8bae",
-                "formal_evidence_ids": FORMAL_EVIDENCE_IDS,
-                "retained_unknowns": RETAINED_UNKNOWNS,
+                "formal_evidence_ids": list(FORMAL_EVIDENCE_IDS),
+                "retained_unknowns": list(RETAINED_UNKNOWNS),
             },
             "source": "formal-relationship.review-contract",
         },
@@ -353,7 +359,7 @@ def _fixture_decision(explorer: dict, result: str = "APPROVED") -> dict:
             "revision": "95e219a926023aff0022dbe0174e9a361e20c8b1",
             "worktree_state": "clean",
         },
-        "review_notes": "isolated T8 node-review fixture",
+        "review_notes": NODE_REVIEW_IMPORT_NOTE,
         "source_receipt_sha256": "pending-fixture-receipt",
         "inputs": {
             "candidate_fragment_sha256": (
@@ -385,6 +391,43 @@ def _fixture_materials(
 ) -> tuple[dict, dict]:
     decision = _fixture_decision(explorer, result=result)
     return _fixture_source(decision), decision
+
+
+def _fixture_policy(source: dict) -> NodeReviewTrustPolicy:
+    return NodeReviewTrustPolicy(
+        (
+            NodeReviewApprovalAnchor(
+                issue_id=source["issue"]["id"],
+                issue_number=source["issue"]["number"],
+                comment_id=source["comment"]["id"],
+                comment_created_at=source["comment"]["created_at"],
+                comment_updated_at=source["comment"]["updated_at"],
+                source_receipt_sha256=_canonical_sha256(source),
+            ),
+        )
+    )
+
+
+def apply_node_review(
+    explorer: dict,
+    *,
+    decision: dict | None = None,
+    review_source: dict | None = None,
+    trust_policy: NodeReviewTrustPolicy | None = None,
+) -> dict:
+    """Test adapter: fixture policy stays outside the production projector API."""
+
+    if decision is None:
+        return _apply_node_review(explorer)
+    assert review_source is not None
+    assert trust_policy is not None
+    verified = verify_node_review_materials(
+        explorer,
+        decision,
+        review_source,
+        trust_policy=trust_policy,
+    )
+    return _apply_node_review(explorer, verified_review=verified)
 
 
 def test_no_node_decision_projects_only_the_exact_target_as_pending() -> None:
@@ -428,7 +471,7 @@ def test_trusted_approved_decision_requires_current_exact_state_before_projectio
         explorer,
         decision=decision,
         review_source=source,
-        trusted_source_sha256=_canonical_sha256(source),
+        trust_policy=_fixture_policy(source),
     )
 
     review = _target(result)["node_review"]
@@ -462,7 +505,7 @@ def test_node_review_decision_rejects_unknown_top_level_fields() -> None:
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -477,7 +520,7 @@ def test_node_review_source_rejects_non_user_owner_identity() -> None:
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -491,7 +534,7 @@ def test_decision_cannot_redefine_the_fixed_candidate_fact_and_resign_it() -> No
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -518,7 +561,7 @@ def test_real_browser_reuses_candidate_card_and_context_evidence_detail(
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
     write_site(reviewed, site, WEB_ASSETS)
     shutil.copyfile(
@@ -558,7 +601,7 @@ def test_trusted_rejected_decision_is_current_but_never_pending_or_approved() ->
         explorer,
         decision=decision,
         review_source=source,
-        trusted_source_sha256=_canonical_sha256(source),
+        trust_policy=_fixture_policy(source),
     )
 
     review = _target(result)["node_review"]
@@ -595,7 +638,7 @@ def test_each_review_claim_requires_its_exact_source_binding(claim_kind: str) ->
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -618,7 +661,7 @@ def test_review_claims_are_a_closed_complete_set(mutation: str) -> None:
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -631,7 +674,7 @@ def test_candidate_and_formal_evidence_stay_exact_and_separate_without_mutation(
         explorer,
         decision=decision,
         review_source=source,
-        trusted_source_sha256=_canonical_sha256(source),
+        trust_policy=_fixture_policy(source),
     )
 
     assert explorer == before
@@ -700,14 +743,14 @@ def test_node_review_requires_exact_owner_admin_source_identity(
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
 def test_tampered_source_receipt_cannot_match_the_pinned_digest() -> None:
     explorer = _published_explorer()
     source, decision = _fixture_materials(explorer)
-    trusted_digest = _canonical_sha256(source)
+    trusted_policy = _fixture_policy(source)
     source["comment"]["body"] += " tampered"
     decision["source_receipt_sha256"] = _canonical_sha256(source)
 
@@ -716,7 +759,7 @@ def test_tampered_source_receipt_cannot_match_the_pinned_digest() -> None:
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=trusted_digest,
+            trust_policy=trusted_policy,
         )
 
 
@@ -730,7 +773,7 @@ def test_decision_result_cannot_change_independently_of_the_source_comment() -> 
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -759,7 +802,7 @@ def test_each_versioned_input_binding_is_material(binding: str) -> None:
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -773,7 +816,7 @@ def test_current_versioned_inputs_cannot_drift_while_decision_hashes_stay_pinned
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
@@ -821,7 +864,7 @@ def test_claim_values_cannot_partially_match_or_cross_evidence_boundaries(
             explorer,
             decision=decision,
             review_source=source,
-            trusted_source_sha256=_canonical_sha256(source),
+            trust_policy=_fixture_policy(source),
         )
 
 
