@@ -15,10 +15,10 @@ from booktrans.architecture_explorer.generator import write_site
 from booktrans.architecture_explorer.navigation import apply_navigation
 from booktrans.architecture_explorer.node_review import (
     NODE_REVIEW_IMPORT_NOTE,
-    NodeReviewApprovalAnchor,
-    NodeReviewTrustPolicy,
-    apply_node_review as _apply_node_review,
-    verify_node_review_materials,
+    _NodeReviewApprovalAnchor as NodeReviewApprovalAnchor,
+    _NodeReviewTrustPolicy as NodeReviewTrustPolicy,
+    _project_node_review as _apply_node_review,
+    _verify_node_review_materials as verify_node_review_materials,
 )
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
 from booktrans.architecture_explorer.source_scanner import (
@@ -203,6 +203,7 @@ def _fixture_source_body(decision: dict) -> str:
 
 
 def _fixture_source(decision: dict) -> dict:
+    comment_id = int(decision["decision_id"].removeprefix("github-comment:"))
     return {
         "schema": "architecture-explorer.github-review-source.v1",
         "repository": {
@@ -227,11 +228,11 @@ def _fixture_source(decision: dict) -> dict:
             "state": "open",
         },
         "comment": {
-            "id": 999999002,
-            "node_id": "T8_FIXTURE_COMMENT",
+            "id": comment_id,
+            "node_id": f"T8_FIXTURE_COMMENT_{comment_id}",
             "html_url": (
                 "https://github.com/nnewlander/translate/issues/999999"
-                "#issuecomment-999999002"
+                f"#issuecomment-{comment_id}"
             ),
             "issue_url": (
                 "https://api.github.com/repos/nnewlander/translate/issues/999999"
@@ -348,7 +349,11 @@ def _fixture_decision(explorer: dict, result: str = "APPROVED") -> dict:
     }
     decision = {
         "schema": "architecture-explorer.node-review-decision.v1",
-        "decision_id": "github-comment:999999002",
+        "decision_id": (
+            "github-comment:999999002"
+            if result == "APPROVED"
+            else "github-comment:999999003"
+        ),
         "object_key": {
             "kind": "candidate-node",
             "parent_module_id": "production-control",
@@ -393,19 +398,36 @@ def _fixture_materials(
     return _fixture_source(decision), decision
 
 
-def _fixture_policy(source: dict) -> NodeReviewTrustPolicy:
-    return NodeReviewTrustPolicy(
-        (
-            NodeReviewApprovalAnchor(
-                issue_id=source["issue"]["id"],
-                issue_number=source["issue"]["number"],
-                comment_id=source["comment"]["id"],
-                comment_created_at=source["comment"]["created_at"],
-                comment_updated_at=source["comment"]["updated_at"],
-                source_receipt_sha256=_canonical_sha256(source),
+_FIXED_TEST_NODE_REVIEW_POLICY = NodeReviewTrustPolicy(
+    (
+        NodeReviewApprovalAnchor(
+            issue_id=999999001,
+            issue_number=999999,
+            comment_id=999999002,
+            comment_created_at="2026-11-12T00:00:00Z",
+            comment_updated_at="2026-11-12T00:00:00Z",
+            source_receipt_sha256=(
+                "237a8f73b9deb17a1cc0698288ac64d13127a4b9e72074f55abb42ed5e88a2d0"
             ),
-        )
+        ),
+        NodeReviewApprovalAnchor(
+            issue_id=999999001,
+            issue_number=999999,
+            comment_id=999999003,
+            comment_created_at="2026-11-12T00:00:00Z",
+            comment_updated_at="2026-11-12T00:00:00Z",
+            source_receipt_sha256=(
+                "8ba030883fbbd8241ca84ab61bb175a1d2725a4032c7972b00fcfb7bfcb89916"
+            ),
+        ),
     )
+)
+
+
+def _fixture_policy() -> NodeReviewTrustPolicy:
+    """Return the literal test-only trust root; never derive it from fixture data."""
+
+    return _FIXED_TEST_NODE_REVIEW_POLICY
 
 
 def apply_node_review(
@@ -421,13 +443,17 @@ def apply_node_review(
         return _apply_node_review(explorer)
     assert review_source is not None
     assert trust_policy is not None
-    verified = verify_node_review_materials(
+    verified_decision, verified_source = verify_node_review_materials(
         explorer,
         decision,
         review_source,
         trust_policy=trust_policy,
     )
-    return _apply_node_review(explorer, verified_review=verified)
+    return _apply_node_review(
+        explorer,
+        decision=verified_decision,
+        review_source=verified_source,
+    )
 
 
 def test_no_node_decision_projects_only_the_exact_target_as_pending() -> None:
@@ -471,7 +497,7 @@ def test_trusted_approved_decision_requires_current_exact_state_before_projectio
         explorer,
         decision=decision,
         review_source=source,
-        trust_policy=_fixture_policy(source),
+        trust_policy=_fixture_policy(),
     )
 
     review = _target(result)["node_review"]
@@ -505,7 +531,7 @@ def test_node_review_decision_rejects_unknown_top_level_fields() -> None:
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -515,12 +541,12 @@ def test_node_review_source_rejects_non_user_owner_identity() -> None:
     source["comment"]["user"]["type"] = "Bot"
     decision["source_receipt_sha256"] = _canonical_sha256(source)
 
-    with pytest.raises(ExplorerInputError, match="untrusted"):
+    with pytest.raises(ExplorerInputError, match="untrusted|independently trusted"):
         apply_node_review(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -534,7 +560,7 @@ def test_decision_cannot_redefine_the_fixed_candidate_fact_and_resign_it() -> No
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -561,7 +587,7 @@ def test_real_browser_reuses_candidate_card_and_context_evidence_detail(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
     write_site(reviewed, site, WEB_ASSETS)
     shutil.copyfile(
@@ -601,7 +627,7 @@ def test_trusted_rejected_decision_is_current_but_never_pending_or_approved() ->
         explorer,
         decision=decision,
         review_source=source,
-        trust_policy=_fixture_policy(source),
+        trust_policy=_fixture_policy(),
     )
 
     review = _target(result)["node_review"]
@@ -626,26 +652,24 @@ def test_trusted_rejected_decision_is_current_but_never_pending_or_approved() ->
 )
 def test_each_review_claim_requires_its_exact_source_binding(claim_kind: str) -> None:
     explorer = _published_explorer()
-    decision = _fixture_decision(explorer)
+    source, decision = _fixture_materials(explorer)
     claim = next(item for item in decision["claims"] if item["kind"] == claim_kind)
     claim["source"] = "nearby-but-untrusted-source"
     decision["inputs"]["claims_sha256"] = _canonical_sha256(decision["claims"])
-    source = _fixture_source(decision)
-    decision["source_receipt_sha256"] = _canonical_sha256(source)
 
     with pytest.raises(ExplorerInputError, match="Claim binding mismatch"):
         apply_node_review(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
 @pytest.mark.parametrize("mutation", ("missing", "duplicate", "unknown", "only-seven"))
 def test_review_claims_are_a_closed_complete_set(mutation: str) -> None:
     explorer = _published_explorer()
-    decision = _fixture_decision(explorer)
+    source, decision = _fixture_materials(explorer)
     if mutation in {"missing", "only-seven"}:
         decision["claims"].pop()
     elif mutation == "duplicate":
@@ -653,15 +677,13 @@ def test_review_claims_are_a_closed_complete_set(mutation: str) -> None:
     else:
         decision["claims"][-1]["kind"] = "IMPLIED_APPROVAL"
     decision["inputs"]["claims_sha256"] = _canonical_sha256(decision["claims"])
-    source = _fixture_source(decision)
-    decision["source_receipt_sha256"] = _canonical_sha256(source)
 
     with pytest.raises(ExplorerInputError, match="closed ordered set"):
         apply_node_review(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -674,7 +696,7 @@ def test_candidate_and_formal_evidence_stay_exact_and_separate_without_mutation(
         explorer,
         decision=decision,
         review_source=source,
-        trust_policy=_fixture_policy(source),
+        trust_policy=_fixture_policy(),
     )
 
     assert explorer == before
@@ -738,19 +760,19 @@ def test_node_review_requires_exact_owner_admin_source_identity(
         source["comment"]["updated_at"] = "2026-11-11T23:59:59Z"
     decision["source_receipt_sha256"] = _canonical_sha256(source)
 
-    with pytest.raises(ExplorerInputError, match="untrusted"):
+    with pytest.raises(ExplorerInputError, match="untrusted|independently trusted"):
         apply_node_review(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
 def test_tampered_source_receipt_cannot_match_the_pinned_digest() -> None:
     explorer = _published_explorer()
     source, decision = _fixture_materials(explorer)
-    trusted_policy = _fixture_policy(source)
+    trusted_policy = _fixture_policy()
     source["comment"]["body"] += " tampered"
     decision["source_receipt_sha256"] = _canonical_sha256(source)
 
@@ -773,7 +795,7 @@ def test_decision_result_cannot_change_independently_of_the_source_comment() -> 
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -792,17 +814,15 @@ def test_decision_result_cannot_change_independently_of_the_source_comment() -> 
 )
 def test_each_versioned_input_binding_is_material(binding: str) -> None:
     explorer = _published_explorer()
-    decision = _fixture_decision(explorer)
+    source, decision = _fixture_materials(explorer)
     decision["inputs"][binding] = "wrong-versioned-input"
-    source = _fixture_source(decision)
-    decision["source_receipt_sha256"] = _canonical_sha256(source)
 
     with pytest.raises(ExplorerInputError, match="input binding mismatch"):
         apply_node_review(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -816,7 +836,7 @@ def test_current_versioned_inputs_cannot_drift_while_decision_hashes_stay_pinned
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -836,7 +856,7 @@ def test_claim_values_cannot_partially_match_or_cross_evidence_boundaries(
     claim_mutation: str,
 ) -> None:
     explorer = _published_explorer()
-    decision = _fixture_decision(explorer)
+    source, decision = _fixture_materials(explorer)
     claims = {item["kind"]: item for item in decision["claims"]}
     if claim_mutation == "classification-component":
         claims["CLASSIFICATION"]["value"]["node_type"] = "component"
@@ -856,15 +876,13 @@ def test_claim_values_cannot_partially_match_or_cross_evidence_boundaries(
     else:
         claims["FORMAL_DEPENDENCY_AND_LIMITS"]["value"]["retained_unknowns"].pop()
     decision["inputs"]["claims_sha256"] = _canonical_sha256(decision["claims"])
-    source = _fixture_source(decision)
-    decision["source_receipt_sha256"] = _canonical_sha256(source)
 
     with pytest.raises(ExplorerInputError, match="Claim binding mismatch"):
         apply_node_review(
             explorer,
             decision=decision,
             review_source=source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 

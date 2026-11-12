@@ -69,7 +69,7 @@ NODE_REVIEW_IMPORT_NOTE = "Imported from a pinned GitHub Owner/admin review sour
 
 
 @dataclass(frozen=True)
-class NodeReviewApprovalAnchor:
+class _NodeReviewApprovalAnchor:
     """Host-owned trust root for one exact GitHub source receipt."""
 
     issue_id: int
@@ -81,43 +81,14 @@ class NodeReviewApprovalAnchor:
 
 
 @dataclass(frozen=True)
-class NodeReviewTrustPolicy:
+class _NodeReviewTrustPolicy:
     """Versioned application policy; never populated from review input JSON."""
 
-    anchors: tuple[NodeReviewApprovalAnchor, ...] = ()
+    anchors: tuple[_NodeReviewApprovalAnchor, ...] = ()
 
 
 # There is intentionally no production T8 decision or approval anchor yet.
-PRODUCTION_NODE_REVIEW_TRUST_POLICY = NodeReviewTrustPolicy()
-_VERIFIED_NODE_REVIEW_TOKEN = object()
-
-
-class VerifiedNodeReview:
-    """Opaque result of the host trust boundary, not a JSON input model."""
-
-    __slots__ = ("_decision_json", "_review_source_json")
-
-    def __init__(
-        self,
-        decision: dict[str, Any],
-        review_source: dict[str, Any],
-        *,
-        _token: object,
-    ) -> None:
-        if _token is not _VERIFIED_NODE_REVIEW_TOKEN:
-            raise TypeError("VerifiedNodeReview can only be created by the trust boundary")
-        self._decision_json = json.dumps(decision, ensure_ascii=False, sort_keys=True)
-        self._review_source_json = json.dumps(
-            review_source, ensure_ascii=False, sort_keys=True
-        )
-
-    @property
-    def decision(self) -> dict[str, Any]:
-        return json.loads(self._decision_json)
-
-    @property
-    def review_source(self) -> dict[str, Any]:
-        return json.loads(self._review_source_json)
+_PRODUCTION_NODE_REVIEW_TRUST_POLICY = _NodeReviewTrustPolicy()
 
 
 VERSIONED_INPUTS = {
@@ -382,8 +353,8 @@ def _expected_claims(
 
 def _matching_anchor(
     source: dict[str, Any] | None,
-    trust_policy: NodeReviewTrustPolicy,
-) -> NodeReviewApprovalAnchor:
+    trust_policy: _NodeReviewTrustPolicy,
+) -> _NodeReviewApprovalAnchor:
     if source is None:
         raise ExplorerInputError("Node review source is missing")
     issue = source.get("issue") if isinstance(source.get("issue"), dict) else {}
@@ -409,7 +380,7 @@ def _matching_anchor(
 
 
 def _fetch_github_node_review_source(
-    anchor: NodeReviewApprovalAnchor,
+    anchor: _NodeReviewApprovalAnchor,
     *,
     api: Callable[[str], dict[str, Any]],
 ) -> dict[str, Any]:
@@ -430,7 +401,7 @@ def _fetch_github_node_review_source(
         permission,
         fixed_t3_identity=False,
     )
-    _matching_anchor(source, NodeReviewTrustPolicy((anchor,)))
+    _matching_anchor(source, _NodeReviewTrustPolicy((anchor,)))
     return source
 
 
@@ -439,7 +410,7 @@ def _validate_decision(
     target: dict[str, Any],
     decision: dict[str, Any],
     review_source: dict[str, Any] | None,
-    trust_policy: NodeReviewTrustPolicy,
+    trust_policy: _NodeReviewTrustPolicy,
 ) -> None:
     expected_fields = {
         "schema",
@@ -469,10 +440,6 @@ def _validate_decision(
     comment = source.get("comment") if isinstance(source.get("comment"), dict) else {}
     if decision.get("decision_id") != f"github-comment:{comment.get('id')}":
         raise ExplorerInputError("Node Review Decision source comment mismatch")
-    if decision.get("source_receipt_sha256") != review_source_sha256(source):
-        raise ExplorerInputError("Node Review Decision source receipt mismatch")
-    if comment.get("body") != _expected_source_body(decision):
-        raise ExplorerInputError("Node Review Decision does not match the source comment body")
     if decision.get("reviewed_source_snapshot") != {
         "revision": REVIEWED_REVISION,
         "worktree_state": "clean",
@@ -501,14 +468,18 @@ def _validate_decision(
     }
     if inputs != expected_inputs:
         raise ExplorerInputError("Node Review Decision input binding mismatch")
+    if decision.get("source_receipt_sha256") != review_source_sha256(source):
+        raise ExplorerInputError("Node Review Decision source receipt mismatch")
+    if comment.get("body") != _expected_source_body(decision):
+        raise ExplorerInputError("Node Review Decision does not match the source comment body")
 
 
-def import_node_review_from_github(
+def _import_node_review_from_github(
     explorer: dict[str, Any],
     *,
     issue_number: int,
     comment_id: int,
-    trust_policy: NodeReviewTrustPolicy,
+    trust_policy: _NodeReviewTrustPolicy,
     api: Callable[[str], dict[str, Any]],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Fetch and materialize a Decision through the pinned GitHub boundary."""
@@ -555,34 +526,62 @@ def import_node_review_from_github(
     return source, decision
 
 
-def verify_node_review_materials(
+def import_node_review_from_github(
+    explorer: dict[str, Any],
+    *,
+    issue_number: int,
+    comment_id: int,
+    api: Callable[[str], dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Import through the versioned, host-owned production approval anchors."""
+
+    return _import_node_review_from_github(
+        explorer,
+        issue_number=issue_number,
+        comment_id=comment_id,
+        trust_policy=_PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+        api=api,
+    )
+
+
+def _verify_node_review_materials(
     explorer: dict[str, Any],
     decision: dict[str, Any],
     review_source: dict[str, Any],
     *,
-    trust_policy: NodeReviewTrustPolicy = PRODUCTION_NODE_REVIEW_TRUST_POLICY,
-) -> VerifiedNodeReview:
-    """Cross the offline host trust boundary using an independent anchor policy."""
-
+    trust_policy: _NodeReviewTrustPolicy,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     target = _target_node(explorer)
     _validate_decision(explorer, target, decision, review_source, trust_policy)
-    return VerifiedNodeReview(
+    return deepcopy(decision), deepcopy(review_source)
+
+
+def verify_node_review_materials(
+    explorer: dict[str, Any],
+    decision: dict[str, Any],
+    review_source: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Verify offline materials against host-owned production approval anchors."""
+
+    return _verify_node_review_materials(
+        explorer,
         decision,
         review_source,
-        _token=_VERIFIED_NODE_REVIEW_TOKEN,
+        trust_policy=_PRODUCTION_NODE_REVIEW_TRUST_POLICY,
     )
 
 
-def apply_node_review(
+def _project_node_review(
     explorer: dict[str, Any],
     *,
-    verified_review: VerifiedNodeReview | None = None,
+    decision: dict[str, Any] | None = None,
+    review_source: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Project the fixed T8 node review without mutating candidate facts."""
+    """Pure internal projection; callers must validate non-empty materials first."""
 
     result = deepcopy(explorer)
     target = _target_node(result)
-    if verified_review is None:
+    if decision is None and review_source is None:
         target["node_review"] = {
             "object_key": dict(NODE_REVIEW_OBJECT_KEY),
             "decision": None,
@@ -594,11 +593,12 @@ def apply_node_review(
             "projection": "Pending Review",
         }
         return result
-
-    decision = verified_review.decision
-    review_source = verified_review.review_source
+    if decision is None or review_source is None:
+        raise ExplorerInputError(
+            "Node Review Decision and source receipt must be supplied together"
+        )
     decision_result = decision["result"]
-    source = review_source or {}
+    source = review_source
     repository = source.get("repository", {})
     comment = source.get("comment", {})
     permission = source.get("permission", {})
@@ -631,11 +631,6 @@ __all__ = [
     "CLAIM_KINDS",
     "NODE_REVIEW_DECISION_SCHEMA",
     "NODE_REVIEW_OBJECT_KEY",
-    "NodeReviewApprovalAnchor",
-    "NodeReviewTrustPolicy",
-    "PRODUCTION_NODE_REVIEW_TRUST_POLICY",
-    "VerifiedNodeReview",
-    "apply_node_review",
     "import_node_review_from_github",
     "verify_node_review_materials",
 ]

@@ -12,11 +12,11 @@ from .continuity import update_review_state
 from .navigation import apply_navigation
 from .node_review import (
     NODE_REVIEW_OBJECT_KEY,
-    PRODUCTION_NODE_REVIEW_TRUST_POLICY,
-    NodeReviewTrustPolicy,
-    apply_node_review,
-    import_node_review_from_github,
-    verify_node_review_materials,
+    _NodeReviewTrustPolicy,
+    _PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+    _import_node_review_from_github,
+    _project_node_review,
+    _verify_node_review_materials,
 )
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
@@ -94,7 +94,19 @@ def main(
     argv: list[str] | None = None,
     *,
     github_api: Callable[[str], dict[str, Any]] = _gh_api,
-    node_review_trust_policy: NodeReviewTrustPolicy = PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+) -> int:
+    return _main(
+        argv,
+        github_api=github_api,
+        node_review_trust_policy=_PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+    )
+
+
+def _main(
+    argv: list[str] | None = None,
+    *,
+    github_api: Callable[[str], dict[str, Any]] = _gh_api,
+    node_review_trust_policy: _NodeReviewTrustPolicy,
 ) -> int:
     args = _parser().parse_args(argv)
     if args.command == "import-review":
@@ -144,7 +156,7 @@ def main(
             )
         if github_api is _gh_api:
             _gh_preflight()
-        source, decision = import_node_review_from_github(
+        source, decision = _import_node_review_from_github(
             _object(args.explorer_data),
             issue_number=args.issue,
             comment_id=args.comment_id,
@@ -245,15 +257,20 @@ def main(
             raise ExplorerInputError(
                 "Node Review Decision and source receipt must be supplied together"
             )
-        verified_review = None
+        decision = None
+        review_source = None
         if args.node_review_decision is not None and args.node_review_source is not None:
-            verified_review = verify_node_review_materials(
+            decision, review_source = _verify_node_review_materials(
                 data,
                 _object(args.node_review_decision),
                 _object(args.node_review_source),
                 trust_policy=node_review_trust_policy,
             )
-        data = apply_node_review(data, verified_review=verified_review)
+        data = _project_node_review(
+            data,
+            decision=decision,
+            review_source=review_source,
+        )
         if args.node_review_decision is not None and args.node_review_source is not None:
             data["generation_inputs"]["node_review"] = {
                 "decision": {

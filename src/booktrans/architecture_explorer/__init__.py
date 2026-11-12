@@ -8,7 +8,6 @@ from .review_source import fetch_github_review_source, verify_trusted_review_sou
 from .navigation import NAVIGATION_SCHEMA, apply_navigation
 from .node_review import (
     NODE_REVIEW_OBJECT_KEY,
-    apply_node_review,
     import_node_review_from_github,
     verify_node_review_materials,
 )
@@ -20,7 +19,6 @@ __all__ = [
     "NAVIGATION_SCHEMA",
     "NODE_REVIEW_OBJECT_KEY",
     "apply_navigation",
-    "apply_node_review",
     "build_explorer",
     "evaluate_review_state",
     "fetch_github_review_source",

@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import inspect
 import json
 from pathlib import Path
 import shutil
 
 import pytest
 
+import booktrans.architecture_explorer as explorer_api
 from booktrans.architecture_explorer.generator import ExplorerInputError
-from booktrans.architecture_explorer.node_review import verify_node_review_materials
-from booktrans.architecture_explorer.review_cli import _parser, main as review_main
+from booktrans.architecture_explorer.node_review import (
+    _verify_node_review_materials,
+    import_node_review_from_github,
+    verify_node_review_materials,
+)
+from booktrans.architecture_explorer.review_cli import (
+    _main as _review_main_with_test_policy,
+    _parser,
+    main as review_main,
+)
 from test_t8_node_review import (
     _canonical_sha256,
     _fixture_materials,
@@ -19,6 +29,17 @@ from test_t8_node_review import (
     REPOSITORY,
 )
 from t5_lite_fixture import commit, create_source_repository
+
+
+def test_supported_python_api_has_no_projection_or_trust_root_injection() -> None:
+    assert not hasattr(explorer_api, "apply_node_review")
+    assert "trust_policy" not in inspect.signature(
+        import_node_review_from_github
+    ).parameters
+    assert "trust_policy" not in inspect.signature(
+        verify_node_review_materials
+    ).parameters
+    assert "node_review_trust_policy" not in inspect.signature(review_main).parameters
 
 
 def test_locally_self_signed_owner_admin_receipt_cannot_grant_current() -> None:
@@ -49,28 +70,12 @@ def test_relationship_and_claims_cannot_self_prove_formal_dependency() -> None:
     relationship["review_decision"]["reviewed_source_snapshot"]["revision"] = "f" * 40
     relationship["evidence_ids"] = forged_evidence_ids
 
-    formal_claim = next(
-        claim
-        for claim in decision["claims"]
-        if claim["kind"] == "FORMAL_DEPENDENCY_AND_LIMITS"
-    )
-    formal_claim["value"].update(
-        {
-            "t3_decision_id": "github-comment:forged",
-            "t3_reviewed_snapshot": "f" * 40,
-            "formal_evidence_ids": forged_evidence_ids,
-        }
-    )
-    decision["inputs"]["claims_sha256"] = _canonical_sha256(decision["claims"])
-    source = _fixture_source(decision)
-    decision["source_receipt_sha256"] = _canonical_sha256(source)
-
     with pytest.raises(ExplorerInputError, match="authoritative T3"):
-        verify_node_review_materials(
+        _verify_node_review_materials(
             explorer,
             decision,
             source,
-            trust_policy=_fixture_policy(source),
+            trust_policy=_fixture_policy(),
         )
 
 
@@ -110,7 +115,8 @@ def test_github_import_flows_through_offline_build_to_generated_site(
 
     explorer = _published_explorer()
     source, _ = _fixture_materials(explorer, result=decision_result)
-    policy = _fixture_policy(source)
+    policy = _fixture_policy()
+    comment_id = source["comment"]["id"]
     explorer_input = tmp_path / "explorer-data.json"
     explorer_input.write_text(json.dumps(explorer, ensure_ascii=False), encoding="utf-8")
     decision_path = repository / "output/node-review-decision.json"
@@ -121,23 +127,27 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     responses = {
         "repos/nnewlander/translate": source["repository"],
         "repos/nnewlander/translate/issues/999999": source["issue"],
-        "repos/nnewlander/translate/issues/comments/999999002": source["comment"],
+        f"repos/nnewlander/translate/issues/comments/{comment_id}": source["comment"],
         "repos/nnewlander/translate/collaborators/nnewlander/permission": source["permission"],
     }
 
     def github_api(endpoint: str) -> dict:
         return deepcopy(responses[endpoint])
 
-    assert review_main(
-        [
-            "import-node-review",
-            "--repository", str(repository),
-            "--explorer-data", str(explorer_input),
-            "--issue", "999999",
-            "--comment-id", "999999002",
-            "--decision-output", str(decision_output),
-            "--source-output", str(source_output),
-        ],
+    import_args = [
+        "import-node-review",
+        "--repository", str(repository),
+        "--explorer-data", str(explorer_input),
+        "--issue", "999999",
+        "--comment-id", str(comment_id),
+        "--decision-output", str(decision_output),
+        "--source-output", str(source_output),
+    ]
+    with pytest.raises(ExplorerInputError, match="independently trusted"):
+        review_main(import_args, github_api=github_api)
+
+    assert _review_main_with_test_policy(
+        import_args,
         github_api=github_api,
         node_review_trust_policy=policy,
     ) == 0
@@ -189,7 +199,26 @@ def test_github_import_flows_through_offline_build_to_generated_site(
             "--output-directory", "output/site",
         )
     )
-    assert review_main(build_args, node_review_trust_policy=policy) == 0
+    if decision_result == "APPROVED":
+        decision_only_args = list(build_args)
+        source_option = decision_only_args.index("--node-review-source")
+        del decision_only_args[source_option : source_option + 2]
+        with pytest.raises(ExplorerInputError, match="supplied together"):
+            review_main(decision_only_args)
+
+        source_only_args = list(build_args)
+        decision_option = source_only_args.index("--node-review-decision")
+        del source_only_args[decision_option : decision_option + 2]
+        with pytest.raises(ExplorerInputError, match="supplied together"):
+            review_main(source_only_args)
+
+    with pytest.raises(ExplorerInputError, match="independently trusted"):
+        review_main(build_args)
+
+    assert _review_main_with_test_policy(
+        build_args,
+        node_review_trust_policy=policy,
+    ) == 0
 
     generated = json.loads((site / "explorer-data.json").read_text(encoding="utf-8"))
     target = next(
@@ -201,3 +230,21 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     )
     assert target["node_review"]["projection"] == expected_projection
     assert expected_projection in (site / "explorer-data.js").read_text(encoding="utf-8")
+
+    tampered_source = json.loads(source_path.read_text(encoding="utf-8"))
+    tampered_source["permission"]["permission"] = "write"
+    source_path.write_text(
+        json.dumps(tampered_source, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    tampered_decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    tampered_decision["source_receipt_sha256"] = _canonical_sha256(tampered_source)
+    decision_path.write_text(
+        json.dumps(tampered_decision, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    with pytest.raises(ExplorerInputError, match="untrusted"):
+        _review_main_with_test_policy(
+            build_args,
+            node_review_trust_policy=policy,
+        )
