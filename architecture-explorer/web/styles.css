@@ -431,6 +431,18 @@ h2 {
 
 .statuses { display: flex; flex-wrap: wrap; gap: 8px 6px; margin-top: auto; }
 
+.candidate-graph-grid .node-review-statuses { width: 100%; gap: 5px; }
+.candidate-card-status {
+  display: block;
+  max-width: 100%;
+  color: #526b49;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.node-review-status { color: #354b35; }
+
 .status {
   display: inline-flex;
   flex: 0 0 auto;
@@ -578,6 +590,9 @@ h2 {
 .group-description { margin: 0 0 18px; color: #4a4a4a; line-height: 1.65; }
 .evidence-card { margin-top: 14px; padding: 20px; border: 1px solid #e1e6de; border-radius: 17px; background: #fff; }
 .candidate-evidence-card { margin-top: 14px; padding: 18px; border: 1px solid #e1e6de; border-radius: 16px; background: #fff; }
+.node-review-claim { margin-top: 14px; padding: 18px; border: 1px solid #dce4d8; border-radius: 16px; background: #fff; }
+.node-review-claim h4 { margin: 0 0 8px; color: #283b29; }
+.node-review-claim pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .candidate-evidence-card h4 { margin: 0 0 8px; }
 .candidate-evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
 .evidence-role { margin: 0 0 8px; color: #526b49; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; }
