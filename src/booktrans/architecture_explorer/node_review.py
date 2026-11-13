@@ -750,6 +750,18 @@ def _verify_node_review_materials(
     return deepcopy(decision), deepcopy(review_source)
 
 
+def _verify_node_review_material_integrity(
+    decision: dict[str, Any],
+    review_source: dict[str, Any],
+    *,
+    trust_policy: _NodeReviewTrustPolicy,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Verify immutable historical materials without requiring current inputs."""
+
+    _validate_decision_integrity(decision, review_source, trust_policy)
+    return deepcopy(decision), deepcopy(review_source)
+
+
 def verify_node_review_materials(
     explorer: dict[str, Any],
     decision: dict[str, Any],

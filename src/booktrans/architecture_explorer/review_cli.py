@@ -20,6 +20,7 @@ from .node_review import (
     _PRODUCTION_NODE_REVIEW_TRUST_POLICY,
     _import_node_review_from_github,
     _project_node_review,
+    _verify_node_review_material_integrity,
     _verify_node_review_materials,
 )
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
@@ -316,22 +317,32 @@ def _main(
             )
         decision = None
         review_source = None
+        node_review_state = None
         if args.node_review_decision is not None and args.node_review_source is not None:
-            decision, review_source = _verify_node_review_materials(
-                data,
+            decision, review_source = _verify_node_review_material_integrity(
                 _object(args.node_review_decision),
                 _object(args.node_review_source),
                 trust_policy=node_review_trust_policy,
             )
+            node_review_state = _evaluate_node_review_state(
+                decision,
+                node_review_state_path,
+            )
+            if (
+                node_review_state["status"] == "current"
+                and node_review_state["continuity"] == "exact-match"
+            ):
+                decision, review_source = _verify_node_review_materials(
+                    data,
+                    decision,
+                    review_source,
+                    trust_policy=node_review_trust_policy,
+                )
         data = _project_node_review(
             data,
             decision=decision,
             review_source=review_source,
-            node_review_state=(
-                _evaluate_node_review_state(decision, node_review_state_path)
-                if decision is not None
-                else None
-            ),
+            node_review_state=node_review_state,
         )
         if args.node_review_decision is not None and args.node_review_source is not None:
             data["generation_inputs"]["node_review"] = {

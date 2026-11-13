@@ -190,6 +190,7 @@ def test_recorded_node_invalidation_survives_source_restoration(tmp_path: Path) 
 @pytest.mark.parametrize(
     ("result", "projection"),
     (("APPROVED", "Historical · Approved"), ("REJECTED", "Historical · Rejected")),
+    ids=("approved-history", "rejected-history"),
 )
 def test_invalidated_decisions_project_as_distinct_history(
     tmp_path: Path,
@@ -398,8 +399,9 @@ def test_node_review_requires_the_t3_relationship_own_current_gate(tmp_path: Pat
             "candidate-evidence:ambiguous",
         ),
     ),
+    ids=("historical-approved", "historical-rejected", "unknown"),
 )
-@pytest.mark.parametrize("viewport_width", (1440, 1280, 960))
+@pytest.mark.parametrize("viewport_width", (1440, 1280, 960), ids=("1440", "1280", "960"))
 def test_real_browser_renders_historical_and_unknown_node_review_states(
     tmp_path: Path,
     viewport_width: int,
