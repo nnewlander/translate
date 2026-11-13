@@ -12,6 +12,10 @@ from .node_review import (
     verify_node_review_materials,
 )
 from .continuity import evaluate_review_state, update_review_state
+from .node_review_continuity import (
+    evaluate_node_review_state,
+    update_node_review_state,
+)
 from .source_scanner import scan_python_source_facts
 
 __all__ = [
@@ -21,6 +25,7 @@ __all__ = [
     "apply_navigation",
     "build_explorer",
     "evaluate_review_state",
+    "evaluate_node_review_state",
     "fetch_github_review_source",
     "import_review_mapping",
     "import_node_review_from_github",
@@ -31,6 +36,7 @@ __all__ = [
     "scan_supervisor_worker_candidate",
     "scan_python_source_facts",
     "update_review_state",
+    "update_node_review_state",
     "verify_node_review_materials",
     "verify_trusted_review_source",
     "write_candidate_outputs",

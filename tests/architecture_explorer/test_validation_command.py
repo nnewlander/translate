@@ -36,6 +36,39 @@ DEFAULT_COLLECTED_NODEIDS = (
     "tests/architecture_explorer/test_t7_top_level_graph.py::"
     "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip",
 )
+TICKET_02_REQUIRED_NODEIDS = (
+    "tests/architecture_explorer/test_t8_security_repairs.py::"
+    "test_github_import_flows_through_offline_build_to_generated_site[approved]",
+    "tests/architecture_explorer/test_t8_security_repairs.py::"
+    "test_github_import_flows_through_offline_build_to_generated_site[rejected]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_evidence_content_change_records_material_invalidation",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_recorded_node_invalidation_survives_source_restoration",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_explicit_update_never_overwrites_unusable_state[corrupt]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_explicit_update_never_overwrites_unusable_state[inconsistent]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_node_review_requires_the_t3_relationship_own_current_gate",
+    "tests/architecture_explorer/test_t8_node_review.py::"
+    "test_no_node_decision_projects_only_the_exact_target_as_pending",
+    "tests/architecture_explorer/test_t8_node_review.py::"
+    "test_trusted_approved_decision_requires_current_exact_state_before_projection",
+    "tests/architecture_explorer/test_t8_node_review.py::"
+    "test_trusted_rejected_decision_is_current_but_never_pending_or_approved",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_unusable_state_projects_unknown_not_pending[corrupt]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_browser_renders_historical_and_unknown_node_review_states[1440-historical-approved]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_browser_renders_historical_and_unknown_node_review_states[1280-historical-rejected]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_browser_renders_historical_and_unknown_node_review_states[960-unknown]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_chrome_preserves_historical_node_review_during_resize_round_trip",
+)
+DEFAULT_COLLECTED_NODEIDS += TICKET_02_REQUIRED_NODEIDS
 VIEWPORT_SEQUENCE = ((1440, 900), (1280, 900), (960, 900), (1440, 900))
 GRAPH_IDS = (
     "top-level",
@@ -47,6 +80,30 @@ GRAPH_IDS = (
     "production-evidence",
     "candidate-and-release",
 )
+
+
+def _include_ticket02_junit_cases(junit_xml: str) -> str:
+    root = ElementTree.fromstring(junit_xml)
+    existing = {
+        case.attrib.get("classname", "").replace(".", "/")
+        + ".py::"
+        + case.attrib["name"]
+        for case in root.iter("testcase")
+    }
+    suite = next(root.iter("testsuite"))
+    for nodeid in TICKET_02_REQUIRED_NODEIDS:
+        if nodeid in existing:
+            continue
+        path, name = nodeid.split("::", 1)
+        ElementTree.SubElement(
+            suite,
+            "testcase",
+            {
+                "classname": path.removesuffix(".py").replace("/", "."),
+                "name": name,
+            },
+        )
+    return ElementTree.tostring(root, encoding="unicode")
 
 
 def _valid_viewport_evidence() -> dict:
@@ -114,9 +171,14 @@ class JunitRunner(RecordingRunner):
         pytest_stdout: str = "",
         write_viewport_evidence: bool = True,
         viewport_evidence: dict | None = None,
+        include_ticket02_required: bool = True,
     ) -> None:
         super().__init__()
-        self.junit_xml = junit_xml
+        self.junit_xml = (
+            _include_ticket02_junit_cases(junit_xml)
+            if include_ticket02_required
+            else junit_xml
+        )
         self.pytest_stdout = pytest_stdout
         self.write_viewport_evidence = write_viewport_evidence
         self.viewport_evidence = viewport_evidence or _valid_viewport_evidence()
@@ -168,9 +230,24 @@ class JunitRunner(RecordingRunner):
 
 
 class CollectedJunitRunner(JunitRunner):
-    def __init__(self, junit_xml: str, collected_nodeids: tuple[str, ...]) -> None:
-        super().__init__(junit_xml)
+    def __init__(
+        self,
+        junit_xml: str,
+        collected_nodeids: tuple[str, ...],
+        *,
+        include_ticket02_required: bool = True,
+    ) -> None:
+        super().__init__(
+            junit_xml,
+            include_ticket02_required=include_ticket02_required,
+        )
         self.collected_nodeids = collected_nodeids
+        if include_ticket02_required:
+            self.collected_nodeids += tuple(
+                nodeid
+                for nodeid in TICKET_02_REQUIRED_NODEIDS
+                if nodeid not in self.collected_nodeids
+            )
 
     def run(
         self,
@@ -586,6 +663,36 @@ def test_deleted_evidence_scenario_cannot_hide_from_collection_comparison(
     assert report.status("architecture-explorer") is ValidationStatus.FAIL
     assert report.exit_code == 1
     assert "candidate_evidence" in report.first_reason
+
+
+def test_missing_ticket02_critical_nodeid_cannot_pass(tmp_path: Path) -> None:
+    missing = (
+        "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+        "test_recorded_node_invalidation_survives_source_restoration"
+    )
+    collected = tuple(
+        nodeid for nodeid in DEFAULT_COLLECTED_NODEIDS if nodeid != missing
+    )
+    cases = []
+    for nodeid in collected:
+        path, name = nodeid.split("::", 1)
+        class_name = path.removesuffix(".py").replace("/", ".")
+        cases.append(f'<testcase classname="{class_name}" name="{name}" />')
+    runner = JunitRunner(
+        "<testsuites><testsuite>" + "".join(cases) + "</testsuite></testsuites>",
+        include_ticket02_required=False,
+    )
+
+    report = validate(
+        _context(),
+        runner=runner,
+        scratch_root=tmp_path / "validation-scratch",
+    )
+
+    assert report.status("architecture-explorer") is ValidationStatus.FAIL
+    assert report.exit_code == 1
+    assert "missing critical test scenarios" in report.first_reason
+    assert "recorded_node_invalidation" in report.first_reason
 
 
 def test_skipped_trust_scenario_cannot_pass(

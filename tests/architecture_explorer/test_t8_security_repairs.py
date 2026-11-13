@@ -84,6 +84,7 @@ def test_relationship_and_claims_cannot_self_prove_formal_dependency() -> None:
 @pytest.mark.parametrize(
     ("decision_result", "expected_projection"),
     (("APPROVED", "Current · Approved"), ("REJECTED", "Current · Rejected")),
+    ids=("approved", "rejected"),
 )
 def test_github_import_flows_through_offline_build_to_generated_site(
     tmp_path: Path,
@@ -93,6 +94,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     repository = create_source_repository(tmp_path)
     for relative in (
         "scripts/production/production_campaign_supervisor.ps1",
+        "scripts/production/run_qwen_deterministic_worker.py",
         "src/booktrans/ooxml/extractor.py",
         "src/booktrans/ooxml/translation_view.py",
         "scripts/write_full_book_translation_scope.py",
@@ -225,6 +227,21 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     ]
     assert review_main(review_state_args) == 0
 
+    node_review_state = repository / "output/node-review-state.json"
+    node_review_state_args = [
+        "update-node-review-state",
+        "--repository", str(repository),
+        "--explorer-data", str(explorer_input),
+        "--node-review-decision", str(decision_path),
+        "--node-review-source", str(source_path),
+        "--node-review-state", "output/node-review-state.json",
+        "--assessed-at", "2026-11-12T00:01:00Z",
+    ]
+    assert _review_main_with_test_policy(
+        node_review_state_args,
+        node_review_trust_policy=policy,
+    ) == 0
+
     site = repository / "output/site"
     fragments = [
         REPOSITORY / f"architecture-explorer/candidates/{name}.v1.json"
@@ -255,6 +272,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         (
             "--node-review-decision", str(decision_path),
             "--node-review-source", str(source_path),
+            "--node-review-state", str(node_review_state),
             "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
             "--output-directory", "output/site",
         )
@@ -271,6 +289,21 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         del source_only_args[decision_option : decision_option + 2]
         with pytest.raises(ExplorerInputError, match="supplied together"):
             review_main(source_only_args)
+
+        missing_state_args = list(build_args)
+        state_option = missing_state_args.index("--node-review-state")
+        del missing_state_args[state_option : state_option + 2]
+        output_option = missing_state_args.index("--output-directory")
+        missing_state_args[output_option + 1] = "output/site-missing-node-state"
+        assert _review_main_with_test_policy(
+            missing_state_args,
+            node_review_trust_policy=policy,
+        ) == 0
+        missing_state_site = repository / "output/site-missing-node-state"
+        missing_state_data = json.loads(
+            (missing_state_site / "explorer-data.json").read_text(encoding="utf-8")
+        )
+        assert _target(missing_state_data)["node_review"]["projection"] == "Unknown"
 
     with pytest.raises(ExplorerInputError, match="independently trusted"):
         review_main(build_args)
@@ -291,6 +324,77 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     assert target["node_review"]["projection"] == expected_projection
     assert expected_projection in (site / "explorer-data.js").read_text(encoding="utf-8")
 
+    material_fragment = tmp_path / "production-control.v1.json"
+    material_fragment.write_text(
+        (
+            REPOSITORY / "architecture-explorer/candidates/production-control.v1.json"
+        ).read_text(encoding="utf-8")
+        + "\n",
+        encoding="utf-8",
+    )
+    material_input_args = list(build_args)
+    for option in (
+        "--node-review-decision",
+        "--node-review-source",
+        "--node-review-state",
+    ):
+        option_index = material_input_args.index(option)
+        del material_input_args[option_index : option_index + 2]
+    material_fragment_index = material_input_args.index(
+        str(REPOSITORY / "architecture-explorer/candidates/production-control.v1.json")
+    )
+    material_input_args[material_fragment_index] = str(material_fragment)
+    output_option = material_input_args.index("--output-directory")
+    material_input_args[output_option + 1] = "output/material-input-site"
+    assert review_main(material_input_args) == 0
+
+    historical_state = repository / "output/historical-node-review-state.json"
+    historical_state_args = [
+        "update-node-review-state",
+        "--repository", str(repository),
+        "--explorer-data", str(
+            repository / "output/material-input-site/explorer-data.json"
+        ),
+        "--node-review-decision", str(decision_path),
+        "--node-review-source", str(source_path),
+        "--node-review-state", "output/historical-node-review-state.json",
+        "--assessed-at", "2026-11-12T00:02:00Z",
+    ]
+    assert _review_main_with_test_policy(
+        historical_state_args,
+        node_review_trust_policy=policy,
+    ) == 0
+    persisted_history = json.loads(historical_state.read_text(encoding="utf-8"))
+    assert persisted_history["state"] == "needs-review"
+    assert persisted_history["continuity"] == "material-change"
+
+    historical_build_args = list(build_args)
+    historical_fragment_index = historical_build_args.index(
+        str(REPOSITORY / "architecture-explorer/candidates/production-control.v1.json")
+    )
+    historical_build_args[historical_fragment_index] = str(material_fragment)
+    historical_state_option = historical_build_args.index("--node-review-state")
+    historical_build_args[historical_state_option + 1] = str(historical_state)
+    historical_output_option = historical_build_args.index("--output-directory")
+    historical_build_args[historical_output_option + 1] = "output/historical-site"
+    assert _review_main_with_test_policy(
+        historical_build_args,
+        node_review_trust_policy=policy,
+    ) == 0
+    historical_site = repository / "output/historical-site"
+    historical_data = json.loads(
+        (historical_site / "explorer-data.json").read_text(encoding="utf-8")
+    )
+    expected_history = (
+        "Historical · Approved"
+        if decision_result == "APPROVED"
+        else "Historical · Rejected"
+    )
+    assert _target(historical_data)["node_review"]["projection"] == expected_history
+    assert expected_history in (
+        historical_site / "explorer-data.js"
+    ).read_text(encoding="utf-8")
+
     tampered_source = json.loads(source_path.read_text(encoding="utf-8"))
     tampered_source["permission"]["permission"] = "write"
     source_path.write_text(
@@ -305,6 +409,6 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     )
     with pytest.raises(ExplorerInputError, match="untrusted"):
         _review_main_with_test_policy(
-            build_args,
+            historical_build_args,
             node_review_trust_policy=policy,
         )

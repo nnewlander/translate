@@ -8,9 +8,9 @@
   try {
     const expectedProjection = window.T8_EXPECTED_PROJECTION;
     const expectedReviewLabel = window.T8_EXPECTED_REVIEW_LABEL;
-    const expectedState = expectedProjection === "Pending Review"
+    const expectedState = window.T8_EXPECTED_STATE || (expectedProjection === "Pending Review"
       ? "not-reviewed · not-assessed"
-      : "current · exact-match";
+      : "current · exact-match");
     card("production-control").click();
     await nextPaint();
 
@@ -85,6 +85,12 @@
       assert(detail.textContent.includes("顶层模块源码覆盖是否完成"), "retained unknowns are missing");
       assert(detail.textContent.includes("github-comment:6516894339"), "T3 Decision dependency is missing");
       assert(detail.textContent.includes("13 条正式 Evidence"), "formal Evidence isolation is missing");
+      if (window.T8_EXPECTED_REASON) {
+        assert(detail.textContent.includes(window.T8_EXPECTED_REASON), "continuity reason is missing");
+      }
+      if (window.T8_EXPECTS_CURRENT_LOCATORS) {
+        assert(detail.querySelectorAll(".node-review-current-locations li").length === 3, "current Evidence locators are missing");
+      }
     }
     assert(!Array.from(detail.querySelectorAll("button")).some((button) => /批准|拒绝|刷新/.test(button.textContent)), "detail exposes a review write control");
 
