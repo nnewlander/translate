@@ -401,12 +401,25 @@
         ["可信来源", `${review.source.author} · ${review.source.author_association} · ${review.source.permission}`],
         ["来源收据", review.source.sha256],
       );
+      if (review.state.reasons?.length) identityRows.push(["连续性原因", review.state.reasons.join("；")]);
+      if (review.state.evaluated_source_snapshot) {
+        identityRows.push(["评估源码快照", `${review.state.evaluated_source_snapshot.revision} · ${review.state.evaluated_source_snapshot.worktree_state}`]);
+      }
     }
     for (const [term, value] of identityRows) identity.append(text("dt", term), text("dd", value));
     detailContent.append(identity);
     if (!review.decision) {
       detailContent.append(text("p", "当前没有可用的可信 Owner/admin 节点审核决定。", "candidate-warning"));
       return;
+    }
+
+    if (review.state.current_evidence_locations?.length) {
+      detailContent.append(text("h3", "当前 Evidence 定位"));
+      const locations = document.createElement("ul"); locations.className = "node-review-current-locations";
+      for (const location of review.state.current_evidence_locations) {
+        locations.append(text("li", `${location.path}:${location.line_start}-${location.line_end} · ${location.evidence_id}`));
+      }
+      detailContent.append(locations);
     }
 
     detailContent.append(text("h3", "Review Claims"));

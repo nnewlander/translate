@@ -9,6 +9,10 @@ from typing import Any, Callable
 from .generator import ExplorerInputError, validate_cli_output_path, write_json, write_site
 from .candidate_fragments import apply_candidate_fragments
 from .continuity import update_review_state
+from .node_review_continuity import (
+    _evaluate_node_review_state,
+    _update_node_review_state,
+)
 from .navigation import apply_navigation
 from .node_review import (
     NODE_REVIEW_OBJECT_KEY,
@@ -16,6 +20,7 @@ from .node_review import (
     _PRODUCTION_NODE_REVIEW_TRUST_POLICY,
     _import_node_review_from_github,
     _project_node_review,
+    _verify_node_review_material_integrity,
     _verify_node_review_materials,
 )
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
@@ -73,6 +78,16 @@ def _parser() -> argparse.ArgumentParser:
     update.add_argument("--review-source", type=Path, required=True)
     update.add_argument("--review-state", type=Path, required=True)
     update.add_argument("--assessed-at", required=True)
+    node_state = commands.add_parser(
+        "update-node-review-state",
+        help="explicitly assess and atomically update the T8 Node Review State",
+    )
+    node_state.add_argument("--repository", type=Path, required=True)
+    node_state.add_argument("--explorer-data", type=Path, required=True)
+    node_state.add_argument("--node-review-decision", type=Path, required=True)
+    node_state.add_argument("--node-review-source", type=Path, required=True)
+    node_state.add_argument("--node-review-state", type=Path, required=True)
+    node_state.add_argument("--assessed-at", required=True)
     build = commands.add_parser("build", help="build the offline reviewed relationship site")
     build.add_argument("--repository", type=Path, required=True)
     build.add_argument("--snapshot", type=Path, required=True)
@@ -85,6 +100,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--candidate-fragment", type=Path, action="append", default=[])
     build.add_argument("--node-review-decision", type=Path)
     build.add_argument("--node-review-source", type=Path)
+    build.add_argument("--node-review-state", type=Path)
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
     return parser
@@ -188,12 +204,49 @@ def _main(
         print(f"review_status={state['status']}")
         print(f"source_continuity={state['continuity_status']}")
         return 0
+    if args.command == "update-node-review-state":
+        state_path = validate_cli_output_path(
+            args.repository,
+            args.node_review_state,
+            directory=False,
+            inputs=(
+                args.explorer_data,
+                args.node_review_decision,
+                args.node_review_source,
+            ),
+        )
+        explorer = _object(args.explorer_data)
+        try:
+            explorer["source_facts"] = scan_python_source_facts(args.repository)
+        except ExplorerInputError as error:
+            explorer["_node_review_scan_error"] = (
+                "missing" if "missing" in str(error).lower() else "parse-failure"
+            )
+        state = _update_node_review_state(
+            explorer,
+            _object(args.node_review_decision),
+            _object(args.node_review_source),
+            state_path,
+            assessed_at=args.assessed_at,
+            trust_policy=node_review_trust_policy,
+        )
+        print(f"node_review_state={state_path}")
+        print(f"node_review_status={state['state']}")
+        print(f"node_review_continuity={state['continuity']}")
+        return 0
     review_state_path = None
     if args.review_state is not None:
         review_state_path = (
             args.review_state
             if args.review_state.is_absolute()
             else args.repository / args.review_state
+        ).resolve()
+    node_review_state_path = None
+    if args.node_review_state is not None:
+        node_review_state_path = (
+            args.node_review_state
+            if args.node_review_state.is_absolute()
+            else args.repository / args.node_review_state
         ).resolve()
     output = validate_cli_output_path(
         args.repository, args.output_directory, directory=True,
@@ -202,6 +255,7 @@ def _main(
                 args.snapshot, args.mapping, args.candidate, args.review_mapping, args.review_source,
                 args.navigation, args.web_assets, review_state_path,
                 args.node_review_decision, args.node_review_source,
+                node_review_state_path,
                 *args.candidate_fragment
             ) if path is not None
         ),
@@ -257,19 +311,38 @@ def _main(
             raise ExplorerInputError(
                 "Node Review Decision and source receipt must be supplied together"
             )
+        if args.node_review_state is not None and args.node_review_decision is None:
+            raise ExplorerInputError(
+                "Node Review State requires a Decision and source receipt"
+            )
         decision = None
         review_source = None
+        node_review_state = None
         if args.node_review_decision is not None and args.node_review_source is not None:
-            decision, review_source = _verify_node_review_materials(
-                data,
+            decision, review_source = _verify_node_review_material_integrity(
                 _object(args.node_review_decision),
                 _object(args.node_review_source),
                 trust_policy=node_review_trust_policy,
             )
+            node_review_state = _evaluate_node_review_state(
+                decision,
+                node_review_state_path,
+            )
+            if (
+                node_review_state["status"] == "current"
+                and node_review_state["continuity"] == "exact-match"
+            ):
+                decision, review_source = _verify_node_review_materials(
+                    data,
+                    decision,
+                    review_source,
+                    trust_policy=node_review_trust_policy,
+                )
         data = _project_node_review(
             data,
             decision=decision,
             review_source=review_source,
+            node_review_state=node_review_state,
         )
         if args.node_review_decision is not None and args.node_review_source is not None:
             data["generation_inputs"]["node_review"] = {
@@ -282,6 +355,11 @@ def _main(
                     "sha256": hashlib.sha256(args.node_review_source.read_bytes()).hexdigest(),
                 },
             }
+            if node_review_state_path is not None and node_review_state_path.is_file():
+                data["generation_inputs"]["node_review"]["state"] = {
+                    "path": node_review_state_path.name,
+                    "sha256": hashlib.sha256(node_review_state_path.read_bytes()).hexdigest(),
+                }
     write_site(data, output, args.web_assets)
     relation = data["architecture"]["relationships"][0]
     print(f"site={output / 'index.html'}")

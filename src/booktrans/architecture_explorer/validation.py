@@ -126,6 +126,36 @@ _CRITICAL_NODEIDS = (
     "test_real_browser_renders_production_candidates_in_the_shared_graph[960-900]",
     "tests/architecture_explorer/test_t7_top_level_graph.py::"
     "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip",
+    "tests/architecture_explorer/test_t8_security_repairs.py::"
+    "test_github_import_flows_through_offline_build_to_generated_site[approved]",
+    "tests/architecture_explorer/test_t8_security_repairs.py::"
+    "test_github_import_flows_through_offline_build_to_generated_site[rejected]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_evidence_content_change_records_material_invalidation",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_recorded_node_invalidation_survives_source_restoration",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_explicit_update_never_overwrites_unusable_state[corrupt]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_explicit_update_never_overwrites_unusable_state[inconsistent]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_node_review_requires_the_t3_relationship_own_current_gate",
+    "tests/architecture_explorer/test_t8_node_review.py::"
+    "test_no_node_decision_projects_only_the_exact_target_as_pending",
+    "tests/architecture_explorer/test_t8_node_review.py::"
+    "test_trusted_approved_decision_requires_current_exact_state_before_projection",
+    "tests/architecture_explorer/test_t8_node_review.py::"
+    "test_trusted_rejected_decision_is_current_but_never_pending_or_approved",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_unusable_state_projects_unknown_not_pending[corrupt]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_browser_renders_historical_and_unknown_node_review_states[1440-historical-approved]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_browser_renders_historical_and_unknown_node_review_states[1280-historical-rejected]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_browser_renders_historical_and_unknown_node_review_states[960-unknown]",
+    "tests/architecture_explorer/test_t8_node_review_continuity.py::"
+    "test_real_chrome_preserves_historical_node_review_during_resize_round_trip",
 )
 _VIEWPORT_SEQUENCE = ((1440, 900), (1280, 900), (960, 900), (1440, 900))
 _GRAPH_IDS = {
