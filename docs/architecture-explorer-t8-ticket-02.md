@@ -79,4 +79,3 @@ Node Review State 与 Decision 必须独立：Decision 仍为 APPROVED/REJECTED 
 ## Owner verification
 
 Owner 使用隔离 fixture 依次验证：当前 Approved、当前 Rejected、纯行号移动、无关编辑、材料变化、缺失、歧义、解析失败和“失效后源码恢复”。确认前两类保持 Current，材料/异常类按 Spec 降级，恢复不会自动清除历史失效；页面在三种 viewport 和连续 Resize 中保持 T7 行为。最后检查统一验证摘要明确报告完整测试执行、必需 Chrome PASS，以及 Firefox/Edge/非 Explorer 的真实 NOT_RUN/BLOCKED 状态。
-
