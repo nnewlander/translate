@@ -78,4 +78,3 @@
 ## Owner verification
 
 Owner 在一个隔离输出中检查三种演示输入：无 Decision、fixture APPROVED、fixture REJECTED。确认目标卡片分别显示 Pending、Current Approved、Current Rejected；右键详情显示八类 Claims、Rationale、unknowns、3 条 Candidate Evidence 和正式依赖；其他节点/协作、正式实线与 T7 内联内容完全不变。Owner 同时确认仓库中没有新增真实生产审核决定。
-
