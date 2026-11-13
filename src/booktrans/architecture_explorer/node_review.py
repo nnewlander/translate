@@ -465,6 +465,76 @@ def _expected_claims(
     ]
 
 
+def _reviewed_claims() -> list[dict[str, Any]]:
+    """Return the immutable claim set signed by a T8 Decision."""
+
+    candidate_ids = EXPECTED_CANDIDATE_FACT["source_assignment"]["evidence_ids"]
+    return [
+        {
+            "kind": "IDENTITY",
+            "value": dict(NODE_REVIEW_OBJECT_KEY),
+            "source": "candidate-fact.object-key",
+        },
+        {
+            "kind": "NAME",
+            "value": EXPECTED_CANDIDATE_FACT["name"],
+            "source": "candidate-fact.name",
+        },
+        {
+            "kind": "CLASSIFICATION",
+            "value": {
+                "node_type": EXPECTED_CANDIDATE_FACT["node_type"],
+                "rationale": CLASSIFICATION_RATIONALE,
+            },
+            "source": "candidate-fact.node-type",
+        },
+        {
+            "kind": "RESPONSIBILITY",
+            "value": EXPECTED_CANDIDATE_FACT["responsibility"],
+            "source": "candidate-fact.responsibility",
+        },
+        {
+            "kind": "PLAIN_EXPLANATION",
+            "value": EXPECTED_CANDIDATE_FACT["plain_explanation"],
+            "source": "candidate-fact.plain-explanation",
+        },
+        {
+            "kind": "SOURCE_ASSIGNMENT",
+            "value": deepcopy(EXPECTED_CANDIDATE_FACT["source_assignment"]),
+            "source": "candidate-fact.source-assignment",
+        },
+        {
+            "kind": "CANDIDATE_EVIDENCE",
+            "value": [
+                {
+                    "evidence_id": evidence_id,
+                    "role": fingerprint["evidence_kind"],
+                }
+                for evidence_id, fingerprint in zip(
+                    candidate_ids,
+                    CANDIDATE_EVIDENCE_FINGERPRINTS,
+                    strict=True,
+                )
+            ],
+            "source": "candidate-fact.source-assignment.evidence-ids",
+        },
+        {
+            "kind": "FORMAL_DEPENDENCY_AND_LIMITS",
+            "value": {
+                "relationship_id": (
+                    "relationship:production-control:launches:translation-execution"
+                ),
+                "t3_decision_id": T3_DECISION_ID,
+                "t3_result": "APPROVED",
+                "t3_reviewed_snapshot": T3_REVIEWED_SNAPSHOT,
+                "formal_evidence_ids": list(FORMAL_EVIDENCE_IDS),
+                "retained_unknowns": list(RETAINED_UNKNOWNS),
+            },
+            "source": "formal-relationship.review-contract",
+        },
+    ]
+
+
 def _matching_anchor(
     source: dict[str, Any] | None,
     trust_policy: _NodeReviewTrustPolicy,
@@ -519,9 +589,7 @@ def _fetch_github_node_review_source(
     return source
 
 
-def _validate_decision(
-    explorer: dict[str, Any],
-    target: dict[str, Any],
+def _validate_decision_integrity(
     decision: dict[str, Any],
     review_source: dict[str, Any] | None,
     trust_policy: _NodeReviewTrustPolicy,
@@ -539,8 +607,6 @@ def _validate_decision(
     }
     if set(decision) != expected_fields:
         raise ExplorerInputError("Node Review Decision must use the closed schema")
-    if _candidate_fact(target) != EXPECTED_CANDIDATE_FACT:
-        raise ExplorerInputError("Node Review Candidate Fact does not match the fixed input")
     _matching_anchor(review_source, trust_policy)
     if decision.get("schema") != NODE_REVIEW_DECISION_SCHEMA:
         raise ExplorerInputError("Unsupported Node Review Decision schema")
@@ -560,15 +626,13 @@ def _validate_decision(
     }:
         raise ExplorerInputError("Node Review Decision reviewed snapshot mismatch")
 
-    relationship = _relationship(explorer)
-    _validate_authoritative_t3_dependency(explorer, relationship)
     claims = decision.get("claims")
     if not isinstance(claims, list):
         raise ExplorerInputError("Node Review Decision Claims must be a list")
     kinds = [claim.get("kind") for claim in claims if isinstance(claim, dict)]
     if tuple(kinds) != CLAIM_KINDS or len(kinds) != len(claims):
         raise ExplorerInputError("Node Review Decision Claims are not the closed ordered set")
-    expected_claims = _expected_claims(explorer, target, relationship)
+    expected_claims = _reviewed_claims()
     if claims != expected_claims:
         raise ExplorerInputError("Node Review Decision Claim binding mismatch")
 
@@ -577,7 +641,7 @@ def _validate_decision(
         raise ExplorerInputError("Node Review Decision inputs must be an object")
     expected_inputs = {
         **VERSIONED_INPUTS,
-        "candidate_fact_sha256": _canonical_sha256(_candidate_fact(target)),
+        "candidate_fact_sha256": _canonical_sha256(EXPECTED_CANDIDATE_FACT),
         "claims_sha256": _canonical_sha256(expected_claims),
     }
     if inputs != expected_inputs:
@@ -586,6 +650,22 @@ def _validate_decision(
         raise ExplorerInputError("Node Review Decision source receipt mismatch")
     if comment.get("body") != _expected_source_body(decision):
         raise ExplorerInputError("Node Review Decision does not match the source comment body")
+
+
+def _validate_decision(
+    explorer: dict[str, Any],
+    target: dict[str, Any],
+    decision: dict[str, Any],
+    review_source: dict[str, Any] | None,
+    trust_policy: _NodeReviewTrustPolicy,
+) -> None:
+    if _candidate_fact(target) != EXPECTED_CANDIDATE_FACT:
+        raise ExplorerInputError("Node Review Candidate Fact does not match the fixed input")
+    _validate_decision_integrity(decision, review_source, trust_policy)
+    relationship = _relationship(explorer)
+    _validate_authoritative_t3_dependency(explorer, relationship)
+    if decision["claims"] != _expected_claims(explorer, target, relationship):
+        raise ExplorerInputError("Node Review Decision Claim binding mismatch")
 
 
 def _import_node_review_from_github(
@@ -690,6 +770,7 @@ def _project_node_review(
     *,
     decision: dict[str, Any] | None = None,
     review_source: dict[str, Any] | None = None,
+    node_review_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Pure internal projection; callers must validate non-empty materials first."""
 
@@ -716,6 +797,26 @@ def _project_node_review(
     repository = source.get("repository", {})
     comment = source.get("comment", {})
     permission = source.get("permission", {})
+    state = node_review_state or {
+        "status": "current",
+        "continuity": "exact-match",
+        "decision_id": decision["decision_id"],
+        "reasons": [],
+    }
+    if state["status"] == "current" and state["continuity"] == "exact-match":
+        projection = (
+            "Current · Approved"
+            if decision_result == "APPROVED"
+            else "Current · Rejected"
+        )
+    elif state["status"] == "needs-review":
+        projection = (
+            "Historical · Approved"
+            if decision_result == "APPROVED"
+            else "Historical · Rejected"
+        )
+    else:
+        projection = "Unknown"
     target["node_review"] = {
         "object_key": dict(NODE_REVIEW_OBJECT_KEY),
         "decision": deepcopy(decision),
@@ -728,15 +829,8 @@ def _project_node_review(
             "author_association": comment.get("author_association"),
             "permission": permission.get("permission"),
         },
-        "state": {
-            "status": "current",
-            "continuity": "exact-match",
-            "decision_id": decision["decision_id"],
-            "reasons": [],
-        },
-        "projection": (
-            "Current · Approved" if decision_result == "APPROVED" else "Current · Rejected"
-        ),
+        "state": deepcopy(state),
+        "projection": projection,
     }
     return result
 

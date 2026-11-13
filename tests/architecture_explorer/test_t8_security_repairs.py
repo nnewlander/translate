@@ -93,6 +93,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     repository = create_source_repository(tmp_path)
     for relative in (
         "scripts/production/production_campaign_supervisor.ps1",
+        "scripts/production/run_qwen_deterministic_worker.py",
         "src/booktrans/ooxml/extractor.py",
         "src/booktrans/ooxml/translation_view.py",
         "scripts/write_full_book_translation_scope.py",
@@ -225,6 +226,21 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     ]
     assert review_main(review_state_args) == 0
 
+    node_review_state = repository / "output/node-review-state.json"
+    node_review_state_args = [
+        "update-node-review-state",
+        "--repository", str(repository),
+        "--explorer-data", str(explorer_input),
+        "--node-review-decision", str(decision_path),
+        "--node-review-source", str(source_path),
+        "--node-review-state", "output/node-review-state.json",
+        "--assessed-at", "2026-11-12T00:01:00Z",
+    ]
+    assert _review_main_with_test_policy(
+        node_review_state_args,
+        node_review_trust_policy=policy,
+    ) == 0
+
     site = repository / "output/site"
     fragments = [
         REPOSITORY / f"architecture-explorer/candidates/{name}.v1.json"
@@ -255,6 +271,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         (
             "--node-review-decision", str(decision_path),
             "--node-review-source", str(source_path),
+            "--node-review-state", str(node_review_state),
             "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
             "--output-directory", "output/site",
         )
@@ -271,6 +288,21 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         del source_only_args[decision_option : decision_option + 2]
         with pytest.raises(ExplorerInputError, match="supplied together"):
             review_main(source_only_args)
+
+        missing_state_args = list(build_args)
+        state_option = missing_state_args.index("--node-review-state")
+        del missing_state_args[state_option : state_option + 2]
+        output_option = missing_state_args.index("--output-directory")
+        missing_state_args[output_option + 1] = "output/site-missing-node-state"
+        assert _review_main_with_test_policy(
+            missing_state_args,
+            node_review_trust_policy=policy,
+        ) == 0
+        missing_state_site = repository / "output/site-missing-node-state"
+        missing_state_data = json.loads(
+            (missing_state_site / "explorer-data.json").read_text(encoding="utf-8")
+        )
+        assert _target(missing_state_data)["node_review"]["projection"] == "Unknown"
 
     with pytest.raises(ExplorerInputError, match="independently trusted"):
         review_main(build_args)
