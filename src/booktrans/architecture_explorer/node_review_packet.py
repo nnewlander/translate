@@ -20,11 +20,125 @@ from .node_review import (
     _source_evidence,
     _target_node,
 )
+from .presentation_zh import build_relationship_presentation_zh
+from .source_primitives import build_static_evidence
 
 
 NODE_REVIEW_PACKET_SCHEMA = "architecture-explorer.node-review-packet.v1"
 IMPLEMENTATION_BASELINE = "14073edcea76a2b200bf15aaa4231c13f20e5ec9"
 ALLOWED_RESULTS = ("APPROVED", "REJECTED")
+EVIDENCE_RECORD_FIELDS = (
+    "evidence_id",
+    "source_role",
+    "evidence_kind",
+    "path",
+    "symbol",
+    "structural_anchor",
+    "syntax_position",
+    "current_location",
+    "snippet",
+    "normalized_snippet_sha256",
+    "file_sha256",
+)
+PRESENTATION_FIELDS = ("group", "name", "explanation", "supports")
+
+
+def _validated_static_evidence_record(
+    raw: Any,
+    *,
+    label: str,
+) -> dict[str, Any]:
+    if not isinstance(raw, dict) or set(raw) != set(EVIDENCE_RECORD_FIELDS):
+        raise ExplorerInputError(f"{label} has an invalid field set")
+    location = raw.get("current_location")
+    string_fields = tuple(
+        field
+        for field in EVIDENCE_RECORD_FIELDS
+        if field != "current_location"
+    )
+    if (
+        not all(isinstance(raw.get(field), str) for field in string_fields)
+        or not isinstance(location, dict)
+        or set(location) != {"line_start", "line_end"}
+        or not all(
+            isinstance(location.get(field), int)
+            and not isinstance(location.get(field), bool)
+            for field in ("line_start", "line_end")
+        )
+    ):
+        raise ExplorerInputError(f"{label} is incomplete")
+    rebuilt = build_static_evidence(
+        path=raw["path"],
+        source_role=raw["source_role"],
+        evidence_kind=raw["evidence_kind"],
+        symbol=raw["symbol"],
+        structural_anchor=raw["structural_anchor"],
+        syntax_position=raw["syntax_position"],
+        snippet=raw["snippet"],
+        line_start=location["line_start"],
+        line_end=location["line_end"],
+        file_sha256=raw["file_sha256"],
+    )
+    if rebuilt != raw:
+        raise ExplorerInputError(f"{label} content hash mismatch")
+    return rebuilt
+
+
+def _formal_evidence(
+    explorer: dict[str, Any],
+    relationship: dict[str, Any],
+    evidence_ids: list[str],
+) -> list[dict[str, Any]]:
+    raw_records = relationship.get("evidence")
+    if not isinstance(raw_records, list) or len(raw_records) != len(evidence_ids):
+        raise ExplorerInputError("Node Review Packet needs 13 formal Evidence records")
+    records = [
+        _validated_static_evidence_record(
+            raw,
+            label=f"Node Review Packet formal Evidence {position}",
+        )
+        for position, raw in enumerate(raw_records, start=1)
+    ]
+    if [item["evidence_id"] for item in records] != evidence_ids:
+        raise ExplorerInputError(
+            "Node Review Packet formal Evidence identity or order mismatch"
+        )
+
+    supporting = relationship.get("supporting_evidence")
+    if not isinstance(supporting, list):
+        raise ExplorerInputError("Node Review Packet T3 supporting Evidence is missing")
+    expected_presentation = build_relationship_presentation_zh(
+        explorer.get("architecture", {}).get("modules", []),
+        relationship,
+        [*records, *supporting],
+    )
+    if relationship.get("presentation_zh") != expected_presentation:
+        raise ExplorerInputError("Node Review Packet T3 Chinese presentation mismatch")
+    presentation_items = expected_presentation["evidence_items"]
+    result = []
+    for record in records:
+        evidence_id = record["evidence_id"]
+        presentation = presentation_items.get(evidence_id)
+        if (
+            not isinstance(presentation, dict)
+            or set(presentation) != set(PRESENTATION_FIELDS)
+            or not all(
+                isinstance(presentation.get(field), str) and presentation[field]
+                for field in PRESENTATION_FIELDS
+            )
+        ):
+            raise ExplorerInputError(
+                f"Node Review Packet formal Evidence presentation is incomplete: {evidence_id}"
+            )
+        result.append(
+            {
+                **deepcopy(record),
+                "presentation_zh": {
+                    field: presentation[field] for field in PRESENTATION_FIELDS
+                },
+            }
+        )
+    return result
 
 
 def build_node_review_packet(explorer: dict[str, Any]) -> dict[str, Any]:
@@ -40,6 +154,13 @@ def build_node_review_packet(explorer: dict[str, Any]) -> dict[str, Any]:
     if claims != _reviewed_claims():
         raise ExplorerInputError("Node Review Packet Claim binding mismatch")
 
+    formal_evidence_ids = claims[-1]["value"]["formal_evidence_ids"]
+    formal_evidence = _formal_evidence(
+        explorer,
+        relationship,
+        formal_evidence_ids,
+    )
+
     evidence_ids = candidate_fact["source_assignment"]["evidence_ids"]
     evidence_by_id = _source_evidence(explorer, evidence_ids)
     candidate_evidence = []
@@ -49,7 +170,12 @@ def build_node_review_packet(explorer: dict[str, Any]) -> dict[str, Any]:
             raise ExplorerInputError(
                 f"Node Review Packet Candidate Evidence is missing: {evidence_id}"
             )
-        candidate_evidence.append(deepcopy(evidence))
+        candidate_evidence.append(
+            {
+                field: deepcopy(evidence[field])
+                for field in EVIDENCE_RECORD_FIELDS
+            }
+        )
 
     packet = {
         "schema": NODE_REVIEW_PACKET_SCHEMA,
@@ -63,10 +189,12 @@ def build_node_review_packet(explorer: dict[str, Any]) -> dict[str, Any]:
         "candidate_fact": deepcopy(candidate_fact),
         "claims": deepcopy(claims),
         "candidate_evidence": candidate_evidence,
+        "formal_evidence": formal_evidence,
         "inputs": {
             **VERSIONED_INPUTS,
             "candidate_fact_sha256": _canonical_sha256(candidate_fact),
             "claims_sha256": _canonical_sha256(claims),
+            "formal_evidence_sha256": _canonical_sha256(formal_evidence),
         },
     }
     packet["packet_sha256"] = _canonical_sha256(packet)
@@ -157,10 +285,33 @@ def render_node_review_report(packet: dict[str, Any]) -> str:
             f"- Relationship：`{formal['relationship_id']}`",
             f"- T3 Decision：`{formal['t3_decision_id']}` / `{formal['t3_result']}`",
             f"- T3 reviewed snapshot：`{formal['t3_reviewed_snapshot']}`",
-            "- 13 条正式 Evidence：",
+            "- 下列 13 条正式 Evidence 按 T3 权威 Evidence ID 顺序列出。",
         ]
     )
-    lines.extend(f"  - `{evidence_id}`" for evidence_id in formal["formal_evidence_ids"])
+    for position, evidence in enumerate(packet["formal_evidence"], start=1):
+        location = evidence["current_location"]
+        presentation = evidence["presentation_zh"]
+        snippet = evidence["snippet"].replace("\r\n", "\n").replace("\r", "\n")
+        lines.extend(
+            [
+                "",
+                f"### {position}. {presentation['name']}（`{evidence['evidence_kind']}`）",
+                "",
+                f"- Evidence ID：`{evidence['evidence_id']}`",
+                f"- 证据组：`{presentation['group']}`",
+                f"- 支持判断：{presentation['supports']}",
+                f"- 通俗说明：{presentation['explanation']}",
+                f"- 源码角色：`{evidence['source_role']}`",
+                f"- 位置：`{evidence['path']}:{location['line_start']}-{location['line_end']}`",
+                f"- Symbol：`{evidence['symbol']}`",
+                f"- 结构锚点：`{evidence['structural_anchor']}`",
+                f"- 规范化片段 SHA-256：`{evidence['normalized_snippet_sha256']}`",
+                "",
+                "```text",
+                snippet,
+                "```",
+            ]
+        )
     lines.extend(["", "## 批准后仍保留的未知项", ""])
     lines.extend(f"- {unknown}" for unknown in formal["retained_unknowns"])
     lines.extend(
