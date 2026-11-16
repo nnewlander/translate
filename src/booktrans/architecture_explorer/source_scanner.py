@@ -21,6 +21,7 @@ from .source_primitives import (
 
 SCANNER_VERSION = "architecture-explorer-t6-4/1.5"
 SOURCE_FACTS_SCHEMA = "architecture-explorer.python-source-facts.v1"
+DEFINITION_INDEX_SCHEMA = "architecture-explorer.python-definition-index.v1"
 SOURCE_ROOTS = ("src/booktrans/", "scripts/")
 EXCLUDED_PREFIXES = (
     "scripts/architecture_explorer/",
@@ -511,6 +512,141 @@ def _snippet(text: str, node: ast.AST) -> str:
     return value
 
 
+class _DefinitionCollector(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.records: list[tuple[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef, ast.AST | None]] = []
+        self._parents: list[ast.AST] = []
+
+    def _record(self, node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self.records.append((node, self._parents[-1] if self._parents else None))
+        self._parents.append(node)
+        self.generic_visit(node)
+        self._parents.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._record(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._record(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._record(node)
+
+
+def _definition_kind(node: ast.AST, parent: ast.AST | None) -> str:
+    if isinstance(node, ast.ClassDef):
+        return "class"
+    if isinstance(parent, ast.ClassDef):
+        return "method"
+    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return "nested-function"
+    return "function"
+
+
+def _definition_evidence(
+    text: str,
+    relative: str,
+    file_sha256: str,
+    node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    qualified_symbol: str,
+    structural_anchor: str,
+    syntax_position: str,
+) -> dict[str, Any]:
+    start = min(node.decorator_list, key=lambda item: (item.lineno, item.col_offset), default=node)
+    extent = ast.Constant()
+    extent.lineno = start.lineno
+    extent.col_offset = (
+        max(0, start.col_offset - 1) if node.decorator_list else start.col_offset
+    )
+    extent.end_lineno = node.end_lineno or node.lineno
+    extent.end_col_offset = node.end_col_offset if node.end_col_offset is not None else node.col_offset
+    evidence = build_static_evidence(
+        path=relative,
+        source_role="automatic_source_fact",
+        file_sha256=file_sha256,
+        evidence_kind="python_definition",
+        symbol=qualified_symbol,
+        structural_anchor=structural_anchor,
+        syntax_position=syntax_position,
+        snippet=_snippet(text, extent),
+        line_start=extent.lineno,
+        line_end=extent.end_lineno,
+    )
+    evidence["current_location"] = {
+        "line_start": extent.lineno,
+        "column_start": extent.col_offset,
+        "line_end": extent.end_lineno,
+        "column_end": extent.end_col_offset,
+    }
+    return evidence
+
+
+def _definitions(
+    tree: ast.Module,
+    text: str,
+    relative: str,
+    module_id: str,
+    file_sha256: str,
+) -> list[dict[str, Any]]:
+    collector = _DefinitionCollector()
+    collector.visit(tree)
+    by_parent_and_name: dict[tuple[int | None, str], list[ast.AST]] = {}
+    for node, parent in collector.records:
+        by_parent_and_name.setdefault((id(parent) if parent else None, node.name), []).append(node)
+
+    occurrences: dict[int, tuple[int, int]] = {}
+    for siblings in by_parent_and_name.values():
+        total = len(siblings)
+        for occurrence, node in enumerate(siblings, start=1):
+            occurrences[id(node)] = (occurrence, total)
+
+    qualified: dict[int, str] = {}
+    lexical_occurrence_paths: dict[int, tuple[str, ...]] = {}
+    definitions: list[dict[str, Any]] = []
+    for node, parent in collector.records:
+        occurrence, total = occurrences[id(node)]
+        local_name = node.name
+        parent_symbol = qualified[id(parent)] if parent is not None else module_id
+        qualified_symbol = f"{parent_symbol}.{local_name}"
+        qualified[id(node)] = qualified_symbol
+        kind = _definition_kind(node, parent)
+        occurrence_segment = f"{occurrence}-of-{total}"
+        lexical_occurrence_path = (
+            (*lexical_occurrence_paths[id(parent)], occurrence_segment)
+            if parent is not None
+            else (occurrence_segment,)
+        )
+        lexical_occurrence_paths[id(node)] = lexical_occurrence_path
+        lexical_anchor = "/".join(lexical_occurrence_path)
+        structural_anchor = (
+            f"python:definition:{kind}:{qualified_symbol}/lexical:{lexical_anchor}"
+        )
+        syntax_position = (
+            f"{parent_symbol}/{kind}:{local_name}/lexical:{lexical_anchor}"
+        )
+        evidence = _definition_evidence(
+            text,
+            relative,
+            file_sha256,
+            node,
+            qualified_symbol=qualified_symbol,
+            structural_anchor=structural_anchor,
+            syntax_position=syntax_position,
+        )
+        definitions.append(
+            {
+                "kind": kind,
+                "qualified_symbol": qualified_symbol,
+                "parent_symbol": parent_symbol,
+                "occurrence": occurrence,
+                "lexical_occurrence_path": list(lexical_occurrence_path),
+                "evidence": evidence,
+            }
+        )
+    return definitions
+
+
 def _node_evidence(
     text: str,
     relative: str,
@@ -765,7 +901,222 @@ def _scan_module(repository: Path, relative: str) -> dict[str, Any]:
         "size_bytes": size_bytes,
         "direct_imports": direct_imports,
         "entries": _entries(tree, text, relative, file_sha256, direct_imports),
+        "definitions": _definitions(tree, text, relative, module_id, file_sha256),
     }
+
+
+def _definition_index(modules: list[dict[str, Any]]) -> dict[str, Any]:
+    managed_file_manifest = [
+        {"path": module["path"], "file_sha256": module["file_sha256"]}
+        for module in modules
+    ]
+    files = [
+        {
+            "path": module["path"],
+            "module_id": module["module_id"],
+            "file_sha256": module["file_sha256"],
+            "definitions": module["definitions"],
+        }
+        for module in modules
+    ]
+    definitions = [definition for file in files for definition in file["definitions"]]
+    classes = sum(definition["kind"] == "class" for definition in definitions)
+    result = {
+        "schema": DEFINITION_INDEX_SCHEMA,
+        "scope": {
+            "selection": "The managed Python scope inherited from Source Facts",
+            "files_scanned": len(files),
+            "managed_files_sha256": _sha256(_canonical_bytes(managed_file_manifest)),
+        },
+        "summary": {
+            "classes": classes,
+            "functions_and_methods": len(definitions) - classes,
+            "definitions": len(definitions),
+        },
+        "files": files,
+        "limitations": [
+            "Definitions are static lexical facts; they do not prove runtime execution.",
+            "An indexed file is not thereby assigned to an approved architecture module.",
+        ],
+    }
+    result["deterministic_facts_sha256"] = _sha256(_canonical_bytes(result))
+    return result
+
+
+def _validate_definition_index(source_facts: dict[str, Any]) -> None:
+    index = source_facts.get("python_definition_index")
+    if not isinstance(index, dict) or index.get("schema") != DEFINITION_INDEX_SCHEMA:
+        raise ExplorerInputError("invalid Python definition index schema")
+    claimed_digest = index.get("deterministic_facts_sha256")
+    digest_input = {
+        key: value for key, value in index.items() if key != "deterministic_facts_sha256"
+    }
+    if not isinstance(claimed_digest, str) or claimed_digest != _sha256(
+        _canonical_bytes(digest_input)
+    ):
+        raise ExplorerInputError("invalid Python definition index hash")
+    files = index.get("files")
+    modules = source_facts.get("modules")
+    if not isinstance(files, list) or not isinstance(modules, list):
+        raise ExplorerInputError("invalid Python definition index files")
+    module_identity = {
+        (module.get("path"), module.get("module_id"), module.get("file_sha256"))
+        for module in modules
+        if isinstance(module, dict)
+    }
+    if len(module_identity) != len(modules) or len(files) != len(modules):
+        raise ExplorerInputError("invalid Python definition index file scope")
+    managed_file_manifest = [
+        {"path": module["path"], "file_sha256": module["file_sha256"]}
+        for module in modules
+    ]
+    if index.get("scope", {}).get("managed_files_sha256") != _sha256(
+        _canonical_bytes(managed_file_manifest)
+    ):
+        raise ExplorerInputError("invalid Python definition index managed file identity")
+    projected_identities = [
+        (file.get("path"), file.get("module_id"), file.get("file_sha256"))
+        for file in files
+        if isinstance(file, dict)
+    ]
+    if (
+        len(projected_identities) != len(files)
+        or len(set(projected_identities)) != len(projected_identities)
+        or set(projected_identities) != module_identity
+    ):
+        raise ExplorerInputError("invalid Python definition index file inventory")
+    allowed_kinds = {"class", "function", "method", "nested-function"}
+    definitions: list[dict[str, Any]] = []
+    for file in files:
+        if not isinstance(file, dict) or (
+            file.get("path"), file.get("module_id"), file.get("file_sha256")
+        ) not in module_identity:
+            raise ExplorerInputError("invalid Python definition index file identity")
+        file_definitions = file.get("definitions")
+        if not isinstance(file_definitions, list):
+            raise ExplorerInputError("invalid Python definition index definitions")
+        for definition in file_definitions:
+            if not isinstance(definition, dict):
+                raise ExplorerInputError("invalid Python definition index fact")
+            if definition.get("kind") not in allowed_kinds or not all(
+                isinstance(definition.get(key), str) and definition[key]
+                for key in ("qualified_symbol", "parent_symbol")
+            ) or not isinstance(definition.get("occurrence"), int) or definition["occurrence"] < 1:
+                raise ExplorerInputError("invalid Python definition index fact")
+            lexical_occurrence_path = definition.get("lexical_occurrence_path")
+            if not isinstance(lexical_occurrence_path, list) or not lexical_occurrence_path or not all(
+                isinstance(segment, str) and segment
+                for segment in lexical_occurrence_path
+            ):
+                raise ExplorerInputError("invalid Python definition index lexical occurrence path")
+            parsed_occurrences: list[tuple[int, int]] = []
+            for segment in lexical_occurrence_path:
+                occurrence_text, separator, total_text = segment.partition("-of-")
+                if (
+                    separator != "-of-"
+                    or not occurrence_text.isdigit()
+                    or not total_text.isdigit()
+                ):
+                    raise ExplorerInputError(
+                        "invalid Python definition index lexical occurrence path"
+                    )
+                segment_occurrence = int(occurrence_text)
+                segment_total = int(total_text)
+                if (
+                    segment_occurrence < 1
+                    or segment_total < 1
+                    or segment_occurrence > segment_total
+                ):
+                    raise ExplorerInputError(
+                        "invalid Python definition index lexical occurrence path"
+                    )
+                parsed_occurrences.append((segment_occurrence, segment_total))
+            if parsed_occurrences[-1][0] != definition["occurrence"]:
+                raise ExplorerInputError(
+                    "invalid Python definition index lexical occurrence path"
+                )
+            module_prefix = f"{file['module_id']}."
+            qualified_symbol = definition["qualified_symbol"]
+            if not qualified_symbol.startswith(module_prefix):
+                raise ExplorerInputError("invalid Python definition index symbol")
+            lexical_names = qualified_symbol[len(module_prefix) :].split(".")
+            if len(lexical_names) != len(lexical_occurrence_path) or any(
+                not name for name in lexical_names
+            ):
+                raise ExplorerInputError("invalid Python definition index symbol")
+            expected_parent_symbol = (
+                file["module_id"]
+                if len(lexical_names) == 1
+                else f"{file['module_id']}.{'.'.join(lexical_names[:-1])}"
+            )
+            if definition["parent_symbol"] != expected_parent_symbol:
+                raise ExplorerInputError("invalid Python definition index parent symbol")
+            lexical_anchor = "/".join(lexical_occurrence_path)
+            expected_structural_anchor = (
+                f"python:definition:{definition['kind']}:{qualified_symbol}/"
+                f"lexical:{lexical_anchor}"
+            )
+            expected_syntax_position = (
+                f"{expected_parent_symbol}/{definition['kind']}:{lexical_names[-1]}/"
+                f"lexical:{lexical_anchor}"
+            )
+            evidence = definition.get("evidence")
+            if not isinstance(evidence, dict) or evidence.get("evidence_kind") != "python_definition":
+                raise ExplorerInputError("invalid Python definition index evidence")
+            if evidence.get("path") != file["path"] or evidence.get("file_sha256") != file["file_sha256"]:
+                raise ExplorerInputError("invalid Python definition index evidence identity")
+            if not all(
+                isinstance(evidence.get(key), str) and evidence[key]
+                for key in (
+                    "evidence_id",
+                    "structural_anchor",
+                    "syntax_position",
+                    "snippet",
+                    "normalized_snippet_sha256",
+                )
+            ):
+                raise ExplorerInputError("invalid Python definition index evidence")
+            location = evidence.get("current_location")
+            if not isinstance(location, dict) or not all(
+                isinstance(location.get(key), int)
+                for key in ("line_start", "column_start", "line_end", "column_end")
+            ):
+                raise ExplorerInputError("invalid Python definition index location")
+            if (
+                evidence.get("source_role") != "automatic_source_fact"
+                or evidence.get("symbol") != qualified_symbol
+                or evidence.get("structural_anchor") != expected_structural_anchor
+                or evidence.get("syntax_position") != expected_syntax_position
+            ):
+                raise ExplorerInputError("invalid Python definition index evidence identity")
+            rebuilt_evidence = build_static_evidence(
+                path=file["path"],
+                source_role="automatic_source_fact",
+                evidence_kind="python_definition",
+                symbol=qualified_symbol,
+                structural_anchor=expected_structural_anchor,
+                syntax_position=expected_syntax_position,
+                snippet=evidence["snippet"],
+                line_start=location["line_start"],
+                line_end=location["line_end"],
+                file_sha256=file["file_sha256"],
+            )
+            if (
+                evidence.get("normalized_snippet_sha256")
+                != rebuilt_evidence["normalized_snippet_sha256"]
+                or evidence.get("evidence_id") != rebuilt_evidence["evidence_id"]
+            ):
+                raise ExplorerInputError("invalid Python definition index evidence identity")
+            definitions.append(definition)
+    summary = index.get("summary")
+    classes = sum(definition["kind"] == "class" for definition in definitions)
+    expected_summary = {
+        "classes": classes,
+        "functions_and_methods": len(definitions) - classes,
+        "definitions": len(definitions),
+    }
+    if summary != expected_summary or index.get("scope", {}).get("files_scanned") != len(files):
+        raise ExplorerInputError("invalid Python definition index summary")
 
 
 def _powershell_ast(text: str) -> dict[str, Any]:
@@ -1066,6 +1417,9 @@ def scan_python_source_facts(repository: Path) -> dict[str, Any]:
         raise ExplorerInputError(f"Source repository is not a directory: {repository}")
     paths = _tracked_python_paths(repository)
     modules = [_scan_module(repository, relative) for relative in paths]
+    definition_index = _definition_index(modules)
+    for module in modules:
+        del module["definitions"]
     powershell_scripts = _scan_supervisor(repository)
     porcelain = _git(repository, "status", "--porcelain=v1", "--untracked-files=normal").rstrip(
         "\r\n"
@@ -1087,6 +1441,7 @@ def scan_python_source_facts(repository: Path) -> dict[str, Any]:
             "files_scanned": len(modules),
         },
         "modules": modules,
+        "python_definition_index": definition_index,
         "powershell_scope": {
             "selection": "The single production Supervisor script",
             "paths": [_SUPERVISOR],
@@ -1117,6 +1472,7 @@ def attach_python_source_facts(
         _canonical_bytes(digest_input)
     ):
         raise ExplorerInputError("Python source facts hash does not match its contents")
+    _validate_definition_index(source_facts)
     explorer_digest = explorer.get("deterministic_content_sha256")
     if not isinstance(explorer_digest, str):
         raise ExplorerInputError("Explorer payload is missing its deterministic content hash")
@@ -1134,6 +1490,7 @@ def attach_python_source_facts(
 
 
 __all__ = [
+    "DEFINITION_INDEX_SCHEMA",
     "EXCLUDED_PREFIXES",
     "SCANNER_VERSION",
     "SOURCE_FACTS_SCHEMA",
