@@ -32,6 +32,9 @@
   const childById = Object.fromEntries(navigation.drilldowns.flatMap((item) => item.children).map((item) => [item.id, item]));
   const moduleById = Object.fromEntries([...modules, ...Object.values(childById)].map((item) => [item.id, item]));
   const sourceEvidenceById = {};
+  const definitionFileByPath = Object.fromEntries(
+    (data.source_facts?.python_definition_index?.files || []).map((item) => [item.path, item]),
+  );
   for (const sourceModule of data.source_facts?.modules || []) {
     for (const fact of [...sourceModule.direct_imports, ...sourceModule.entries]) {
       sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule };
@@ -163,7 +166,7 @@
     details.append(facts, text("pre", evidence.snippet), button); card.append(details); return card;
   };
 
-  const candidateEvidenceCard = (evidenceId) => {
+  const candidateEvidenceCard = (evidenceId, returnContext) => {
     const record = sourceEvidenceById[evidenceId];
     if (!record) return text("p", `无法解析源码依据：${evidenceId}`, "load-error");
     const { fact, sourceModule, language } = record; const evidence = fact.evidence;
@@ -190,7 +193,129 @@
     for (const [term, value] of [["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind]]) {
       facts.append(text("dt", term), text("dd", value));
     }
-    card.append(facts, text("pre", evidence.snippet)); return card;
+    card.append(facts, text("pre", evidence.snippet));
+    const definitionFile = language ? null : definitionFileByPath[sourceModule.path];
+    if (definitionFile) {
+      const browse = text("button", "浏览此文件定义", "browse-definitions");
+      browse.type = "button";
+      browse.dataset.evidenceId = evidenceId;
+      browse.addEventListener("click", () => showDefinitionFile(definitionFile, returnContext, evidenceId));
+      card.append(browse);
+    }
+    return card;
+  };
+
+  const definitionKindLabels = {
+    class: "类",
+    function: "函数",
+    method: "方法",
+    "nested-function": "嵌套函数",
+  };
+
+  const clearDefinitionFileState = () => {
+    delete detailContent.dataset.definitionFile;
+  };
+
+  const showDefinitionFile = (file, returnContext, returnEvidenceId) => {
+    detailContent.replaceChildren();
+    delete detailContent.dataset.relationshipId;
+    delete detailContent.dataset.collaborationId;
+    delete detailContent.dataset.evidenceId;
+    detailContent.dataset.definitionFile = file.path;
+    const back = text("button", "返回候选源码依据", "definition-back");
+    back.type = "button";
+    back.addEventListener("click", () => {
+      if (returnContext.kind === "candidate-node") {
+        showModuleDetail(returnContext.module);
+      } else {
+        showCandidateCollaboration(returnContext.collaboration);
+      }
+      window.setTimeout(() => {
+        detailContent.querySelector(`.browse-definitions[data-evidence-id="${CSS.escape(returnEvidenceId)}"]`)?.focus();
+      }, 0);
+    });
+    const title = text("h2", "Python 文件定义", "detail-title");
+    title.id = "detail-title";
+    detailContent.append(
+      back,
+      text("p", "静态 Source Facts", "eyebrow"),
+      title,
+      text("p", file.path, "definition-file-path"),
+      text(
+        "p",
+        "以下内容是 Python AST 提取的静态定义事实，不证明运行时执行，也不批准文件的架构归属。",
+        "candidate-warning",
+      ),
+      text("p", `${file.definitions.length} 个定义`, "definition-total"),
+    );
+    const controls = document.createElement("div");
+    controls.className = "definition-filters";
+    const nameLabel = text("label", "按名称过滤");
+    nameLabel.htmlFor = "definition-name-filter";
+    const nameFilter = document.createElement("input");
+    nameFilter.id = "definition-name-filter";
+    nameFilter.type = "search";
+    nameFilter.autocomplete = "off";
+    const kindLabel = text("label", "按类型过滤");
+    kindLabel.htmlFor = "definition-kind-filter";
+    const kindFilter = document.createElement("select");
+    kindFilter.id = "definition-kind-filter";
+    for (const [value, label] of [["", "全部类型"], ...Object.entries(definitionKindLabels)]) {
+      const option = document.createElement("option");
+      option.value = value; option.textContent = label; kindFilter.append(option);
+    }
+    controls.append(nameLabel, nameFilter, kindLabel, kindFilter);
+    const list = document.createElement("div"); list.className = "definition-list";
+    const selected = document.createElement("section"); selected.className = "definition-selection";
+    detailContent.append(controls, list, selected);
+
+    const renderSelected = (definition) => {
+      selected.replaceChildren(); selected.className = "definition-selection definition-selected";
+      const evidence = definition.evidence;
+      const location = `${evidence.path}:${evidence.current_location.line_start}:${evidence.current_location.column_start}`;
+      const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
+      for (const [term, value] of [
+        ["类型", definitionKindLabels[definition.kind]],
+        ["Qualified symbol", definition.qualified_symbol],
+        ["Parent symbol", definition.parent_symbol],
+        ["Evidence ID", evidence.evidence_id],
+        ["源码定位", location],
+      ]) facts.append(text("dt", term), text("dd", value));
+      selected.append(
+        text("h3", definition.qualified_symbol),
+        text("p", "静态定义不等于真实运行事实，也不表示架构归属已获批准。", "candidate-warning"),
+        facts,
+        text("pre", evidence.snippet, "definition-source"),
+      );
+    };
+    const renderList = () => {
+      list.replaceChildren();
+      selected.replaceChildren(); selected.className = "definition-selection";
+      const query = nameFilter.value.trim().toLocaleLowerCase();
+      const kind = kindFilter.value;
+      const matches = file.definitions.filter((definition) => (
+        (!query || definition.qualified_symbol.toLocaleLowerCase().includes(query))
+        && (!kind || definition.kind === kind)
+      ));
+      if (!matches.length) {
+        list.append(text("p", file.definitions.length ? "没有符合过滤条件的定义。" : "此文件没有静态定义。", "empty-evidence"));
+        return;
+      }
+      for (const definition of matches) {
+        const row = text(
+          "button",
+          `${definitionKindLabels[definition.kind]} · ${definition.qualified_symbol} · line ${definition.evidence.current_location.line_start}`,
+          "definition-row",
+        );
+        row.type = "button";
+        row.addEventListener("click", () => renderSelected(definition));
+        list.append(row);
+      }
+    };
+    nameFilter.addEventListener("input", renderList);
+    kindFilter.addEventListener("change", renderList);
+    renderList();
+    nameFilter.focus();
   };
 
   const renderSourceModule = () => {
@@ -295,7 +420,7 @@
 
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
-    detailContent.replaceChildren(); delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
+    detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.relationshipId = relation.id;
     const title = text("h2", `${guide.source_module_name} → ${guide.target_module_name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
@@ -350,7 +475,7 @@
   const showCandidateCollaboration = (collaboration) => {
     const source = childById[collaboration.source_node_id];
     const target = childById[collaboration.target_node_id];
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.evidenceId;
+    detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.collaborationId = collaboration.id;
     const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
@@ -366,7 +491,10 @@
     statuses.append(text("span", "协作状态：未审核", "status candidate"), text("span", "源码归属：未核验", "status coverage-unverified"));
     detailContent.append(statuses, text("p", "这些静态源码依据只支持候选解释，不证明运行时协作已经发生。", "candidate-warning"));
     detailContent.append(text("h3", `源码依据（${collaboration.evidence_ids.length}）`));
-    for (const evidenceId of collaboration.evidence_ids) detailContent.append(candidateEvidenceCard(evidenceId));
+    const returnContext = { kind: "candidate-collaboration", collaboration };
+    for (const evidenceId of collaboration.evidence_ids) {
+      detailContent.append(candidateEvidenceCard(evidenceId, returnContext));
+    }
     openDialog();
   };
 
@@ -444,7 +572,7 @@
     const isCandidate = module.review_status === "candidate";
     const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
-    detailContent.replaceChildren(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
+    detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
@@ -456,7 +584,10 @@
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
       if (module.source_assignment.evidence_ids?.length) {
         detailContent.append(text("h3", `源码依据（${module.source_assignment.evidence_ids.length}）`));
-        for (const evidenceId of module.source_assignment.evidence_ids) detailContent.append(candidateEvidenceCard(evidenceId));
+        const returnContext = { kind: "candidate-node", module };
+        for (const evidenceId of module.source_assignment.evidence_ids) {
+          detailContent.append(candidateEvidenceCard(evidenceId, returnContext));
+        }
       }
       const candidateLinks = candidateCollaborationsForNode(module.id);
       if (candidateLinks.length) {
@@ -738,7 +869,10 @@
   document.addEventListener("click", (event) => {
     if (suppressNextClick) { suppressNextClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
   }, true);
-  dialog.addEventListener("close", () => dispatch({ type: "DETAIL_CLOSED" }));
+  dialog.addEventListener("close", () => {
+    clearDefinitionFileState();
+    dispatch({ type: "DETAIL_CLOSED" });
+  });
   window.addEventListener("resize", scheduleRelationshipGraph);
   window.addEventListener("scroll", scheduleRelationshipGraph, { passive: true });
   if (typeof ResizeObserver === "function") new ResizeObserver(scheduleRelationshipGraph).observe(graphSurface);

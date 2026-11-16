@@ -351,6 +351,74 @@ def test_real_browser_opens_candidate_evidence_from_every_node_context_menu(
     )
 
 
+def test_real_browser_drills_from_candidate_evidence_to_process_unit_definition(
+    tmp_path: Path,
+    explorer_data: dict,
+) -> None:
+    browser_name, browser = _desktop_browser()
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t10_definition_browser_dom.js",
+        site / "t10-definition-browser-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>", '<script src="t10-definition-browser-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=9000,
+        viewport_width=1280,
+        viewport_height=900,
+    )
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t10-definition-browser="pass"',
+    )
+
+
+def test_real_browser_returns_from_collaboration_definition_file_without_crashing(
+    tmp_path: Path,
+    explorer_data: dict,
+) -> None:
+    browser_name, browser = _desktop_browser()
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t10_collaboration_definition_browser_dom.js",
+        site / "t10-collaboration-definition-browser-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>",
+            '<script src="t10-collaboration-definition-browser-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=9000,
+        viewport_width=1280,
+        viewport_height=900,
+    )
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t10-collaboration-definition-browser="pass"',
+    )
+
+
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (1440, 900)])
 def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     tmp_path: Path,

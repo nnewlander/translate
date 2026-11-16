@@ -1352,6 +1352,12 @@ def test_offline_build_adds_source_facts_without_changing_seven_module_trust_sta
         (source_repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
     )
     assert data["source_facts"]["scope"]["files_scanned"] == 4
+    assert data["source_facts"]["scanner_version"] == "architecture-explorer-t6-4/1.5"
+    assert data["source_facts"]["python_definition_index"]["schema"] == (
+        "architecture-explorer.python-definition-index.v1"
+    )
+    assert data["source_facts"]["python_definition_index"]["scope"]["files_scanned"] == 4
+    assert all("definitions" not in module for module in data["source_facts"]["modules"])
     assert len(data["architecture"]["modules"]) == 7
     assert all(
         module["source_coverage"] == {"status": "unverified", "evidence": []}
