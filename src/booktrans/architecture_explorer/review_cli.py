@@ -23,6 +23,11 @@ from .node_review import (
     _verify_node_review_material_integrity,
     _verify_node_review_materials,
 )
+from .node_review_packet import (
+    ALLOWED_RESULTS,
+    build_node_review_packet,
+    write_node_review_packet,
+)
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .review_source import (
@@ -68,6 +73,15 @@ def _parser() -> argparse.ArgumentParser:
     node_review.add_argument("--comment-id", type=int, required=True)
     node_review.add_argument("--decision-output", type=Path, required=True)
     node_review.add_argument("--source-output", type=Path, required=True)
+    packet = commands.add_parser(
+        "prepare-node-review",
+        help="generate the deterministic local T9 node-review packet",
+    )
+    packet.add_argument("--repository", type=Path, required=True)
+    packet.add_argument("--explorer-data", type=Path, required=True)
+    packet.add_argument("--output-directory", type=Path, required=True)
+    packet.add_argument("--result", choices=ALLOWED_RESULTS)
+    packet.add_argument("--comment-id", type=int)
     update = commands.add_parser(
         "update-review-state",
         help="explicitly assess and atomically update the T5-Lite Git review state",
@@ -125,6 +139,41 @@ def _main(
     node_review_trust_policy: _NodeReviewTrustPolicy,
 ) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "prepare-node-review":
+        if (args.result is None) != (args.comment_id is None):
+            raise ExplorerInputError(
+                "Node Review result and comment ID must be supplied together"
+            )
+        if args.comment_id is not None and args.comment_id <= 0:
+            raise ExplorerInputError("Node Review comment ID must be a positive integer")
+        output_files = ["review-packet.json", "review-packet.md"]
+        if args.result is not None:
+            output_files.append("github-comment.txt")
+        output = validate_cli_output_path(
+            args.repository,
+            args.output_directory,
+            directory=True,
+            inputs=(args.explorer_data,),
+            output_files=tuple(output_files),
+        )
+        if args.result is None and (output / "github-comment.txt").exists():
+            raise ExplorerInputError(
+                "Neutral Node Review output contains a stale GitHub comment; "
+                "use a clean output directory"
+            )
+        packet = build_node_review_packet(_object(args.explorer_data))
+        packet_path, report_path, comment_path = write_node_review_packet(
+            packet,
+            output,
+            result=args.result,
+            comment_id=args.comment_id,
+        )
+        print(f"node_review_packet={packet_path}")
+        print(f"node_review_report={report_path}")
+        if comment_path is not None:
+            print(f"node_review_comment={comment_path}")
+        print(f"node_review_packet_sha256={packet['packet_sha256']}")
+        return 0
     if args.command == "import-review":
         output = validate_cli_output_path(
             args.repository, args.output, directory=False,
