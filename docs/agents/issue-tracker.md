@@ -1,6 +1,13 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Executable tickets and current issue state for this repo live as GitHub issues. Use the `gh` CLI for all remote operations.
+
+## Contract authority
+
+- A GitHub Issue is authoritative for its ticket-specific delta, live status, dependencies, and explicit Owner overrides.
+- A tracked parent Spec referenced by an Issue may preserve a cross-ticket or historical contract. It is not a second live ticket and does not itself authorize new implementation.
+- Do not merge differing Issue and parent-Spec text. Apply a later explicit Owner override from the Issue; otherwise stop and ask the Owner when the two sources conflict materially.
+- Files under `.scratch/` and other untracked drafts are working material, not repository authority.
 
 ## Remote-operation safeguards
 

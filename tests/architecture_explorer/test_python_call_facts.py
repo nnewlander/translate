@@ -497,6 +497,95 @@ def test_patterns_without_capture_names_preserve_exact_local_resolution(
     assert "target_definition_evidence_id" in call
 
 
+@pytest.mark.parametrize(
+    ("pipeline", "context_owner", "expected_reason"),
+    [
+        (
+            "def helper():\n"
+            "    return 'module'\n\n"
+            "def process_unit(value):\n"
+            "    helper = value\n"
+            "    def invoke():\n"
+            "        return helper()\n"
+            "    return invoke()\n",
+            "call",
+            "name-is-parameter-or-rebound-in-enclosing-scope",
+        ),
+        (
+            "def helper():\n"
+            "    return 'local'\n\n"
+            "import booktrans.providers.router as helper\n\n"
+            "def process_unit():\n"
+            "    return helper()\n",
+            "file",
+            "local-definition-binding-is-not-unique",
+        ),
+        (
+            "def helper():\n"
+            "    return 'local'\n\n"
+            "from external_package import helper\n\n"
+            "def process_unit():\n"
+            "    return helper()\n",
+            "file",
+            "local-definition-binding-is-not-unique",
+        ),
+        (
+            "def helper():\n"
+            "    return 'definition'\n\n"
+            "def process_unit(value):\n"
+            "    match value:\n"
+            "        case [head, *helper]:\n"
+            "            pass\n"
+            "    return helper()\n",
+            "call",
+            "name-is-parameter-or-rebound-in-enclosing-scope",
+        ),
+    ],
+    ids=[
+        "outer-closure-rebind",
+        "plain-import-alias",
+        "external-from-import",
+        "function-pattern-capture",
+    ],
+)
+def test_binding_context_matrix_persists_and_rejects_rehashed_false_exact(
+    tmp_path: Path,
+    pipeline: str,
+    context_owner: str,
+    expected_reason: str,
+) -> None:
+    result = scan_python_source_facts(_repository(tmp_path, pipeline))
+    call = next(item for item in _calls(result) if item["callee"] == "helper")
+    call_file = next(
+        file for file in result["python_call_facts"]["files"] if file["path"] == CALL_PATHS[0]
+    )
+
+    assert call["resolution"] == "dynamic-or-ambiguous"
+    assert call["resolution_reason"] == expected_reason
+    assert "target_definition_evidence_id" not in call
+    persisted_bindings = (
+        call["enclosing_bindings"] if context_owner == "call" else call_file["module_bindings"]
+    )
+    assert "helper" in persisted_bindings
+
+    malformed = deepcopy(result)
+    forged_call = next(item for item in _calls(malformed) if item["callee"] == "helper")
+    target = next(
+        definition
+        for file in malformed["python_definition_index"]["files"]
+        if file["path"] == CALL_PATHS[0]
+        for definition in file["definitions"]
+        if definition["qualified_symbol"].endswith(".helper")
+    )
+    forged_call["resolution"] = "exact-local"
+    forged_call["resolution_reason"] = "unique-unshadowed-same-module-definition"
+    forged_call["target_definition_evidence_id"] = target["evidence"]["evidence_id"]
+    _rehash(malformed)
+
+    with pytest.raises(ExplorerInputError, match="invalid Python call facts exact target"):
+        attach_python_source_facts({"deterministic_content_sha256": "0" * 64}, malformed)
+
+
 def test_call_identity_ignores_blank_lines_and_remains_deterministic(tmp_path: Path) -> None:
     repository = _repository(
         tmp_path,
