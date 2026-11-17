@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -203,7 +204,8 @@ def _json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _explorer_with_source_facts() -> dict:
+@lru_cache(maxsize=1)
+def _explorer_with_source_facts_cached() -> dict:
     reviewed = publish_reviewed_explorer(
         REPOSITORY,
         SNAPSHOT,
@@ -215,6 +217,10 @@ def _explorer_with_source_facts() -> dict:
     )
     with_facts = attach_python_source_facts(reviewed, scan_python_source_facts(REPOSITORY))
     return apply_navigation(with_facts, _json(NAVIGATION))
+
+
+def _explorer_with_source_facts() -> dict:
+    return deepcopy(_explorer_with_source_facts_cached())
 
 
 def _direct_import_evidence_id(

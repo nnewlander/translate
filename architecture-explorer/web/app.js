@@ -35,6 +35,18 @@
   const definitionFileByPath = Object.fromEntries(
     (data.source_facts?.python_definition_index?.files || []).map((item) => [item.path, item]),
   );
+  const definitionByEvidenceId = {};
+  for (const file of Object.values(definitionFileByPath)) {
+    for (const definition of file.definitions) {
+      definitionByEvidenceId[definition.evidence.evidence_id] = { definition, file };
+    }
+  }
+  const callsByDefinitionEvidenceId = {};
+  for (const file of data.source_facts?.python_call_facts?.files || []) {
+    for (const call of file.calls) {
+      (callsByDefinitionEvidenceId[call.enclosing_definition_evidence_id] ||= []).push(call);
+    }
+  }
   for (const sourceModule of data.source_facts?.modules || []) {
     for (const fact of [...sourceModule.direct_imports, ...sourceModule.entries]) {
       sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule };
@@ -47,6 +59,7 @@
   }
   let state = stateApi.initialState();
   let suppressNextClick = false;
+  let dialogOpener = null;
 
   const grid = document.querySelector("#module-grid");
   const moduleCount = document.querySelector("#module-count");
@@ -212,68 +225,168 @@
     "nested-function": "嵌套函数",
   };
 
-  const clearDefinitionFileState = () => {
-    delete detailContent.dataset.definitionFile;
+  const callResolutionLabels = {
+    "exact-local": "exact-local · 已确认同文件静态目标",
+    "exact-import": "exact-import · 已确认显式导入静态目标",
+    "unresolved-dispatch": "unresolved-dispatch · 运行时分派未确定",
+    "dynamic-or-ambiguous": "dynamic-or-ambiguous · 动态或有歧义",
   };
 
-  const showDefinitionFile = (file, returnContext, returnEvidenceId) => {
+  const callReasonLabels = {
+    "unique-unshadowed-same-module-definition": "同一模块中只有一个未被遮蔽的静态定义。",
+    "unique-unshadowed-explicit-first-party-import": "显式 first-party import 唯一绑定到一个已索引定义。",
+    "runtime-receiver-attribute-dispatch": "调用经过运行时接收者属性；静态扫描不能确定实际对象或 Provider 实现。",
+    "dynamic-or-unsupported-callee-shape": "调用对象由动态表达式产生，静态扫描不能确认唯一目标。",
+    "name-is-parameter-or-rebound-in-enclosing-scope": "名称是参数或在当前作用域重新绑定，不能确认唯一目标。",
+    "star-import-makes-name-resolution-ambiguous": "star import 使名称来源不唯一。",
+    "local-definition-binding-is-not-unique": "同名本地定义不唯一。",
+    "imported-definition-target-is-not-unique": "导入符号不能唯一对应一个已索引定义。",
+    "import-binding-is-rebound-or-ambiguous": "导入绑定被重新绑定或存在歧义。",
+    "no-unique-static-definition-binding": "没有找到可证明唯一的静态定义绑定。",
+  };
+
+  let sourceTrail = null;
+
+  const clearDefinitionFileState = () => {
+    sourceTrail = null;
+    delete detailContent.dataset.definitionFile;
+    delete detailContent.dataset.sourceTrailLevel;
+  };
+
+  const returnToCandidateEvidence = (returnContext, returnEvidenceId) => {
+    if (returnContext.kind === "candidate-node") {
+      showModuleDetail(returnContext.module);
+    } else {
+      showCandidateCollaboration(returnContext.collaboration);
+    }
+    window.setTimeout(() => {
+      detailContent.querySelector(`.browse-definitions[data-evidence-id="${CSS.escape(returnEvidenceId)}"]`)?.focus();
+    }, 0);
+  };
+
+  const sourceTrailCrumbs = (entries) => entries.map((entry) => {
+    if (entry.kind === "file") return entry.file.path;
+    if (entry.kind === "definition") return entry.definition.qualified_symbol;
+    return entry.call.callee;
+  }).join(" › ");
+
+  const renderSourceTrail = (focusSelector = null) => {
+    if (!sourceTrail) return;
+    const entry = sourceTrail.entries.at(-1);
     detailContent.replaceChildren();
     delete detailContent.dataset.relationshipId;
     delete detailContent.dataset.collaborationId;
     delete detailContent.dataset.evidenceId;
-    detailContent.dataset.definitionFile = file.path;
-    const back = text("button", "返回候选源码依据", "definition-back");
+    detailContent.dataset.definitionFile = entry.file.path;
+    detailContent.dataset.sourceTrailLevel = entry.kind;
+    const back = text(
+      "button",
+      sourceTrail.entries.length === 1 ? "返回候选源码依据" : "返回上一步",
+      "definition-back",
+    );
     back.type = "button";
     back.addEventListener("click", () => {
-      if (returnContext.kind === "candidate-node") {
-        showModuleDetail(returnContext.module);
-      } else {
-        showCandidateCollaboration(returnContext.collaboration);
+      if (sourceTrail.entries.length === 1) {
+        returnToCandidateEvidence(sourceTrail.returnContext, sourceTrail.returnEvidenceId);
+        return;
       }
-      window.setTimeout(() => {
-        detailContent.querySelector(`.browse-definitions[data-evidence-id="${CSS.escape(returnEvidenceId)}"]`)?.focus();
-      }, 0);
+      const removed = sourceTrail.entries.pop();
+      renderSourceTrail(removed.returnFocusSelector || null);
     });
-    const title = text("h2", "Python 文件定义", "detail-title");
+    const titleText = entry.kind === "file"
+      ? "Python 文件定义"
+      : entry.kind === "definition"
+        ? "Python 静态定义"
+        : "Python 静态调用事实";
+    const title = text("h2", titleText, "detail-title");
     title.id = "detail-title";
     detailContent.append(
       back,
       text("p", "静态 Source Facts", "eyebrow"),
       title,
-      text("p", file.path, "definition-file-path"),
-      text(
-        "p",
-        "以下内容是 Python AST 提取的静态定义事实，不证明运行时执行，也不批准文件的架构归属。",
-        "candidate-warning",
-      ),
-      text("p", `${file.definitions.length} 个定义`, "definition-total"),
+      text("p", sourceTrailCrumbs(sourceTrail.entries), "source-trail-breadcrumb"),
     );
-    const controls = document.createElement("div");
-    controls.className = "definition-filters";
-    const nameLabel = text("label", "按名称过滤");
-    nameLabel.htmlFor = "definition-name-filter";
-    const nameFilter = document.createElement("input");
-    nameFilter.id = "definition-name-filter";
-    nameFilter.type = "search";
-    nameFilter.autocomplete = "off";
-    const kindLabel = text("label", "按类型过滤");
-    kindLabel.htmlFor = "definition-kind-filter";
-    const kindFilter = document.createElement("select");
-    kindFilter.id = "definition-kind-filter";
-    for (const [value, label] of [["", "全部类型"], ...Object.entries(definitionKindLabels)]) {
-      const option = document.createElement("option");
-      option.value = value; option.textContent = label; kindFilter.append(option);
-    }
-    controls.append(nameLabel, nameFilter, kindLabel, kindFilter);
-    const list = document.createElement("div"); list.className = "definition-list";
-    const selected = document.createElement("section"); selected.className = "definition-selection";
-    detailContent.append(controls, list, selected);
 
-    const renderSelected = (definition) => {
-      selected.replaceChildren(); selected.className = "definition-selection definition-selected";
+    if (entry.kind === "file") {
+      const file = entry.file;
+      detailContent.append(
+        text("p", file.path, "definition-file-path"),
+        text(
+          "p",
+          "以下内容是 Python AST 提取的静态定义事实，不证明运行时执行，也不批准文件的架构归属。",
+          "candidate-warning",
+        ),
+        text("p", `${file.definitions.length} 个定义`, "definition-total"),
+      );
+      const controls = document.createElement("div");
+      controls.className = "definition-filters";
+      const nameLabel = text("label", "按名称过滤");
+      nameLabel.htmlFor = "definition-name-filter";
+      const nameFilter = document.createElement("input");
+      nameFilter.id = "definition-name-filter";
+      nameFilter.type = "search";
+      nameFilter.autocomplete = "off";
+      nameFilter.value = entry.query || "";
+      const kindLabel = text("label", "按类型过滤");
+      kindLabel.htmlFor = "definition-kind-filter";
+      const kindFilter = document.createElement("select");
+      kindFilter.id = "definition-kind-filter";
+      for (const [value, label] of [["", "全部类型"], ...Object.entries(definitionKindLabels)]) {
+        const option = document.createElement("option");
+        option.value = value; option.textContent = label; kindFilter.append(option);
+      }
+      kindFilter.value = entry.definitionKind || "";
+      controls.append(nameLabel, nameFilter, kindLabel, kindFilter);
+      const list = document.createElement("div");
+      list.className = "definition-list";
+      detailContent.append(controls, list, text("section", "", "definition-selection"));
+      const renderList = () => {
+        entry.query = nameFilter.value;
+        entry.definitionKind = kindFilter.value;
+        list.replaceChildren();
+        const query = entry.query.trim().toLocaleLowerCase();
+        const matches = file.definitions.filter((definition) => (
+          (!query || definition.qualified_symbol.toLocaleLowerCase().includes(query))
+          && (!entry.definitionKind || definition.kind === entry.definitionKind)
+        ));
+        if (!matches.length) {
+          list.append(text("p", file.definitions.length ? "没有符合过滤条件的定义。" : "此文件没有静态定义。", "empty-evidence"));
+          return;
+        }
+        for (const definition of matches) {
+          const row = text(
+            "button",
+            `${definitionKindLabels[definition.kind]} · ${definition.qualified_symbol} · line ${definition.evidence.current_location.line_start}`,
+            "definition-row",
+          );
+          row.type = "button";
+          row.dataset.definitionId = definition.evidence.evidence_id;
+          row.addEventListener("click", () => {
+            sourceTrail.entries.push({
+              kind: "definition",
+              file,
+              definition,
+              returnFocusSelector: `.definition-row[data-definition-id="${CSS.escape(definition.evidence.evidence_id)}"]`,
+            });
+            renderSourceTrail();
+          });
+          list.append(row);
+        }
+      };
+      nameFilter.addEventListener("input", renderList);
+      kindFilter.addEventListener("change", renderList);
+      renderList();
+      if (focusSelector) window.setTimeout(() => detailContent.querySelector(focusSelector)?.focus(), 0);
+      else nameFilter.focus();
+      return;
+    }
+
+    if (entry.kind === "definition") {
+      const definition = entry.definition;
       const evidence = definition.evidence;
       const location = `${evidence.path}:${evidence.current_location.line_start}:${evidence.current_location.column_start}`;
-      const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
+      const facts = document.createElement("dl");
+      facts.className = "raw-evidence-facts";
       for (const [term, value] of [
         ["类型", definitionKindLabels[definition.kind]],
         ["Qualified symbol", definition.qualified_symbol],
@@ -281,41 +394,107 @@
         ["Evidence ID", evidence.evidence_id],
         ["源码定位", location],
       ]) facts.append(text("dt", term), text("dd", value));
+      const selected = document.createElement("section");
+      selected.className = "definition-selection definition-selected";
       selected.append(
         text("h3", definition.qualified_symbol),
-        text("p", "静态定义不等于真实运行事实，也不表示架构归属已获批准。", "candidate-warning"),
+        entry.transition === "exact-static-target"
+          ? text("p", "已确认静态目标：唯一静态绑定允许继续定位；这不证明运行时执行，也不新增 Candidate Evidence 或架构归属。", "candidate-warning")
+          : text("p", "静态定义不等于真实运行事实，也不表示架构归属已获批准。", "candidate-warning"),
         facts,
         text("pre", evidence.snippet, "definition-source"),
+        text("h3", "此定义中的静态调用"),
       );
-    };
-    const renderList = () => {
-      list.replaceChildren();
-      selected.replaceChildren(); selected.className = "definition-selection";
-      const query = nameFilter.value.trim().toLocaleLowerCase();
-      const kind = kindFilter.value;
-      const matches = file.definitions.filter((definition) => (
-        (!query || definition.qualified_symbol.toLocaleLowerCase().includes(query))
-        && (!kind || definition.kind === kind)
-      ));
-      if (!matches.length) {
-        list.append(text("p", file.definitions.length ? "没有符合过滤条件的定义。" : "此文件没有静态定义。", "empty-evidence"));
-        return;
+      const calls = callsByDefinitionEvidenceId[evidence.evidence_id] || [];
+      if (!calls.length) {
+        selected.append(text("p", "限定的四文件 Call Facts 中没有记录此定义的调用。", "empty-evidence"));
+      } else {
+        const callList = document.createElement("div");
+        callList.className = "call-list";
+        for (const call of calls) {
+          const row = text(
+            "button",
+            `${call.callee} · ${callResolutionLabels[call.resolution]} · line ${call.evidence.current_location.line_start}`,
+            `call-row call-${call.resolution}`,
+          );
+          row.type = "button";
+          row.dataset.callId = call.evidence.evidence_id;
+          row.addEventListener("click", () => {
+            sourceTrail.entries.push({
+              kind: "call",
+              file: entry.file,
+              definition,
+              call,
+              returnFocusSelector: `.call-row[data-call-id="${CSS.escape(call.evidence.evidence_id)}"]`,
+            });
+            renderSourceTrail();
+          });
+          callList.append(row);
+        }
+        selected.append(callList);
       }
-      for (const definition of matches) {
-        const row = text(
-          "button",
-          `${definitionKindLabels[definition.kind]} · ${definition.qualified_symbol} · line ${definition.evidence.current_location.line_start}`,
-          "definition-row",
-        );
-        row.type = "button";
-        row.addEventListener("click", () => renderSelected(definition));
-        list.append(row);
+      detailContent.append(selected);
+      if (focusSelector) window.setTimeout(() => detailContent.querySelector(focusSelector)?.focus(), 0);
+      else back.focus();
+      return;
+    }
+
+    const call = entry.call;
+    const evidence = call.evidence;
+    const location = `${evidence.path}:${evidence.current_location.line_start}:${evidence.current_location.column_start}`;
+    const facts = document.createElement("dl");
+    facts.className = "raw-evidence-facts";
+    for (const [term, value] of [
+      ["Callee", call.callee],
+      ["分类", callResolutionLabels[call.resolution]],
+      ["原因", callReasonLabels[call.resolution_reason] || call.resolution_reason],
+      ["Evidence ID", evidence.evidence_id],
+      ["源码定位", location],
+    ]) facts.append(text("dt", term), text("dd", value));
+    const callDetail = document.createElement("section");
+    callDetail.className = "call-selection";
+    callDetail.append(
+      text("h3", call.callee),
+      text(
+        "p",
+        "这是 Python AST 提取的静态调用事实，不证明该调用已经执行，也不形成正式架构关系。",
+        "candidate-warning",
+      ),
+      facts,
+      text("pre", evidence.snippet, "call-source"),
+    );
+    if (call.target_definition_evidence_id) {
+      const target = definitionByEvidenceId[call.target_definition_evidence_id];
+      if (target) {
+        const openTarget = text("button", "打开已确认静态目标", "call-target");
+        openTarget.type = "button";
+        openTarget.addEventListener("click", () => {
+          sourceTrail.entries.push({
+            kind: "definition",
+            file: target.file,
+            definition: target.definition,
+            transition: "exact-static-target",
+            returnFocusSelector: ".call-target",
+          });
+          renderSourceTrail();
+        });
+        callDetail.append(openTarget);
       }
+    } else {
+      callDetail.append(text("p", "未确认目标：不会列出或跳转到名称相似的 Provider 实现。", "empty-evidence"));
+    }
+    detailContent.append(callDetail);
+    if (focusSelector) window.setTimeout(() => detailContent.querySelector(focusSelector)?.focus(), 0);
+    else back.focus();
+  };
+
+  const showDefinitionFile = (file, returnContext, returnEvidenceId) => {
+    sourceTrail = {
+      returnContext,
+      returnEvidenceId,
+      entries: [{ kind: "file", file, query: "", definitionKind: "" }],
     };
-    nameFilter.addEventListener("input", renderList);
-    kindFilter.addEventListener("change", renderList);
-    renderList();
-    nameFilter.focus();
+    renderSourceTrail();
   };
 
   const renderSourceModule = () => {
@@ -400,6 +579,10 @@
   };
 
   const openDialog = () => {
+    if (!dialog.open) {
+      const opener = dialogOpener || document.activeElement;
+      dialogOpener = opener instanceof HTMLElement ? opener : null;
+    }
     if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
   };
 
@@ -851,7 +1034,9 @@
     grid.querySelector(`[data-module-id="${CSS.escape(moduleId)}"]`)?.focus({ preventScroll: true });
   });
   contextEvidence.addEventListener("click", () => {
-    const module = moduleById[state.contextMenu?.moduleId]; if (!module) return;
+    const moduleId = state.contextMenu?.moduleId;
+    const module = moduleById[moduleId]; if (!module) return;
+    dialogOpener = grid.querySelector(`[data-module-id="${CSS.escape(moduleId)}"]`);
     if (module.review_status === "candidate") {
       dispatch({ type: "MENU_EVIDENCE", relationshipId: null }); renderContextMenu(); showModuleDetail(module); return;
     }
@@ -869,9 +1054,25 @@
   document.addEventListener("click", (event) => {
     if (suppressNextClick) { suppressNextClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
   }, true);
+  const restoreDialogOpener = () => {
+    const opener = dialogOpener;
+    dialogOpener = null;
+    window.setTimeout(() => {
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    }, 20);
+  };
   dialog.addEventListener("close", () => {
     clearDefinitionFileState();
     dispatch({ type: "DETAIL_CLOSED" });
+    restoreDialogOpener();
+  });
+  dialog.addEventListener("cancel", () => {
+    clearDefinitionFileState();
+    restoreDialogOpener();
+  });
+  dialog.querySelector(".dialog-close")?.addEventListener("click", () => {
+    clearDefinitionFileState();
+    restoreDialogOpener();
   });
   window.addEventListener("resize", scheduleRelationshipGraph);
   window.addEventListener("scroll", scheduleRelationshipGraph, { passive: true });

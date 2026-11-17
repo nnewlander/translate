@@ -48,6 +48,10 @@
 
     detail.querySelector(".definition-back").click();
     await nextPaint();
+    assert(detail.dataset.sourceTrailLevel === "file", "Back did not restore the file definition list");
+    assert(document.activeElement?.classList.contains("definition-row"), "Back did not restore definition-row focus");
+    detail.querySelector(".definition-back").click();
+    await nextPaint();
     assert(detail.querySelector("#detail-title")?.textContent === "语义路由与候选获取", "Back did not restore candidate details");
     assert(!detail.dataset.definitionFile, "Back left stale definition-file state on candidate details");
     assert(document.activeElement?.classList.contains("browse-definitions"), "Back did not restore focus to the Evidence action");

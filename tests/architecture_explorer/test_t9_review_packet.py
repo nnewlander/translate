@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from functools import lru_cache
 import hashlib
 import json
 from pathlib import Path
@@ -51,7 +52,8 @@ def _file_sha256(relative_path: str) -> str:
     return hashlib.sha256((REPOSITORY / relative_path).read_bytes()).hexdigest()
 
 
-def _published_explorer() -> dict:
+@lru_cache(maxsize=1)
+def _published_explorer_cached() -> dict:
     reviewed = publish_reviewed_explorer(
         REPOSITORY,
         REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json",
@@ -104,7 +106,11 @@ def _published_explorer() -> dict:
             ],
         }
     )
-    return deepcopy(explorer)
+    return explorer
+
+
+def _published_explorer() -> dict:
+    return deepcopy(_published_explorer_cached())
 
 
 def _candidate_source_evidence(explorer: dict, evidence_id: str) -> dict:

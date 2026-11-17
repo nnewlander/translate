@@ -246,10 +246,49 @@ def _validated_viewport_evidence(path: Path) -> str:
                 f"{graph['graph_id']} navigation identity changed during resize"
             )
 
+    source_trail = evidence.get("source_trail")
+    if not isinstance(source_trail, dict) or any(
+        source_trail.get(field) is not True
+        for field in (
+            "keyboard_entry",
+            "escape_focus_restored",
+            "close_focus_restored",
+        )
+    ):
+        raise ValueError("viewport evidence has no complete Source Trail keyboard result")
+    source_trail_observations = source_trail.get("observations")
+    if not isinstance(source_trail_observations, list):
+        raise ValueError("viewport evidence has no Source Trail observations")
+    requested = [
+        observation.get("requested")
+        for observation in source_trail_observations
+        if isinstance(observation, dict)
+    ]
+    actual = [
+        observation.get("actual")
+        for observation in source_trail_observations
+        if isinstance(observation, dict)
+    ]
+    if requested != expected_sequence or actual != requested:
+        raise ValueError("Source Trail viewport sequence did not complete")
+    if any(
+        observation.get("navigation_identity") != page_identity
+        or any(
+            not isinstance(observation.get(field), (int, float))
+            or observation[field] > 1
+            for field in ("page_overflow", "dialog_overflow", "detail_overflow")
+        )
+        for observation in source_trail_observations
+    ):
+        raise ValueError("Source Trail navigation or overflow evidence is invalid")
+
     actual_sequence = " -> ".join(
         f"{width}x{height}" for width, height in _VIEWPORT_SEQUENCE
     )
-    return f"browser={product}; actual viewport sequence={actual_sequence} across 8 graphs"
+    return (
+        f"browser={product}; actual viewport sequence={actual_sequence} across "
+        "8 graphs and an open Source Trail"
+    )
 
 
 def render_report(report: ValidationReport) -> str:

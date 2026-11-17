@@ -130,6 +130,22 @@ def _valid_viewport_evidence() -> dict:
             }
             for graph_id in GRAPH_IDS
         ],
+        "source_trail": {
+            "keyboard_entry": True,
+            "escape_focus_restored": True,
+            "close_focus_restored": True,
+            "observations": [
+                {
+                    "requested": [width, height],
+                    "actual": [width, height],
+                    "navigation_identity": identity,
+                    "page_overflow": 0,
+                    "dialog_overflow": 0,
+                    "detail_overflow": 0,
+                }
+                for width, height in VIEWPORT_SEQUENCE
+            ],
+        },
     }
 
 
