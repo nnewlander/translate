@@ -88,6 +88,37 @@ async function main() {
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
     return result.result.value;
   };
+  const waitForPaint = () => evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 80))))");
+  const waitFor = async (expression, message) => {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (await evaluate(expression)) return;
+      await delay(25);
+    }
+    throw new Error(message);
+  };
+  const keyCodes = { Enter: 13, Escape: 27, F10: 121, Tab: 9 };
+  const pressKey = async (key, { code = key, modifiers = 0 } = {}) => {
+    const virtualKeyCode = keyCodes[key];
+    const text = key === "Enter" ? "\r" : undefined;
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "keyDown", key, code, modifiers,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
+      ...(text ? { text, unmodifiedText: text } : {}),
+    });
+    await cdp.send("Input.dispatchKeyEvent", {
+      type: "keyUp", key, code, modifiers,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
+    });
+  };
+  const tabUntil = async (expression, message) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      if (await evaluate(expression)) return;
+      await pressKey("Tab");
+    }
+    throw new Error(message);
+  };
 
   try {
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -165,6 +196,14 @@ async function main() {
           identity: JSON.stringify({ time_origin: performance.timeOrigin, navigation_count: performance.getEntriesByType('navigation').length }),
           order: JSON.stringify(cards.map(node => node.dataset.moduleId)),
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          navigation: document.querySelector('#breadcrumb').textContent,
+          dialog: {
+            open: document.querySelector('#relationship-detail').open,
+            overflow: document.querySelector('#relationship-detail').scrollWidth - document.querySelector('#relationship-detail').clientWidth,
+            detailOverflow: document.querySelector('#detail-content').scrollWidth - document.querySelector('#detail-content').clientWidth,
+            sourceTrailLevel: document.querySelector('#detail-content').dataset.sourceTrailLevel || null,
+            breadcrumb: document.querySelector('.source-trail-breadcrumb')?.textContent || '',
+          },
           edges,
         };
       })()`);
@@ -193,7 +232,98 @@ async function main() {
       evidence.graphs.push(graphEvidence);
     };
 
+    const openCandidateEvidenceByKeyboard = async () => {
+      await evaluate("document.querySelector('[data-module-id=\"translation-routing-and-acquisition\"]').focus()");
+      await pressKey("F10", { modifiers: 8 });
+      assert(await evaluate("document.activeElement?.id === 'context-detail-toggle'"), "Shift+F10 did not focus the context menu");
+      await pressKey("Tab");
+      assert(await evaluate("document.activeElement?.id === 'context-evidence'"), "Tab did not reach candidate Evidence");
+      await pressKey("Enter");
+      await waitFor("document.querySelector('#relationship-detail').open", "Enter did not open candidate Evidence");
+      await waitForPaint();
+    };
+
+    const openProcessUnitByKeyboard = async () => {
+      await tabUntil(
+        "document.activeElement?.classList.contains('browse-definitions') && document.activeElement.closest('.candidate-evidence-card')?.textContent.includes('src/booktrans/production_worker/pipeline.py')",
+        "Tab did not reach the pipeline.py definition browser",
+      );
+      await pressKey("Enter");
+      await waitFor("document.activeElement?.id === 'definition-name-filter'", "definition browser did not focus its name filter");
+      await cdp.send("Input.insertText", { text: "process_unit" });
+      await pressKey("Tab");
+      await pressKey("Tab");
+      assert(await evaluate("document.activeElement?.classList.contains('definition-row') && document.activeElement.textContent.includes('process_unit')"), "keyboard filtering did not reach process_unit");
+      await pressKey("Enter");
+      await waitFor("document.querySelector('#detail-content').dataset.sourceTrailLevel === 'definition'", "Enter did not open process_unit");
+      await waitForPaint();
+      assert(await evaluate("document.activeElement?.classList.contains('definition-back')"), "definition view has no keyboard focus start");
+    };
+
+    const assertSourceTrailResizeSequence = async () => {
+      const observations = [];
+      const initialOrder = await evaluate("JSON.stringify(Array.from(document.querySelectorAll('#module-grid .module-card'), node => node.dataset.moduleId))");
+      for (const [width, height] of sequence) {
+        const observation = await resize(width, height);
+        assert(observation.viewport[0] === width && observation.viewport[1] === height, `Source Trail actual viewport was ${observation.viewport.join("x")}, expected ${width}x${height}`);
+        assert(observation.identity === initialIdentity, `Source Trail reloaded while resizing to ${width}x${height}`);
+        assert(observation.order === initialOrder, `Source Trail node order changed while resizing to ${width}x${height}`);
+        assert(observation.overflow <= 1, `Source Trail page overflowed by ${observation.overflow}px at ${width}x${height}`);
+        assert(observation.dialog.open, `Source Trail closed while resizing to ${width}x${height}`);
+        assert(observation.dialog.overflow <= 1 && observation.dialog.detailOverflow <= 1, `Source Trail dialog overflowed at ${width}x${height}: ${JSON.stringify(observation.dialog)}`);
+        assert(observation.dialog.sourceTrailLevel === "definition" && observation.dialog.breadcrumb.includes("process_unit"), `Source Trail content changed at ${width}x${height}`);
+        assert(observation.navigation.includes("translation-execution") || observation.navigation.includes("翻译执行与模型接入"), `Source Trail navigation changed at ${width}x${height}`);
+        assert(observation.edges.length === 1, `Source Trail T7 graph lost its edge at ${width}x${height}`);
+        assert(observation.edges.every((edge) => edge.sourceAttached && edge.targetAttached && edge.labelClearsCards && edge.marker === "url(#candidate-arrowhead)"), `Source Trail T7 graph regressed at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+        observations.push({
+          requested: [width, height],
+          actual: observation.viewport,
+          navigation_identity: JSON.parse(observation.identity),
+          page_overflow: observation.overflow,
+          dialog_overflow: observation.dialog.overflow,
+          detail_overflow: observation.dialog.detailOverflow,
+        });
+      }
+      evidence.source_trail = {
+        keyboard_entry: true,
+        escape_focus_restored: true,
+        close_focus_restored: true,
+        observations,
+      };
+    };
+
     await assertResizeSequence("top-level", 1, "url(#reviewed-arrowhead)");
+    await evaluate("document.querySelector('[data-module-id=\"translation-execution\"]').focus()");
+    await pressKey("Enter");
+    await waitForPaint();
+    assert(await evaluate("document.querySelectorAll('#module-grid .module-card').length === 2"), "Enter did not open translation-execution");
+    await openCandidateEvidenceByKeyboard();
+    await openProcessUnitByKeyboard();
+    await assertSourceTrailResizeSequence();
+    await tabUntil(
+      "document.activeElement?.classList.contains('call-row') && document.activeElement.textContent.includes('route_semantic_unit')",
+      "Tab did not reach route_semantic_unit",
+    );
+    await pressKey("Enter");
+    await waitFor("document.querySelector('#detail-content').dataset.sourceTrailLevel === 'call'", "Enter did not open the route call");
+    assert(await evaluate("document.activeElement?.classList.contains('definition-back')"), "call view has no keyboard focus start");
+    await pressKey("Enter");
+    await waitForPaint();
+    assert(await evaluate("document.querySelector('#detail-content').dataset.sourceTrailLevel === 'definition' && document.activeElement?.classList.contains('call-row')"), "Back did not restore the calling definition and focus");
+    await pressKey("Escape");
+    await waitFor("!document.querySelector('#relationship-detail').open", "Escape did not close Source Trail");
+    await delay(80);
+    assert(await evaluate("document.activeElement?.dataset.moduleId === 'translation-routing-and-acquisition'"), "Escape did not restore candidate opener focus");
+    assert(await evaluate("!document.querySelector('#detail-content').dataset.definitionFile && !document.querySelector('#detail-content').dataset.sourceTrailLevel"), "Escape left stale Source Trail state");
+    await openCandidateEvidenceByKeyboard();
+    assert(await evaluate("!document.querySelector('#detail-content').dataset.definitionFile && !document.querySelector('#detail-content').dataset.sourceTrailLevel"), "reopen inherited stale Source Trail state");
+    await tabUntil("document.activeElement?.classList.contains('dialog-close')", "Tab did not reach Close");
+    await pressKey("Enter");
+    await waitFor("!document.querySelector('#relationship-detail').open", "Close did not close candidate Evidence");
+    await delay(80);
+    assert(await evaluate("document.activeElement?.dataset.moduleId === 'translation-routing-and-acquisition'"), "Close did not restore candidate opener focus");
+    await evaluate("document.querySelector('#home-button').click()");
+    await waitForPaint();
     const drilldowns = [
       ["document-understanding", 1],
       ["scope-and-request", 1],
@@ -213,6 +343,7 @@ async function main() {
     fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), "utf8");
     console.log("1440x900 -> 1280x900 -> 960x900 -> 1440x900");
     console.log("9 edges across 8 graphs");
+    console.log("Source Trail keyboard, focus, overflow, and resize round trip");
     cdp.close();
   } finally {
     chrome.kill();

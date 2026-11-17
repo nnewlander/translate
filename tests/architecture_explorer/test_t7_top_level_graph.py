@@ -419,6 +419,45 @@ def test_real_browser_returns_from_collaboration_definition_file_without_crashin
     )
 
 
+@pytest.mark.parametrize(
+    ("viewport_width", "viewport_height"),
+    [(390, 844), (1280, 900), (1440, 900)],
+)
+def test_real_browser_navigates_the_bounded_function_source_trail(
+    tmp_path: Path,
+    explorer_data: dict,
+    viewport_width: int,
+    viewport_height: int,
+) -> None:
+    browser_name, browser = _desktop_browser()
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t10_source_trail_dom.js",
+        site / "t10-source-trail-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>", '<script src="t10-source-trail-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=14000,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
+    )
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t10-source-trail="pass"',
+    )
+
+
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(1280, 900), (1440, 900)])
 def test_real_browser_supports_compact_cards_and_multiple_inline_expansions(
     tmp_path: Path,
@@ -495,6 +534,7 @@ def test_real_chrome_reconnects_edges_during_same_page_resize_round_trip(
     assert completed.returncode == 0, completed.stderr or completed.stdout
     assert "1440x900 -> 1280x900 -> 960x900 -> 1440x900" in completed.stdout
     assert "9 edges across 8 graphs" in completed.stdout
+    assert "Source Trail keyboard, focus, overflow, and resize round trip" in completed.stdout
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["schema"] == "architecture-explorer.chrome-viewport-evidence.v1"
     assert evidence["requested_browser"] == "chrome"
@@ -514,6 +554,24 @@ def test_real_chrome_reconnects_edges_during_same_page_resize_round_trip(
             item["navigation_identity"] == evidence["page_identity"]
             for item in graph["observations"]
         )
+    source_trail = evidence["source_trail"]
+    assert source_trail["keyboard_entry"] is True
+    assert source_trail["escape_focus_restored"] is True
+    assert source_trail["close_focus_restored"] is True
+    assert [item["requested"] for item in source_trail["observations"]] == [
+        [1440, 900],
+        [1280, 900],
+        [960, 900],
+        [1440, 900],
+    ]
+    assert all(
+        item["actual"] == item["requested"]
+        and item["navigation_identity"] == evidence["page_identity"]
+        and item["page_overflow"] <= 1
+        and item["dialog_overflow"] <= 1
+        and item["detail_overflow"] <= 1
+        for item in source_trail["observations"]
+    )
 
 
 @pytest.mark.parametrize(("viewport_width", "viewport_height"), [(960, 900), (1280, 900), (1440, 900)])
