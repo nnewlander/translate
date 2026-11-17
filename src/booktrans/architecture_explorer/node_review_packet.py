@@ -320,7 +320,7 @@ def render_node_review_report(packet: dict[str, Any]) -> str:
             "## 两阶段人工操作",
             "",
             "1. 先审阅本报告；本阶段不创建 GitHub 评论，也不产生 Decision。",
-            "2. 在 T9-2 获得单独授权后创建明确的非权威草稿评论，以取得真实 comment ID。",
+            "2. 先用 `--draft` 生成明确的非权威草稿；仅在 T9-2 获得单独授权后创建该评论，以取得真实 comment ID。",
             "3. Owner 明确选择结果后，用 `--result APPROVED|REJECTED --comment-id <真实正整数 ID>` 再次运行本地入口，生成精确最终正文。",
             "4. Owner 只把同一条草稿评论编辑为该最终正文；草稿本身不是可信决定，也不能成为 Production Anchor。",
             "5. 最终编辑后不要再次修改评论；T9-2 必须重新读取该版本，并把真实 comment ID、最终正文和最终 `updated_at` 一起绑定进可信来源收据。",
@@ -350,6 +350,29 @@ def render_node_review_comment(
             "inputs": packet["inputs"],
             "reviewed_source_snapshot": packet["reviewed_source_snapshot"],
         }
+    )
+
+
+def render_node_review_draft(packet: dict[str, Any]) -> str:
+    """Render a comment placeholder that cannot parse as a T8 Decision."""
+
+    object_key = packet["object_key"]
+    return "\n".join(
+        (
+            "ARCHITECTURE_EXPLORER_NODE_REVIEW_DRAFT_V1",
+            "Authority: NONE",
+            "Status: NON-AUTHORITATIVE",
+            (
+                "Object-Key: "
+                f"{object_key['kind']} + {object_key['parent_module_id']} + "
+                f"{object_key['node_id']}"
+            ),
+            f"Packet-SHA256: {packet['packet_sha256']}",
+            (
+                "Instruction: Preserve this comment ID; replace this entire draft "
+                "only after explicit Owner decision authorization."
+            ),
+        )
     )
 
 
@@ -392,10 +415,26 @@ def write_node_review_packet(
     return packet_path, report_path, comment_path
 
 
+def write_node_review_draft(
+    packet: dict[str, Any],
+    output_directory: Path,
+) -> Path:
+    output_directory.mkdir(parents=True, exist_ok=True)
+    draft_path = output_directory / "github-comment-draft.txt"
+    draft_path.write_text(
+        render_node_review_draft(packet),
+        encoding="utf-8",
+        newline="\n",
+    )
+    return draft_path
+
+
 __all__ = [
     "NODE_REVIEW_PACKET_SCHEMA",
     "build_node_review_packet",
     "render_node_review_comment",
+    "render_node_review_draft",
     "render_node_review_report",
+    "write_node_review_draft",
     "write_node_review_packet",
 ]
