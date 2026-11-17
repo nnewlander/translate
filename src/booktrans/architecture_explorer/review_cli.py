@@ -26,8 +26,10 @@ from .node_review import (
 from .node_review_packet import (
     ALLOWED_RESULTS,
     build_node_review_packet,
+    write_node_review_draft,
     write_node_review_packet,
 )
+from .node_review_pilot import preflight_node_review_anchor_candidate
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .review_source import (
@@ -82,6 +84,20 @@ def _parser() -> argparse.ArgumentParser:
     packet.add_argument("--output-directory", type=Path, required=True)
     packet.add_argument("--result", choices=ALLOWED_RESULTS)
     packet.add_argument("--comment-id", type=int)
+    packet.add_argument("--draft", action="store_true")
+    preflight = commands.add_parser(
+        "preflight-node-review",
+        help=(
+            "read one final GitHub review and emit only an untrusted, "
+            "uninstalled anchor candidate"
+        ),
+    )
+    preflight.add_argument("--repository", type=Path, required=True)
+    preflight.add_argument("--explorer-data", type=Path, required=True)
+    preflight.add_argument("--issue", type=int, required=True)
+    preflight.add_argument("--comment-id", type=int, required=True)
+    preflight.add_argument("--source-output", type=Path, required=True)
+    preflight.add_argument("--anchor-candidate-output", type=Path, required=True)
     update = commands.add_parser(
         "update-review-state",
         help="explicitly assess and atomically update the T5-Lite Git review state",
@@ -139,6 +155,38 @@ def _main(
     node_review_trust_policy: _NodeReviewTrustPolicy,
 ) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "preflight-node-review":
+        source_output = validate_cli_output_path(
+            args.repository,
+            args.source_output,
+            directory=False,
+            inputs=(args.explorer_data,),
+        )
+        candidate_output = validate_cli_output_path(
+            args.repository,
+            args.anchor_candidate_output,
+            directory=False,
+            inputs=(args.explorer_data,),
+        )
+        if source_output == candidate_output:
+            raise ExplorerInputError(
+                "Node Review preflight source and anchor candidate must be different files"
+            )
+        if github_api is _gh_api:
+            _gh_preflight()
+        source, candidate = preflight_node_review_anchor_candidate(
+            _object(args.explorer_data),
+            issue_number=args.issue,
+            comment_id=args.comment_id,
+            api=github_api,
+        )
+        write_json(source_output, source)
+        write_json(candidate_output, candidate)
+        print(f"node_review_preflight_source={source_output}")
+        print(f"node_review_anchor_candidate={candidate_output}")
+        print("node_review_anchor_trust=untrusted")
+        print("node_review_anchor_installation=uninstalled")
+        return 0
     if args.command == "prepare-node-review":
         if (args.result is None) != (args.comment_id is None):
             raise ExplorerInputError(
@@ -146,9 +194,15 @@ def _main(
             )
         if args.comment_id is not None and args.comment_id <= 0:
             raise ExplorerInputError("Node Review comment ID must be a positive integer")
+        if args.draft and args.result is not None:
+            raise ExplorerInputError(
+                "Node Review draft and final result are mutually exclusive"
+            )
         output_files = ["review-packet.json", "review-packet.md"]
         if args.result is not None:
             output_files.append("github-comment.txt")
+        if args.draft:
+            output_files.append("github-comment-draft.txt")
         output = validate_cli_output_path(
             args.repository,
             args.output_directory,
@@ -156,9 +210,21 @@ def _main(
             inputs=(args.explorer_data,),
             output_files=tuple(output_files),
         )
-        if args.result is None and (output / "github-comment.txt").exists():
+        stale_final = (output / "github-comment.txt").exists()
+        stale_draft = (output / "github-comment-draft.txt").exists()
+        if args.result is None and stale_final:
             raise ExplorerInputError(
                 "Neutral Node Review output contains a stale GitHub comment; "
+                "use a clean output directory"
+            )
+        if not args.draft and stale_draft:
+            raise ExplorerInputError(
+                "Node Review output contains a stale GitHub comment draft; "
+                "use a clean output directory"
+            )
+        if args.draft and stale_final:
+            raise ExplorerInputError(
+                "Node Review draft output contains a stale final GitHub comment; "
                 "use a clean output directory"
             )
         packet = build_node_review_packet(_object(args.explorer_data))
@@ -168,10 +234,13 @@ def _main(
             result=args.result,
             comment_id=args.comment_id,
         )
+        draft_path = write_node_review_draft(packet, output) if args.draft else None
         print(f"node_review_packet={packet_path}")
         print(f"node_review_report={report_path}")
         if comment_path is not None:
             print(f"node_review_comment={comment_path}")
+        if draft_path is not None:
+            print(f"node_review_draft={draft_path}")
         print(f"node_review_packet_sha256={packet['packet_sha256']}")
         return 0
     if args.command == "import-review":
