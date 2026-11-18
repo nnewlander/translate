@@ -33,9 +33,10 @@
       assert(rowRect.right <= targetRect.right + 1, "review status row overflows the candidate card");
     }
 
-    const reviewData = window.ARCHITECTURE_EXPLORER_DATA.navigation.drilldowns
+    const targetData = window.ARCHITECTURE_EXPLORER_DATA.navigation.drilldowns
       .flatMap((item) => item.children)
-      .find((item) => item.id === "worker-launch-boundary").node_review;
+      .find((item) => item.id === "worker-launch-boundary");
+    const reviewData = targetData.node_review;
     const originalProjection = reviewData.projection;
     const presentationCases = [
       ["Pending Review", "待审核"],
@@ -72,13 +73,59 @@
     const detail = document.querySelector("#detail-content");
     assert(detail.querySelector("#detail-title")?.textContent === "Worker 启动边界", "wrong detail opened");
     const expectedDetailDecision = window.T8_EXPECTED_DECISION_RESULT || "Pending Review";
+    const evidenceCards = Array.from(detail.querySelectorAll(".candidate-evidence-card"));
+    const evidenceTechnicalSections = evidenceCards.map((item) => item.querySelector(".candidate-evidence-technical"));
+    const nodeReviewTechnical = detail.querySelector(".node-review-technical");
+    const nodeReviewStatus = detail.querySelector(".node-detail-review-status");
+    assert(evidenceCards.length === 3, "Candidate Evidence is not isolated to three records");
+    assert(evidenceTechnicalSections.every((item) => item && !item.open), "raw Candidate Evidence is not collapsed by default");
+    assert(nodeReviewTechnical && !nodeReviewTechnical.open, "professional node-review information is not collapsed by default");
+    const isCurrentApproved = expectedProjection === "Current · Approved"
+      && reviewData.state.status === "current"
+      && reviewData.state.continuity === "exact-match";
+    assert(nodeReviewStatus, "node-review status badge is missing from detail");
+    assert(nodeReviewStatus.classList.contains("approved") === isCurrentApproved, "node-review status badge has misleading approved semantics");
+    assert(nodeReviewStatus.classList.contains(isCurrentApproved ? "approved" : "candidate"), "node-review status badge does not reuse the expected status style");
+    if (!isCurrentApproved) {
+      const approvedReference = document.createElement("span");
+      approvedReference.className = "status approved";
+      document.body.append(approvedReference);
+      const approvedBackground = getComputedStyle(approvedReference).backgroundColor;
+      const actualBackground = getComputedStyle(nodeReviewStatus).backgroundColor;
+      approvedReference.remove();
+      assert(actualBackground !== approvedBackground, "non-approved node-review status still uses the approved visual color");
+    }
+    targetData.source_assignment.evidence_ids.forEach((evidenceId, index) => {
+      assert(evidenceTechnicalSections[index].textContent.includes(evidenceId), `Candidate Evidence order changed at ${index}`);
+    });
+    assert(evidenceCards[0].textContent.includes("scripts/production/production_campaign_supervisor.ps1"), "launch-boundary evidence path is missing");
+    assert(evidenceCards[0].textContent.includes("Start-DeterministicWorkerProcess"), "launch-boundary evidence symbol is missing");
+    assert(evidenceCards[0].textContent.includes("受控进程启动边界"), "launch-boundary evidence meaning is missing");
+    assert(evidenceCards[1].textContent.includes("$deterministicWorkerScript"), "worker-script binding symbol is missing");
+    assert(evidenceCards[1].textContent.includes("确定性 Worker 包装脚本"), "worker-script binding meaning is missing");
+    assert(evidenceCards[2].textContent.includes("scripts/production/run_qwen_deterministic_worker.py"), "wrapper evidence path is missing");
+    assert(evidenceCards[2].textContent.includes("Worker 主入口"), "wrapper evidence meaning is missing");
+    if (expectedProjection === "Current · Approved") {
+      assert(detail.textContent.includes("节点职责审核通过（当前有效）"), "current approved responsibility status is missing");
+      assert(!detail.textContent.includes("职责状态：未审核"), "conflicting unreviewed responsibility status remains in current approved detail");
+      assert(detail.textContent.includes("源码归属：部分确认"), "partial source assignment is not clearly separated");
+      assert(detail.textContent.includes("候选协作：未审核"), "candidate collaboration review status is not clearly separated");
+      assert(detail.textContent.includes("受控发车闸门"), "approved everyday analogy is missing");
+      assert(detail.textContent.includes("不证明 Worker 实际启动"), "static-evidence runtime limitation is missing");
+    } else assert(!detail.textContent.includes("节点职责审核通过（当前有效）"), "non-approved projection received current approval wording");
     assert(detail.textContent.includes(expectedDetailDecision), "full Decision disappeared from detail");
     assert(detail.textContent.includes(expectedState), "independent Node Review State disappeared from detail");
-    assert(detail.querySelectorAll(".candidate-evidence-card").length === 3, "Candidate Evidence is not isolated to three records");
-    const claims = detail.querySelectorAll(".node-review-claim");
+    nodeReviewTechnical.querySelector("summary").click();
+    assert(nodeReviewTechnical.open, "professional node-review information cannot be expanded");
+    const claims = nodeReviewTechnical.querySelectorAll(".node-review-claim");
     if (expectedProjection === "Pending Review") {
       assert(claims.length === 0, "pending projection fabricated Review Claims");
-      assert(detail.textContent.includes("没有可用的可信 Owner/admin"), "pending trust explanation is missing");
+      assert(detail.textContent.includes("无可信审核决定"), "pending trust explanation is missing");
+      const rawReview = nodeReviewTechnical.querySelector(".node-review-json");
+      assert(rawReview && !rawReview.open, "pending full State JSON is not available in a collapsed disclosure");
+      assert(rawReview.textContent.includes("Node Review State"), "pending full State JSON heading is missing");
+      assert(rawReview.textContent.includes('"status": "not-reviewed"'), "pending full State JSON content is missing");
+      assert(!rawReview.textContent.includes("Node Review Decision"), "pending projection fabricated a Decision JSON record");
     } else {
       assert(claims.length === 8, "eight Review Claims are not shown");
       assert(detail.textContent.includes("Classification Rationale"), "classification rationale is missing");
@@ -92,7 +139,38 @@
         assert(detail.querySelectorAll(".node-review-current-locations li").length === 3, "current Evidence locators are missing");
       }
     }
+    evidenceTechnicalSections[0].querySelector("summary").click();
+    assert(evidenceTechnicalSections[0].open, "raw Candidate Evidence cannot be expanded");
+    assert(evidenceTechnicalSections[0].textContent.includes("Evidence ID"), "expanded Candidate Evidence lost its Evidence ID");
+    assert(evidenceTechnicalSections[0].querySelector("pre"), "expanded Candidate Evidence lost its raw snippet");
+    assert(evidenceTechnicalSections[0].querySelector(".copy-location"), "expanded Candidate Evidence lost copy-location access");
+    const dialog = document.querySelector("#relationship-detail");
+    assert(document.documentElement.scrollWidth <= window.innerWidth + 1, "node detail creates page-level horizontal overflow");
+    assert(dialog.scrollWidth <= dialog.clientWidth + 1, "expanded node detail creates horizontal overflow");
     assert(!Array.from(detail.querySelectorAll("button")).some((button) => /批准|拒绝|刷新/.test(button.textContent)), "detail exposes a review write control");
+
+    dialog.querySelector(".dialog-close").click();
+    await nextPaint();
+    const legacyData = window.ARCHITECTURE_EXPLORER_DATA.navigation.drilldowns
+      .flatMap((item) => item.children)
+      .find((item) => item.id === "state-and-control-decisions");
+    legacyData.node_review = structuredClone(reviewData);
+    const legacyCard = card("state-and-control-decisions");
+    legacyCard.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: 48, clientY: 48,
+    }));
+    document.querySelector("#context-evidence").click();
+    await nextPaint();
+    const legacyDetail = document.querySelector("#detail-content");
+    assert(!legacyDetail.querySelector(".node-review-technical"), "progressive disclosure leaked to a non-target node");
+    assert(!legacyDetail.querySelector(".node-review-json"), "new raw review JSON leaked to a non-target node");
+    assert(!legacyDetail.textContent.includes("审核源码快照"), "new reviewed snapshot row leaked to a non-target node");
+    if (reviewData.decision) {
+      assert(Array.from(legacyDetail.querySelectorAll("h3")).some((heading) => heading.textContent === "Review Claims"), "legacy Review Claims heading changed for a non-target node");
+    } else {
+      assert(!Array.from(legacyDetail.querySelectorAll("h3")).some((heading) => heading.textContent.includes("Review Claims")), "pending non-target node fabricated Review Claims");
+    }
+    delete legacyData.node_review;
 
     document.documentElement.dataset.t8NodeReview = "pass";
   } catch (error) {

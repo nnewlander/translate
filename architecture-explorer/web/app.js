@@ -179,7 +179,25 @@
     details.append(facts, text("pre", evidence.snippet), button); card.append(details); return card;
   };
 
-  const candidateEvidenceCard = (evidenceId, returnContext) => {
+  const progressiveEvidenceSummary = (evidence) => {
+    const summaries = {
+      powershell_function_entry: {
+        what: "这段代码是什么：Supervisor 中定义的 Worker 进程启动函数。",
+        proves: "它证明什么：源码定义了受参数、工作目录和输出收集约束的受控进程启动边界；不证明函数在真实运行中被调用。",
+      },
+      powershell_script_binding: {
+        what: "这段代码是什么：Supervisor 为确定性 Worker 包装脚本保存的明确路径。",
+        proves: "它证明什么：源码把启动目标绑定到确定性 Worker 包装脚本；不证明脚本已经启动或形成完整源码归属。",
+      },
+      deterministic_worker_wrapper: {
+        what: "这段代码是什么：Python 包装脚本直接运行时使用的 Worker 主入口。",
+        proves: "它证明什么：源码在直接执行包装脚本时把控制交给 Worker 主入口；不证明某次运行实际到达或成功完成。",
+      },
+    };
+    return summaries[evidence.evidence_kind] || null;
+  };
+
+  const candidateEvidenceCard = (evidenceId, returnContext, progressive = false) => {
     const record = sourceEvidenceById[evidenceId];
     if (!record) return text("p", `无法解析源码依据：${evidenceId}`, "load-error");
     const { fact, sourceModule, language } = record; const evidence = fact.evidence;
@@ -197,16 +215,26 @@
           : `PowerShell 静态 AST 确认这个关键函数入口写在 Supervisor 中；它支持当前未审核候选，但不证明入口在某次运行中被调用。`
       : `这条依据来自“${sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`;
     const card = document.createElement("article"); card.className = "candidate-evidence-card";
-    card.append(
-      text("p", language === "powershell" ? "PowerShell AST 自动静态源码事实" : "Python AST 自动静态源码事实", "evidence-role"),
-      text("h4", label),
-      text("p", explanation, "evidence-explanation")
-    );
+    card.append(text("p", language === "powershell" ? "PowerShell AST 自动静态源码事实" : "Python AST 自动静态源码事实", "evidence-role"), text("h4", label));
+    const summary = progressive ? progressiveEvidenceSummary(evidence) : null;
+    if (summary) {
+      card.classList.add("progressive-candidate-evidence");
+      card.append(
+        text("p", `源码位置：${location}`, "candidate-evidence-location"),
+        text("p", summary.what, "candidate-evidence-summary"),
+        text("p", summary.proves, "candidate-evidence-summary candidate-evidence-proves")
+      );
+    } else card.append(text("p", explanation, "evidence-explanation"));
     const facts = document.createElement("dl"); facts.className = "raw-evidence-facts";
     for (const [term, value] of [["Evidence ID", evidence.evidence_id], ["源码定位", location], ["事实种类", evidence.evidence_kind]]) {
       facts.append(text("dt", term), text("dd", value));
     }
-    card.append(facts, text("pre", evidence.snippet));
+    if (summary) {
+      const raw = expandable("查看原始源码与技术定位", "candidate-evidence-technical");
+      const copy = text("button", "复制定位信息", "copy-location"); copy.type = "button";
+      copy.addEventListener("click", () => copyLocation(location, copy));
+      raw.append(facts, text("pre", evidence.snippet), copy); card.append(raw);
+    } else card.append(facts, text("pre", evidence.snippet));
     const definitionFile = language ? null : definitionFileByPath[sourceModule.path];
     if (definitionFile) {
       const browse = text("button", "浏览此文件定义", "browse-definitions");
@@ -689,6 +717,21 @@
 
   const candidateKindFor = (module) => module.node_type === "component" ? "组件" : "职责";
 
+  const isProgressiveNodeDetail = (module) => module.id === "worker-launch-boundary" && Boolean(module.node_review);
+
+  const nodeDetailReviewLabel = (review) => {
+    if (review.projection === "Current · Approved" && review.state.status === "current" && review.state.continuity === "exact-match") {
+      return "节点职责审核通过（当前有效）";
+    }
+    return `节点职责审核：${nodeReviewLabels[review.projection] || nodeReviewLabels.Unknown}`;
+  };
+
+  const nodeDetailReviewStatusClass = (review) => review.projection === "Current · Approved"
+    && review.state.status === "current"
+    && review.state.continuity === "exact-match"
+    ? "approved"
+    : "candidate";
+
   const appendNodeReviewStatuses = (statuses, module) => {
     const review = module.node_review;
     if (!review) return;
@@ -699,7 +742,15 @@
   const appendNodeReviewDetail = (module) => {
     const review = module.node_review;
     if (!review) return;
-    detailContent.append(text("h3", "节点审核（只读）"));
+    const progressive = isProgressiveNodeDetail(module);
+    const container = progressive ? expandable("专业技术信息（审核记录与完整证据）", "node-review-technical") : detailContent;
+    const rawReview = () => {
+      const disclosure = expandable("查看 Decision 与 State 原始 JSON", "node-review-json");
+      if (review.decision) disclosure.append(text("h4", "Node Review Decision"), text("pre", JSON.stringify(review.decision, null, 2)));
+      disclosure.append(text("h4", "Node Review State"), text("pre", JSON.stringify(review.state, null, 2)));
+      return disclosure;
+    };
+    container.append(text("h3", "节点审核（只读）"));
     const identity = document.createElement("dl"); identity.className = "raw-evidence-facts node-review-identity";
     const identityRows = [
       ["对象键", `${review.object_key.kind} + ${review.object_key.parent_module_id} + ${review.object_key.node_id}`],
@@ -716,24 +767,29 @@
       if (review.state.evaluated_source_snapshot) {
         identityRows.push(["评估源码快照", `${review.state.evaluated_source_snapshot.revision} · ${review.state.evaluated_source_snapshot.worktree_state}`]);
       }
+      if (progressive && review.decision.reviewed_source_snapshot) {
+        identityRows.push(["审核源码快照", `${review.decision.reviewed_source_snapshot.revision} · ${review.decision.reviewed_source_snapshot.worktree_state}`]);
+      }
     }
     for (const [term, value] of identityRows) identity.append(text("dt", term), text("dd", value));
-    detailContent.append(identity);
+    container.append(identity);
     if (!review.decision) {
-      detailContent.append(text("p", "当前没有可用的可信 Owner/admin 节点审核决定。", "candidate-warning"));
+      container.append(text("p", "当前无可信审核决定；没有可用的可信 Owner/admin 节点审核决定。", "candidate-warning"));
+      if (progressive) container.append(rawReview());
+      if (progressive) detailContent.append(container);
       return;
     }
 
     if (review.state.current_evidence_locations?.length) {
-      detailContent.append(text("h3", "当前 Evidence 定位"));
+      container.append(text("h3", "当前 Evidence 定位"));
       const locations = document.createElement("ul"); locations.className = "node-review-current-locations";
       for (const location of review.state.current_evidence_locations) {
         locations.append(text("li", `${location.path}:${location.line_start}-${location.line_end} · ${location.evidence_id}`));
       }
-      detailContent.append(locations);
+      container.append(locations);
     }
 
-    detailContent.append(text("h3", "Review Claims"));
+    container.append(text("h3", progressive ? "Review Claims（原始 JSON）" : "Review Claims"));
     for (const claim of review.decision.claims) {
       const item = document.createElement("article"); item.className = "node-review-claim";
       item.append(
@@ -747,8 +803,10 @@
         item.append(text("p", `正式依赖：${claim.value.relationship_id} · ${claim.value.t3_decision_id} · ${claim.value.formal_evidence_ids.length} 条正式 Evidence`, "candidate-warning"));
       }
       item.append(text("pre", JSON.stringify(claim.value, null, 2)));
-      detailContent.append(item);
+      container.append(item);
     }
+    if (progressive) container.append(rawReview());
+    if (progressive) detailContent.append(container);
   };
 
   const showModuleDetail = (module) => {
@@ -760,19 +818,29 @@
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
-    statuses.append(text("span", isCandidate ? `${candidateKind}状态：未审核` : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
-    appendNodeReviewStatuses(statuses, module);
+    const progressive = isProgressiveNodeDetail(module);
+    const candidateLinks = isCandidate ? candidateCollaborationsForNode(module.id) : [];
+    if (progressive) {
+      statuses.append(
+        text("span", nodeDetailReviewLabel(module.node_review), `status ${nodeDetailReviewStatusClass(module.node_review)} node-detail-review-status`),
+        text("span", module.source_assignment.status === "partial" ? "源码归属：部分确认" : assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`)
+      );
+      if (candidateLinks.length) statuses.append(text("span", "候选协作：未审核", "status candidate"));
+    } else {
+      statuses.append(text("span", isCandidate ? `${candidateKind}状态：未审核` : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
+      appendNodeReviewStatuses(statuses, module);
+    }
     if (isCandidate) {
-      statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+      if (!progressive) statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
+      if (progressive) detailContent.append(text("p", "这些是静态源码事实和审核结论：它们不证明 Worker 实际启动、运行成功、凭据或外部依赖可用，也不证明生产 Checkpoint 已完成。", "candidate-warning node-review-runtime-limit"));
       if (module.source_assignment.evidence_ids?.length) {
         detailContent.append(text("h3", `源码依据（${module.source_assignment.evidence_ids.length}）`));
         const returnContext = { kind: "candidate-node", module };
         for (const evidenceId of module.source_assignment.evidence_ids) {
-          detailContent.append(candidateEvidenceCard(evidenceId, returnContext));
+          detailContent.append(candidateEvidenceCard(evidenceId, returnContext, progressive));
         }
       }
-      const candidateLinks = candidateCollaborationsForNode(module.id);
       if (candidateLinks.length) {
         detailContent.append(text("h3", "候选协作"));
         const links = document.createElement("div"); links.className = "module-evidence-links";

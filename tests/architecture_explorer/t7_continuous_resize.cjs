@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { waitForActivePort } = require("./t7_wait_for_active_port.cjs");
 
-const [browserPath, pageUrl, profilePath, evidencePath] = process.argv.slice(2);
+const [browserPath, pageUrl, profilePath, evidencePath, scenario = "continuous-resize"] = process.argv.slice(2);
 if (!browserPath || !pageUrl || !profilePath || !evidencePath) {
   throw new Error("usage: node t7_continuous_resize.cjs BROWSER PAGE_URL PROFILE_PATH EVIDENCE_PATH");
 }
@@ -86,7 +86,7 @@ async function main() {
     }
     throw new Error(message);
   };
-  const keyCodes = { Enter: 13, Escape: 27, F10: 121, Tab: 9 };
+  const keyCodes = { Enter: 13, Escape: 27, F10: 121, Tab: 9, " ": 32 };
   const pressKey = async (key, { code = key, modifiers = 0 } = {}) => {
     const virtualKeyCode = keyCodes[key];
     const text = key === "Enter" ? "\r" : undefined;
@@ -114,6 +114,54 @@ async function main() {
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (await evaluate("document.readyState === 'complete' && document.querySelectorAll('#module-grid .module-card').length === 7")) break;
       await delay(50);
+    }
+    if (scenario === "node-review-keyboard") {
+      const openWorkerDetail = async () => {
+        await evaluate("document.querySelector('[data-module-id=\"worker-launch-boundary\"]').focus()");
+        await pressKey("F10", { modifiers: 8 });
+        assert(await evaluate("document.activeElement?.id === 'context-detail-toggle'"), "Shift+F10 did not focus the worker context menu");
+        await pressKey("Tab");
+        assert(await evaluate("document.activeElement?.id === 'context-evidence'"), "Tab did not reach worker Evidence");
+        await pressKey("Enter");
+        await waitFor("document.querySelector('#relationship-detail').open", "Enter did not open worker Evidence");
+        await waitForPaint();
+      };
+      await evaluate("document.querySelector('[data-module-id=\"production-control\"]').focus()");
+      await pressKey("Enter");
+      await waitFor("document.querySelector('[data-module-id=\"worker-launch-boundary\"]')", "Enter did not open production-control");
+      await openWorkerDetail();
+      await evaluate("document.querySelector('.node-review-technical > summary').focus()");
+      await pressKey("Enter");
+      await waitFor("document.querySelector('.node-review-technical').open", "Enter did not expand professional node-review information");
+      assert(await evaluate("document.activeElement === document.querySelector('.node-review-technical > summary')"), "Enter expansion lost professional-information focus");
+      await pressKey("Enter");
+      await waitFor("!document.querySelector('.node-review-technical').open", "second Enter did not collapse professional node-review information");
+      await evaluate("document.querySelector('.candidate-evidence-technical > summary').focus()");
+      await pressKey(" ", { code: "Space" });
+      await waitFor("document.querySelector('.candidate-evidence-technical').open", "Space did not expand raw Candidate Evidence");
+      assert(await evaluate("document.activeElement === document.querySelector('.candidate-evidence-technical > summary')"), "Space expansion lost Candidate Evidence focus");
+      await pressKey(" ", { code: "Space" });
+      await waitFor("!document.querySelector('.candidate-evidence-technical').open", "second Space did not collapse raw Candidate Evidence");
+      await pressKey("Escape");
+      await waitFor("!document.querySelector('#relationship-detail').open", "Escape did not close worker detail");
+      await delay(80);
+      assert(await evaluate("document.activeElement?.dataset.moduleId === 'worker-launch-boundary'"), "Escape did not restore worker opener focus");
+      await openWorkerDetail();
+      await tabUntil("document.activeElement?.classList.contains('dialog-close')", "Tab did not reach worker detail Close");
+      await pressKey("Enter");
+      await waitFor("!document.querySelector('#relationship-detail').open", "Close did not close worker detail");
+      await delay(80);
+      assert(await evaluate("document.activeElement?.dataset.moduleId === 'worker-launch-boundary'"), "Close did not restore worker opener focus");
+      fs.writeFileSync(evidencePath, JSON.stringify({
+        schema: "architecture-explorer.node-review-keyboard-evidence.v1",
+        enter_round_trip: true,
+        space_round_trip: true,
+        escape_focus_restored: true,
+        close_focus_restored: true,
+      }, null, 2), "utf8");
+      console.log("Node review Enter/Space keyboard round trip");
+      cdp.close();
+      return;
     }
     const initialIdentity = await evaluate("JSON.stringify({ time_origin: performance.timeOrigin, navigation_count: performance.getEntriesByType('navigation').length })");
     const { windowId } = await cdp.send("Browser.getWindowForTarget");
