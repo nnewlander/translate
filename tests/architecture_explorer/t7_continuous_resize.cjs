@@ -3,6 +3,7 @@
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { waitForActivePort } = require("./t7_wait_for_active_port.cjs");
 
 const [browserPath, pageUrl, profilePath, evidencePath] = process.argv.slice(2);
 if (!browserPath || !pageUrl || !profilePath || !evidencePath) {
@@ -29,17 +30,6 @@ const chrome = spawn(browserPath, [
 ], { stdio: ["ignore", "ignore", "pipe"] });
 
 const activePortPath = path.join(profilePath, "DevToolsActivePort");
-
-async function waitForActivePort() {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (fs.existsSync(activePortPath)) {
-      const [port] = fs.readFileSync(activePortPath, "utf8").trim().split(/\r?\n/);
-      if (port) return Number(port);
-    }
-    await delay(50);
-  }
-  throw new Error("Chrome did not publish DevToolsActivePort");
-}
 
 async function waitForPage(port) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -80,7 +70,7 @@ function connect(webSocketDebuggerUrl) {
 }
 
 async function main() {
-  const port = await waitForActivePort();
+  const port = await waitForActivePort({ activePortPath, fs, delay });
   const target = await waitForPage(port);
   const cdp = await connect(target.webSocketDebuggerUrl);
   const evaluate = async (expression) => {

@@ -315,6 +315,27 @@ def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation
     assert "all assertions passed" in completed.stdout
 
 
+def test_devtools_active_port_wait_handles_only_transient_windows_file_locks() -> None:
+    completed = subprocess.run(
+        [
+            "node",
+            "--test",
+            str(REPOSITORY / "tests/architecture_explorer/t7_wait_for_active_port.test.cjs"),
+        ],
+        cwd=REPOSITORY,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    assert "tests 5" in completed.stdout
+    assert "pass 5" in completed.stdout
+    assert "fail 0" in completed.stdout
+
+
 def test_real_browser_opens_candidate_evidence_from_every_node_context_menu(
     tmp_path: Path,
     explorer_data: dict,
