@@ -128,8 +128,20 @@ class _NodeReviewTrustPolicy:
     anchors: tuple[_NodeReviewApprovalAnchor, ...] = ()
 
 
-# There is intentionally no production T8 decision or approval anchor yet.
-_PRODUCTION_NODE_REVIEW_TRUST_POLICY = _NodeReviewTrustPolicy()
+_PRODUCTION_NODE_REVIEW_TRUST_POLICY = _NodeReviewTrustPolicy(
+    (
+        _NodeReviewApprovalAnchor(
+            issue_id=6413057720,
+            issue_number=38,
+            comment_id=6944645893,
+            comment_created_at="2026-11-17T09:53:48Z",
+            comment_updated_at="2026-11-17T10:10:19Z",
+            source_receipt_sha256=(
+                "5e185031185c164d2a0d17faaaf6fb121ca328af1bfcd26309365c5e7c464e72"
+            ),
+        ),
+    )
+)
 
 
 VERSIONED_INPUTS = {

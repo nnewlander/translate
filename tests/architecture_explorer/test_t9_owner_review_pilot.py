@@ -12,6 +12,95 @@ from booktrans.architecture_explorer.review_cli import main as production_review
 from test_t8_node_review import _fixture_materials, _fixture_policy, _published_explorer
 
 
+_PRODUCTION_REVIEW_SOURCE = {
+    "schema": "architecture-explorer.github-review-source.v1",
+    "repository": {
+        "id": 1425303246,
+        "node_id": "R_kgDOVPRmzg",
+        "full_name": "nnewlander/translate",
+        "html_url": "https://github.com/nnewlander/translate",
+        "private": False,
+        "owner": {
+            "login": "nnewlander",
+            "id": 256049772,
+            "node_id": "U_kgDOD0MCbA",
+            "type": "User",
+        },
+    },
+    "issue": {
+        "id": 6413057720,
+        "node_id": "I_kwDOVPRmzs8AAAABfj9-uA",
+        "number": 38,
+        "html_url": "https://github.com/nnewlander/translate/issues/38",
+        "repository_url": "https://api.github.com/repos/nnewlander/translate",
+        "state": "open",
+    },
+    "comment": {
+        "id": 6944645893,
+        "node_id": "IC_kwDOVPRmzs8AAAABne7jBQ",
+        "html_url": (
+            "https://github.com/nnewlander/translate/issues/38"
+            "#issuecomment-6944645893"
+        ),
+        "issue_url": "https://api.github.com/repos/nnewlander/translate/issues/38",
+        "author_association": "OWNER",
+        "created_at": "2026-11-17T09:53:48Z",
+        "updated_at": "2026-11-17T10:10:19Z",
+        "body": "\n".join(
+            (
+                "ARCHITECTURE_EXPLORER_NODE_REVIEW_V1",
+                "Decision-ID: github-comment:6944645893",
+                "Result: APPROVED",
+                (
+                    "Object-Key: candidate-node + production-control + "
+                    "worker-launch-boundary"
+                ),
+                (
+                    "Claims-SHA256: "
+                    "f3252dd5a349b0c2b5902503c22e4cb8be5f568e5045cc63f96b9be6c5208783"
+                ),
+                (
+                    "Candidate-Fact-SHA256: "
+                    "0e12aa409d1c94d6f1959c59fcf3c1b6331ef18b055792db0dca460ab1ac0a2f"
+                ),
+                (
+                    "Reviewed-Revision: "
+                    "95e219a926023aff0022dbe0174e9a361e20c8b1"
+                ),
+            )
+        ),
+        "user": {
+            "login": "nnewlander",
+            "id": 256049772,
+            "node_id": "U_kgDOD0MCbA",
+            "type": "User",
+        },
+    },
+    "permission": {
+        "permission": "admin",
+        "role_name": "admin",
+        "user": {
+            "login": "nnewlander",
+            "id": 256049772,
+            "node_id": "U_kgDOD0MCbA",
+            "type": "User",
+        },
+    },
+}
+
+
+def _production_review_responses() -> dict[str, dict]:
+    source = deepcopy(_PRODUCTION_REVIEW_SOURCE)
+    return {
+        "repos/nnewlander/translate": source["repository"],
+        "repos/nnewlander/translate/issues/38": source["issue"],
+        "repos/nnewlander/translate/issues/comments/6944645893": source["comment"],
+        "repos/nnewlander/translate/collaborators/nnewlander/permission": source[
+            "permission"
+        ],
+    }
+
+
 def test_prepare_draft_is_explicitly_non_authoritative(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -316,6 +405,112 @@ def test_live_import_rejects_a_comment_edited_after_the_fixture_anchor(
             ],
             github_api=lambda endpoint: deepcopy(responses[endpoint]),
             node_review_trust_policy=_fixture_policy(),
+        )
+
+    assert not (tmp_path / "output/node-review-decision.json").exists()
+    assert not (tmp_path / "output/node-review-source.json").exists()
+
+
+def test_production_import_recognizes_the_exact_fixed_anchor_and_live_fetches(
+    tmp_path: Path,
+) -> None:
+    explorer_input = tmp_path / "explorer-data.json"
+    explorer_input.write_text(json.dumps(_published_explorer()), encoding="utf-8")
+    responses = _production_review_responses()
+    calls: list[str] = []
+
+    def github_api(endpoint: str) -> dict:
+        calls.append(endpoint)
+        return deepcopy(responses[endpoint])
+
+    assert production_review_main(
+        [
+            "import-node-review",
+            "--repository",
+            str(tmp_path),
+            "--explorer-data",
+            str(explorer_input),
+            "--issue",
+            "38",
+            "--comment-id",
+            "6944645893",
+            "--decision-output",
+            "output/node-review-decision.json",
+            "--source-output",
+            "output/node-review-source.json",
+        ],
+        github_api=github_api,
+    ) == 0
+
+    decision = json.loads(
+        (tmp_path / "output/node-review-decision.json").read_text(encoding="utf-8")
+    )
+    assert decision["decision_id"] == "github-comment:6944645893"
+    assert decision["result"] == "APPROVED"
+    assert decision["source_receipt_sha256"] == (
+        "5e185031185c164d2a0d17faaaf6fb121ca328af1bfcd26309365c5e7c464e72"
+    )
+    assert json.loads(
+        (tmp_path / "output/node-review-source.json").read_text(encoding="utf-8")
+    ) == _PRODUCTION_REVIEW_SOURCE
+    assert calls == list(responses)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "issue-id",
+        "comment-id",
+        "comment-created-at",
+        "comment-updated-at",
+        "receipt-digest",
+    ),
+)
+def test_production_import_rejects_any_fixed_anchor_mismatch(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    explorer_input = tmp_path / "explorer-data.json"
+    explorer_input.write_text(json.dumps(_published_explorer()), encoding="utf-8")
+    responses = _production_review_responses()
+    if mutation == "issue-id":
+        responses["repos/nnewlander/translate/issues/38"]["id"] += 1
+    elif mutation == "comment-id":
+        responses["repos/nnewlander/translate/issues/comments/6944645893"]["id"] += 1
+    elif mutation == "comment-created-at":
+        responses["repos/nnewlander/translate/issues/comments/6944645893"][
+            "created_at"
+        ] = "2026-11-17T09:53:49Z"
+    elif mutation == "comment-updated-at":
+        responses["repos/nnewlander/translate/issues/comments/6944645893"][
+            "updated_at"
+        ] = "2026-11-17T10:10:20Z"
+    else:
+        responses["repos/nnewlander/translate/issues/comments/6944645893"][
+            "body"
+        ] += "\nchanged after approval"
+
+    with pytest.raises(
+        ExplorerInputError,
+        match="trusted|untrusted|identity mismatch",
+    ):
+        production_review_main(
+            [
+                "import-node-review",
+                "--repository",
+                str(tmp_path),
+                "--explorer-data",
+                str(explorer_input),
+                "--issue",
+                "38",
+                "--comment-id",
+                "6944645893",
+                "--decision-output",
+                "output/node-review-decision.json",
+                "--source-output",
+                "output/node-review-source.json",
+            ],
+            github_api=lambda endpoint: deepcopy(responses[endpoint]),
         )
 
     assert not (tmp_path / "output/node-review-decision.json").exists()
