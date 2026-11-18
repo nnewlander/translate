@@ -531,3 +531,47 @@ def test_real_chrome_preserves_historical_node_review_during_resize_round_trip(
     assert completed.returncode == 0, completed.stderr or completed.stdout
     assert "1440x900 -> 1280x900 -> 960x900 -> 1440x900" in completed.stdout
     assert _target(projected)["node_review"]["projection"] == "Historical · Approved"
+
+
+def test_real_chrome_toggles_progressive_node_detail_with_keyboard(
+    tmp_path: Path,
+) -> None:
+    browser_name, browser = _desktop_browser()
+    if browser_name != "chrome":
+        pytest.skip("node-detail keyboard disclosure is a required Chrome acceptance test")
+    explorer = _published_explorer()
+    source, decision = _fixture_materials(explorer)
+    projected = _project_node_review(
+        explorer,
+        decision=decision,
+        review_source=source,
+        node_review_state={
+            "status": "current",
+            "continuity": "exact-match",
+            "decision_id": decision["decision_id"],
+            "reasons": [],
+        },
+    )
+    site = tmp_path / "site"
+    write_site(projected, site, WEB_ASSETS)
+    completed = subprocess.run(
+        (
+            "node",
+            str(Path(__file__).resolve().parent / "t7_continuous_resize.cjs"),
+            str(browser),
+            (site / "index.html").resolve().as_uri(),
+            str(tmp_path / "node-detail-keyboard-profile"),
+            str(tmp_path / "node-detail-keyboard-evidence.json"),
+            "node-review-keyboard",
+        ),
+        cwd=Path(__file__).resolve().parents[2],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    assert "Node review Enter/Space keyboard round trip" in completed.stdout

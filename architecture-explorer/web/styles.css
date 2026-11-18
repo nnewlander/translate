@@ -595,6 +595,9 @@ h2 {
 .node-review-claim pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .candidate-evidence-card h4 { margin: 0 0 8px; }
 .candidate-evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
+.candidate-evidence-location { margin: 0 0 10px; color: #526b49; font-size: 0.88rem; font-weight: 650; overflow-wrap: anywhere; }
+.candidate-evidence-summary { margin: 8px 0 0; color: #2f2f2f; line-height: 1.7; }
+.candidate-evidence-proves { color: #354b35; }
 .browse-definitions, .definition-back, .definition-row, .call-row, .call-target {
   border: 1px solid #78946b; border-radius: 10px; background: #fff; color: #2f4630; font: inherit; cursor: pointer;
 }
@@ -628,13 +631,16 @@ h2 {
 .evidence-supports { margin: 12px 0 0; color: #354b35; font-size: 0.92rem; font-weight: 650; line-height: 1.6; }
 .evidence-plain-explanation { margin: 15px 0 0; padding: 14px 16px; border-left: 4px solid #78946b; border-radius: 0 12px 12px 0; background: #f7f9f6; color: #2f3d30; line-height: 1.7; }
 .evidence-card pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; }
-.technical-details, .evidence-technical, .auxiliary-evidence, .original-review { margin-top: 16px; }
-.technical-details summary, .evidence-technical summary, .auxiliary-evidence summary, .original-review summary {
+.technical-details, .evidence-technical, .candidate-evidence-technical, .node-review-technical, .node-review-json, .auxiliary-evidence, .original-review { margin-top: 16px; }
+.technical-details summary, .evidence-technical summary, .candidate-evidence-technical summary, .node-review-technical summary, .node-review-json summary, .auxiliary-evidence summary, .original-review summary {
   color: #41563e;
   font-weight: 700;
   cursor: pointer;
 }
-.evidence-technical[open] summary, .auxiliary-evidence[open] > summary, .original-review[open] > summary { margin-bottom: 16px; }
+.evidence-technical[open] summary, .candidate-evidence-technical[open] > summary, .node-review-technical[open] > summary, .node-review-json[open] > summary, .auxiliary-evidence[open] > summary, .original-review[open] > summary { margin-bottom: 16px; }
+.node-review-technical { padding: 18px 20px; border: 1px solid #dce4d8; border-radius: 17px; background: #fbfcfa; }
+.node-review-technical > h3:first-of-type { margin-top: 0; }
+.node-review-json pre { padding: 14px; overflow: auto; border-radius: 10px; background: #f7f9f6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .raw-evidence-facts { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 7px 14px; margin: 0; padding: 15px; border-radius: 12px; background: #f7f9f6; }
 .raw-evidence-facts dt { color: #555; font-size: 0.82rem; font-weight: 650; }
 .raw-evidence-facts dd { margin: 0; overflow-wrap: anywhere; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.78rem; }
