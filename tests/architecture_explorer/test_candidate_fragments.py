@@ -928,6 +928,8 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
     data = json.loads(
         (repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
     )
+    assert data["view_projection"]["root_view_id"] == "top-level"
+    assert len(data["view_projection"]["view_index"]) == 8
     assert [
         item["parent_module_id"] for item in data["navigation"]["drilldowns"]
     ] == [
