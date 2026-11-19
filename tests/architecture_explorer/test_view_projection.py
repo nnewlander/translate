@@ -91,6 +91,7 @@ def test_current_eight_views_are_projected_without_changing_authorities() -> Non
         item["primary_action"] == {
             "kind": "open-view",
             "target_view_id": item["node_id"],
+            "transition_kind": "decomposition",
             "destination_label": projection["view_index"][item["node_id"]][
                 "display_name"
             ],

@@ -6,9 +6,11 @@ import json
 from typing import Any
 
 from .generator import ExplorerInputError
+from .source_evidence import build_source_evidence_index
 
 
 CANDIDATE_FRAGMENT_SCHEMA = "architecture-explorer.candidate-fragment.v1"
+RECURSIVE_CANDIDATE_FRAGMENT_SCHEMA = "architecture-explorer.candidate-fragment.v2"
 
 
 def _text(value: object, field: str) -> str:
@@ -17,38 +19,186 @@ def _text(value: object, field: str) -> str:
     return value
 
 
-def _source_evidence_ids(explorer: dict[str, Any]) -> set[str]:
-    source_facts = explorer.get("source_facts")
-    modules = source_facts.get("modules") if isinstance(source_facts, dict) else None
-    if not isinstance(modules, list):
-        raise ExplorerInputError("Candidate fragments require T6-1 source facts")
-    evidence_ids: set[str] = set()
-    for module in modules:
-        if not isinstance(module, dict):
+def _reject_decomposition_cycles(relationships: list[dict[str, Any]]) -> None:
+    adjacency: dict[str, list[str]] = {}
+    for relationship in relationships:
+        if relationship["semantic_family"] != "candidate-decomposition":
             continue
-        for fact in [*module.get("direct_imports", []), *module.get("entries", [])]:
-            evidence = fact.get("evidence") if isinstance(fact, dict) else None
-            evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
-            if isinstance(evidence_id, str):
-                evidence_ids.add(evidence_id)
-    powershell_scripts = source_facts.get("powershell_scripts", [])
-    if not isinstance(powershell_scripts, list):
-        raise ExplorerInputError("Candidate fragments require valid PowerShell source facts")
-    for script in powershell_scripts:
-        if not isinstance(script, dict):
-            continue
-        for collection in ("entries", "script_bindings", "dot_sources"):
-            facts = script.get(collection, [])
-            if not isinstance(facts, list):
-                continue
-            for fact in facts:
-                if not isinstance(fact, dict) or fact.get("resolution") != "known":
-                    continue
-                evidence = fact.get("evidence") if isinstance(fact, dict) else None
-                evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
-                if isinstance(evidence_id, str):
-                    evidence_ids.add(evidence_id)
-    return evidence_ids
+        source = relationship["source_node_id"]
+        target = relationship["target_node_id"]
+        adjacency.setdefault(source, []).append(target)
+
+    visiting: list[str] = []
+    visited: set[str] = set()
+
+    def visit(node_id: str) -> None:
+        if node_id in visiting:
+            start = visiting.index(node_id)
+            cycle = visiting[start:] + [node_id]
+            raise ExplorerInputError(
+                "Candidate decomposition cycle is not allowed: " + " -> ".join(cycle)
+            )
+        if node_id in visited:
+            return
+        visiting.append(node_id)
+        for target_id in sorted(adjacency.get(node_id, [])):
+            visit(target_id)
+        visiting.pop()
+        visited.add(node_id)
+
+    for source_id in sorted(adjacency):
+        visit(source_id)
+
+
+def _apply_recursive_candidate_fragments(
+    result: dict[str, Any],
+    fragments: list[dict[str, Any]],
+    known_evidence_ids: set[str],
+    global_node_ids: set[object],
+    global_relationship_ids: set[object],
+) -> list[dict[str, Any]]:
+    validated_fragments: list[dict[str, Any]] = []
+    all_relationships: list[dict[str, Any]] = []
+    scope_ids: set[str] = set()
+    for fragment in fragments:
+        scope_node_id = _text(fragment.get("scope_node_id"), "scope node id")
+        if scope_node_id not in global_node_ids:
+            raise ExplorerInputError(
+                f"Recursive candidate fragment references unknown scope Node: {scope_node_id}"
+            )
+        if scope_node_id in scope_ids:
+            raise ExplorerInputError(
+                f"Recursive candidate fragment scope Node must be unique: {scope_node_id}"
+            )
+        scope_ids.add(scope_node_id)
+        raw_nodes = fragment.get("nodes")
+        if not isinstance(raw_nodes, list) or not raw_nodes:
+            raise ExplorerInputError("Recursive candidate fragment needs nodes")
+        nodes: list[dict[str, Any]] = []
+        fragment_node_ids: set[str] = set()
+        for raw_node in raw_nodes:
+            if not isinstance(raw_node, dict):
+                raise ExplorerInputError("Recursive candidate Node must be an object")
+            if raw_node.get("review_status") != "candidate":
+                raise ExplorerInputError("Recursive candidate Nodes must remain candidate")
+            node_id = _text(raw_node.get("id"), "node id")
+            if node_id in global_node_ids or node_id in fragment_node_ids:
+                raise ExplorerInputError(
+                    f"Recursive candidate Node id must be globally unique: {node_id}"
+                )
+            evidence_ids = raw_node.get("evidence_ids")
+            if not isinstance(evidence_ids, list) or not evidence_ids:
+                raise ExplorerInputError("Recursive candidate Node needs source evidence ids")
+            unknown = [item for item in evidence_ids if item not in known_evidence_ids]
+            if unknown:
+                raise ExplorerInputError(
+                    f"Recursive candidate fragment references unknown source evidence: {unknown[0]}"
+                )
+            node_type = _text(raw_node.get("node_type"), "node type")
+            if node_type not in {"responsibility", "component"}:
+                raise ExplorerInputError(
+                    f"Unsupported recursive candidate Node type: {node_type}"
+                )
+            fragment_node_ids.add(node_id)
+            global_node_ids.add(node_id)
+            nodes.append(
+                {
+                    "id": node_id,
+                    "node_type": node_type,
+                    "name": _text(raw_node.get("name"), "node name"),
+                    "responsibility": _text(
+                        raw_node.get("professional_description"),
+                        "professional description",
+                    ),
+                    "plain_explanation": _text(
+                        raw_node.get("plain_explanation"), "plain explanation"
+                    ),
+                    "review_status": "candidate",
+                    "source_assignment": {
+                        "status": "unverified",
+                        "note": "静态源码事实只支持这项候选解释，不证明完整源码归属、运行可达或审核批准。",
+                        "relationship_ids": [],
+                        "evidence_ids": list(evidence_ids),
+                    },
+                }
+            )
+
+        raw_relationships = fragment.get("relationships")
+        if not isinstance(raw_relationships, list) or not raw_relationships:
+            raise ExplorerInputError("Recursive candidate fragment needs relationships")
+        relationships: list[dict[str, Any]] = []
+        for raw_relationship in raw_relationships:
+            if not isinstance(raw_relationship, dict):
+                raise ExplorerInputError("Recursive candidate Relationship must be an object")
+            if raw_relationship.get("review_status") != "candidate":
+                raise ExplorerInputError("Recursive candidate Relationships must remain candidate")
+            relationship_id = _text(raw_relationship.get("id"), "relationship id")
+            if relationship_id in global_relationship_ids:
+                raise ExplorerInputError(
+                    f"Recursive candidate Relationship id must be globally unique: {relationship_id}"
+                )
+            semantic_family = _text(
+                raw_relationship.get("semantic_family"), "relationship semantic family"
+            )
+            if semantic_family not in {
+                "candidate-collaboration",
+                "candidate-decomposition",
+            }:
+                raise ExplorerInputError(
+                    f"Unsupported recursive candidate Relationship semantic family: {semantic_family}"
+                )
+            source_node_id = _text(
+                raw_relationship.get("source_node_id"), "relationship source Node id"
+            )
+            target_node_id = _text(
+                raw_relationship.get("target_node_id"), "relationship target Node id"
+            )
+            for endpoint in (source_node_id, target_node_id):
+                if endpoint not in global_node_ids:
+                    raise ExplorerInputError(
+                        f"Recursive candidate Relationship references unknown Node: {endpoint}"
+                    )
+            evidence_ids = raw_relationship.get("evidence_ids")
+            if not isinstance(evidence_ids, list) or not evidence_ids:
+                raise ExplorerInputError(
+                    "Recursive candidate Relationship needs source evidence ids"
+                )
+            unknown = [item for item in evidence_ids if item not in known_evidence_ids]
+            if unknown:
+                raise ExplorerInputError(
+                    f"Recursive candidate fragment references unknown source evidence: {unknown[0]}"
+                )
+            relationship = {
+                "id": relationship_id,
+                "semantic_family": semantic_family,
+                "source_node_id": source_node_id,
+                "target_node_id": target_node_id,
+                "name": _text(raw_relationship.get("name"), "relationship name"),
+                "professional_description": _text(
+                    raw_relationship.get("professional_description"),
+                    "relationship professional description",
+                ),
+                "plain_explanation": _text(
+                    raw_relationship.get("plain_explanation"),
+                    "relationship plain explanation",
+                ),
+                "review_status": "candidate",
+                "evidence_ids": list(evidence_ids),
+            }
+            global_relationship_ids.add(relationship_id)
+            relationships.append(relationship)
+            all_relationships.append(relationship)
+        validated_fragments.append(
+            {
+                "scope_node_id": scope_node_id,
+                "nodes": nodes,
+                "relationships": relationships,
+            }
+        )
+    _reject_decomposition_cycles(all_relationships)
+    if validated_fragments:
+        result["recursive_candidate_fragments"] = validated_fragments
+    return validated_fragments
 
 
 def apply_candidate_fragments(
@@ -85,9 +235,18 @@ def apply_candidate_fragments(
         for collaboration in drilldown.get("collaborations", [])
         if isinstance(collaboration, dict)
     }
-    known_evidence_ids = _source_evidence_ids(result)
+    source_evidence_index = build_source_evidence_index(result.get("source_facts"))
+    result["source_evidence_index"] = source_evidence_index
+    known_evidence_ids = set(source_evidence_index)
     validated_fragments: list[dict[str, Any]] = []
-    for fragment in fragments:
+    recursive_fragments = [
+        fragment
+        for fragment in fragments
+        if isinstance(fragment, dict)
+        and fragment.get("schema") == RECURSIVE_CANDIDATE_FRAGMENT_SCHEMA
+    ]
+    legacy_fragments = [fragment for fragment in fragments if fragment not in recursive_fragments]
+    for fragment in legacy_fragments:
         if not isinstance(fragment, dict):
             raise ExplorerInputError("Candidate fragment must be an object")
         if fragment.get("schema") != CANDIDATE_FRAGMENT_SCHEMA:
@@ -250,11 +409,25 @@ def apply_candidate_fragments(
             navigation["drilldowns"][index] = validated
         validated_fragments.append(validated)
 
+    validated_recursive = _apply_recursive_candidate_fragments(
+        result,
+        recursive_fragments,
+        known_evidence_ids,
+        global_node_ids,
+        global_collaboration_ids,
+    )
     canonical = json.dumps(
-        validated_fragments, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        [*validated_fragments, *validated_recursive],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
     ).encode("utf-8")
     result["candidate_content_sha256"] = hashlib.sha256(canonical).hexdigest()
     return result
 
 
-__all__ = ["CANDIDATE_FRAGMENT_SCHEMA", "apply_candidate_fragments"]
+__all__ = [
+    "CANDIDATE_FRAGMENT_SCHEMA",
+    "RECURSIVE_CANDIDATE_FRAGMENT_SCHEMA",
+    "apply_candidate_fragments",
+]

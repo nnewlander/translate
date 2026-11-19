@@ -3,18 +3,26 @@
 const assert = require("node:assert/strict");
 const { initialState, nextSnapshotOpen, reduce } = require("../../architecture-explorer/web/t4-state.js");
 
-const productionControl = { type: "MODULE_PRIMARY", moduleId: "production-control", hasChildren: true };
+const productionControl = {
+  type: "APPEARANCE_PRIMARY",
+  nodeId: "production-control",
+  primaryAction: { kind: "open-view", target_view_id: "production-control" },
+};
 let state = reduce(initialState(), productionControl);
 assert.equal(state.levelId, "production-control");
 assert.equal(state.parentModuleId, "production-control");
-assert.deepEqual(state.navigationPath, ["top-level", "production-control"]);
+assert.deepEqual(state.navigationPath, [
+  { viewId: "top-level", originNodeId: null },
+  { viewId: "production-control", originNodeId: "production-control" },
+]);
 
 state = reduce(state, { type: "BACK" });
-assert.deepEqual(state, initialState());
+assert.equal(state.levelId, "top-level");
+assert.equal(state.focusNodeId, "production-control");
 state = reduce(reduce(initialState(), productionControl), { type: "HOME" });
 assert.deepEqual(state, initialState());
 
-state = reduce(initialState(), { type: "MODULE_PRIMARY", moduleId: "document-understanding", hasChildren: false });
+state = reduce(initialState(), { type: "APPEARANCE_PRIMARY", nodeId: "document-understanding" });
 assert.equal(state.levelId, "top-level");
 assert.equal(state.detailModuleId, "document-understanding");
 
@@ -35,13 +43,25 @@ state = reduce(state, { type: "ESCAPE" });
 state = reduce(state, productionControl);
 assert.equal(state.levelId, "production-control", "the next click after Escape must work immediately");
 
-const simulatedThirdLevel = { type: "MODULE_PRIMARY", moduleId: "simulated-nested-level", hasChildren: true };
+const simulatedThirdLevel = {
+  type: "APPEARANCE_PRIMARY",
+  nodeId: "worker-launch-boundary",
+  primaryAction: { kind: "open-view", target_view_id: "simulated-nested-level" },
+};
 state = reduce(reduce(initialState(), productionControl), simulatedThirdLevel);
-assert.deepEqual(state.navigationPath, ["top-level", "production-control", "simulated-nested-level"]);
+assert.deepEqual(state.navigationPath.map((frame) => frame.viewId), ["top-level", "production-control", "simulated-nested-level"]);
 const backState = reduce(state, { type: "BACK" });
-assert.deepEqual(backState.navigationPath, ["top-level", "production-control"], "BACK removes exactly one path segment");
+assert.deepEqual(backState.navigationPath.map((frame) => frame.viewId), ["top-level", "production-control"], "BACK removes exactly one path segment");
+assert.equal(backState.focusNodeId, "worker-launch-boundary", "BACK restores the Appearance that opened the departed View");
 const homeState = reduce(state, { type: "HOME" });
-assert.deepEqual(homeState.navigationPath, ["top-level"], "HOME returns directly to the root");
+assert.deepEqual(homeState.navigationPath.map((frame) => frame.viewId), ["top-level"], "HOME returns directly to the root");
+
+const returned = reduce(state, {
+  type: "APPEARANCE_PRIMARY",
+  nodeId: "return-to-root",
+  primaryAction: { kind: "open-view", target_view_id: "top-level" },
+});
+assert.deepEqual(returned.navigationPath.map((frame) => frame.viewId), ["top-level"], "a legal return transition truncates to the existing View frame");
 
 const relationshipId = "relationship:production-control:launches:translation-execution";
 state = reduce(initialState(), { type: "CONTEXT_OPEN", moduleId: "production-control", x: 12, y: 18 });

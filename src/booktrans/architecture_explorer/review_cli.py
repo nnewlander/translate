@@ -32,6 +32,7 @@ from .node_review_packet import (
 from .node_review_pilot import preflight_node_review_anchor_candidate
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
+from .view_definitions import apply_view_definitions
 from .review_source import (
     TRUSTED_COMMENT_ID,
     TRUSTED_ISSUE_NUMBER,
@@ -128,6 +129,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--review-state", type=Path)
     build.add_argument("--navigation", type=Path)
     build.add_argument("--candidate-fragment", type=Path, action="append", default=[])
+    build.add_argument("--view-definition", type=Path)
     build.add_argument("--node-review-decision", type=Path)
     build.add_argument("--node-review-source", type=Path)
     build.add_argument("--node-review-state", type=Path)
@@ -374,6 +376,7 @@ def _main(
                 args.navigation, args.web_assets, review_state_path,
                 args.node_review_decision, args.node_review_source,
                 node_review_state_path,
+                args.view_definition,
                 *args.candidate_fragment
             ) if path is not None
         ),
@@ -416,6 +419,12 @@ def _main(
             }
             for path in args.candidate_fragment
         ]
+    if args.view_definition is not None:
+        data = apply_view_definitions(data, _object(args.view_definition))
+        data["generation_inputs"]["view_definitions"] = {
+            "path": args.view_definition.name,
+            "sha256": hashlib.sha256(args.view_definition.read_bytes()).hexdigest(),
+        }
     has_node_review_target = any(
         drilldown.get("parent_module_id") == NODE_REVIEW_OBJECT_KEY["parent_module_id"]
         and any(

@@ -1,0 +1,36 @@
+{
+  "schema": "architecture-explorer.view-definitions.v1",
+  "entry_actions": [
+    {
+      "view_id": "production-control",
+      "node_id": "worker-launch-boundary",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "worker-launch-boundary-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看 Worker 启动边界内部职责"
+      }
+    }
+  ],
+  "views": [
+    {
+      "id": "worker-launch-boundary-internal",
+      "display_name": "Worker 启动边界内部 Candidate View",
+      "perspective": "responsibility",
+      "scope_node_id": "worker-launch-boundary",
+      "coverage_note": "展示 Worker 启动边界的候选内部职责与相邻包装器协作；新增对象均未审核，父节点审核结论不向内传播。",
+      "appearances": [
+        {"node_id": "worker-launch-boundary"},
+        {"node_id": "supervisor-process-launch-construction"},
+        {"node_id": "deterministic-worker-wrapper"},
+        {"node_id": "worker-production-entry-guard"}
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction",
+        "candidate-decomposition:worker-launch-boundary-to-worker-production-entry-guard",
+        "candidate-collaboration:supervisor-to-worker-wrapper",
+        "candidate-collaboration:worker-wrapper-to-production-entry-guard"
+      ]
+    }
+  ]
+}

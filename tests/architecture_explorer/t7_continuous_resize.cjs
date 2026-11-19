@@ -213,8 +213,8 @@ async function main() {
         };
         const edges = Array.from(document.querySelectorAll('#relationship-edge-layer > g')).map((edge) => {
           const values = edge.querySelector('.graph-edge').getAttribute('d').match(/-?\\d+(?:\\.\\d+)?/g).map(Number);
-          const id = edge.dataset.relationshipId || edge.dataset.collaborationId;
-          const label = document.querySelector('.graph-edge-label[data-relationship-id="' + CSS.escape(id) + '"], .graph-edge-label[data-collaboration-id="' + CSS.escape(id) + '"]');
+          const id = edge.dataset.relationshipId || edge.dataset.collaborationId || edge.dataset.decompositionId;
+          const label = document.querySelector('.graph-edge-label[data-relationship-id="' + CSS.escape(id) + '"], .graph-edge-label[data-collaboration-id="' + CSS.escape(id) + '"], .graph-edge-label[data-decomposition-id="' + CSS.escape(id) + '"]');
           const labelBounds = label.getBoundingClientRect();
           const labelClearsCards = cards.every((node) => {
             const bounds = node.getBoundingClientRect();
@@ -329,6 +329,19 @@ async function main() {
         observations,
       };
     };
+
+    if (scenario === "recursive-resize") {
+      await evaluate("document.querySelector('[data-module-id=\"production-control\"]').click()");
+      await waitFor("document.querySelector('[data-module-id=\"worker-launch-boundary\"]')", "production-control View did not open");
+      await evaluate("document.querySelector('[data-module-id=\"worker-launch-boundary\"]').click()");
+      await waitFor("document.querySelector('[data-module-id=\"worker-production-entry-guard\"]')", "recursive internal View did not open");
+      await waitForPaint();
+      await assertResizeSequence("worker-launch-boundary-internal", 4, "url(#candidate-arrowhead)");
+      fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), "utf8");
+      console.log("recursive 1440x900 -> 1280x900 -> 960x900 -> 1440x900");
+      cdp.close();
+      return;
+    }
 
     await assertResizeSequence("top-level", 1, "url(#reviewed-arrowhead)");
     await evaluate("document.querySelector('[data-module-id=\"translation-execution\"]').focus()");

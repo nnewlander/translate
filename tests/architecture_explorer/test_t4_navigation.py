@@ -136,6 +136,13 @@ def test_node_interaction_state_suite_covers_navigation_menu_and_misclick_guard(
     assert "all assertions passed" in completed.stdout
 
 
+def test_production_state_uses_only_explicit_appearance_navigation() -> None:
+    state_source = (WEB_ASSETS / "t4-state.js").read_text(encoding="utf-8")
+
+    assert "MODULE_PRIMARY" not in state_source
+    assert "hasChildren" not in state_source
+
+
 def test_real_browser_dom_order_closes_menu_without_suppressing_next_click(
     tmp_path: Path,
     t3_data: dict,
@@ -200,7 +207,7 @@ def test_offline_ui_wires_read_only_breadcrumb_context_menu_and_local_state_asse
     assert "pointerdown" in app
     assert "stopImmediatePropagation" in app
     assert "suppressPrimaryOnce" not in state
-    assert 'navigationPath: ["top-level"]' in state
+    assert 'navigationPath: [{ viewId: "top-level", originNodeId: null }]' in state
 
 
 def test_return_navigation_uses_fixed_edge_icons_and_top_level_visibility() -> None:
