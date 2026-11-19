@@ -2,25 +2,35 @@
 contract_family: architecture-explorer-acceptance
 contract_version: 2
 contract_ref: architecture-explorer/v2
-status: proposed
+status: current
+effective_baseline: ef2782873d23db77731aabbb3aaef7362f8f75b0
 runtime_authority: false
 authority_issue: https://github.com/nnewlander/translate/issues/51
 fixed_starting_baseline: 4c7f8be1f0be48189804a51ed42aaf8bdb64ab94
 approved_spec_sha256: b33db66aabf8869028db2c81207a4d65a109c4ea5c72d225dfd4637c11ce842e
 inherits: architecture-explorer/v1
 activation: candidate-head-acceptance-then-metadata-only-switch
+top_level_modules: 7
+reviewed_relationships: 1
+approved_evidence: 13
+candidate_nodes: 20
+candidate_collaborations: 9
+candidate_decompositions: 2
+views: 9
 ---
 
-# Architecture Explorer v2 proposed acceptance contract
+# Architecture Explorer v2 current acceptance contract
 
 This file records the Owner-approved successor contract from
 [GitHub Issue #51](https://github.com/nnewlander/translate/issues/51). It is a
-repository preservation copy for implementation and review; it is not runtime
-architecture data and does not activate v2.
+repository preservation copy for implementation, review and current acceptance.
+It is not runtime architecture data, and activation does not make it runtime
+authority.
 
-v1 remains the sole current contract (`architecture-explorer/v1`). This proposed
-contract intentionally has no `effective_baseline`. Activation is reserved for
-Ticket #54 after the candidate Head H acceptance described in Issue #51.
+v2 is the sole current contract (`architecture-explorer/v2`), and its
+`effective_baseline` is `ef2782873d23db77731aabbb3aaef7362f8f75b0`, the frozen
+candidate Head H accepted under Ticket #54. v1 is `superseded-by-v2`; its
+normative body remains preserved.
 
 ## Inheritance and Delta
 
