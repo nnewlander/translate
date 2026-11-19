@@ -4,7 +4,7 @@
   const data = window.ARCHITECTURE_EXPLORER_DATA;
   const stateApi = window.ARCHITECTURE_EXPLORER_STATE;
   const error = document.querySelector("#load-error");
-  if (!data || !data.architecture || !Array.isArray(data.architecture.modules) || !stateApi) {
+  if (!data || !data.architecture || !Array.isArray(data.architecture.modules) || !data.view_projection || !stateApi) {
     error.hidden = false;
     error.textContent = "Explorer 数据缺失或格式无效。请重新生成离线站点。";
     return;
@@ -21,16 +21,44 @@
     "Historical · Rejected": "曾拒绝 · 需复核",
     Unknown: "审核有效性未知",
   };
-  const modules = data.architecture.modules;
-  const relationships = Array.isArray(data.architecture.relationships) ? data.architecture.relationships : [];
+  const authoritativeModules = data.architecture.modules;
+  const authoritativeRelationships = Array.isArray(data.architecture.relationships) ? data.architecture.relationships : [];
   const navigation = data.navigation || {
     root: { id: "top-level", name: "整体架构" }, drilldowns: [],
     history_and_auxiliary: { title: "历史与辅助区", description: "暂无导航数据。", default_expanded: false, items: [] },
   };
+  const projection = data.view_projection;
+  const viewById = projection.view_index || {};
+  const rootView = viewById[projection.root_view_id];
   const drilldownByParent = Object.fromEntries(navigation.drilldowns.map((item) => [item.parent_module_id, item]));
+  const resolveNode = (reference) => {
+    if (reference.record_source === "architecture.modules") return authoritativeModules[reference.record_index];
+    if (reference.record_source === "navigation.drilldowns.children") {
+      return drilldownByParent[reference.owner_view_id]?.children?.[reference.record_index];
+    }
+    return null;
+  };
+  const resolveRelationship = (reference) => {
+    if (reference.record_source === "architecture.relationships") return authoritativeRelationships[reference.record_index];
+    if (reference.record_source === "navigation.drilldowns.collaborations") {
+      return drilldownByParent[reference.owner_view_id]?.collaborations?.[reference.record_index];
+    }
+    return null;
+  };
+  const moduleById = Object.fromEntries(
+    Object.entries(projection.node_index || {}).map(([nodeId, reference]) => [nodeId, resolveNode(reference)]),
+  );
+  const relationshipRecordById = Object.fromEntries(
+    Object.entries(projection.relationship_index || {}).map(([relationshipId, reference]) => [relationshipId, resolveRelationship(reference)]),
+  );
+  const relationships = Object.entries(projection.relationship_index || {})
+    .filter(([, reference]) => reference.semantic_family === "formal-relationship")
+    .map(([relationshipId]) => relationshipRecordById[relationshipId]);
   const relationshipById = Object.fromEntries(relationships.map((item) => [item.id, item]));
-  const childById = Object.fromEntries(navigation.drilldowns.flatMap((item) => item.children).map((item) => [item.id, item]));
-  const moduleById = Object.fromEntries([...modules, ...Object.values(childById)].map((item) => [item.id, item]));
+  const childById = Object.fromEntries(
+    Object.entries(moduleById).filter(([, item]) => item?.review_status === "candidate"),
+  );
+  const modules = (rootView?.appearances || []).map((appearance) => moduleById[appearance.node_id]);
   const sourceEvidenceById = {};
   const definitionFileByPath = Object.fromEntries(
     (data.source_facts?.python_definition_index?.files || []).map((item) => [item.path, item]),
@@ -679,8 +707,9 @@
     detailContent.append(original); openDialog();
   };
 
-  const candidateCollaborationsForNode = (nodeId) => navigation.drilldowns
-    .flatMap((item) => item.collaborations || [])
+  const candidateCollaborationsForNode = (nodeId) => Object.entries(projection.relationship_index || {})
+    .filter(([, reference]) => reference.semantic_family === "candidate-collaboration")
+    .map(([relationshipId]) => relationshipRecordById[relationshipId])
     .filter((item) => item.source_node_id === nodeId || item.target_node_id === nodeId);
 
   const showCandidateCollaboration = (collaboration) => {
@@ -867,42 +896,39 @@
   };
 
   const dispatch = (action) => { state = stateApi.reduce(state, action); };
-  const currentDrilldown = () => drilldownByParent[state.parentModuleId] || null;
+  const currentView = () => viewById[state.levelId] || rootView;
   let edgeFrame = 0;
   let edgeTimer = 0;
 
   const visibleGraphEdges = () => {
-    const drilldown = currentDrilldown();
-    if (drilldown) {
-      const visibleNodeIds = new Set(drilldown.children.map((node) => node.id));
-      return (drilldown.collaborations || [])
-        .filter((collaboration) => (
-          collaboration.review_status === "candidate"
-            && visibleNodeIds.has(collaboration.source_node_id)
-            && visibleNodeIds.has(collaboration.target_node_id)
-        ))
-        .map((collaboration) => ({
-          id: collaboration.id,
-          sourceId: collaboration.source_node_id,
-          targetId: collaboration.target_node_id,
+    const view = currentView();
+    const visibleNodeIds = new Set(view.appearances.map((appearance) => appearance.node_id));
+    return view.relationship_ids.map((relationshipId) => {
+      const reference = projection.relationship_index[relationshipId];
+      const record = relationshipRecordById[relationshipId];
+      if (reference.semantic_family === "candidate-collaboration") {
+        return {
+          id: relationshipId,
+          sourceId: record.source_node_id,
+          targetId: record.target_node_id,
           kind: "candidate",
-          record: collaboration,
-        }));
-    }
-    return relationships
-      .filter((relation) => (
-        relation.review_status === "current-reviewed"
-          && relation.source_continuity?.status === "exact-match"
-          && moduleById[relation.source_module]
-          && moduleById[relation.target_module]
-      ))
-      .map((relation) => ({
-        id: relation.id,
-        sourceId: relation.source_module,
-        targetId: relation.target_module,
+          record,
+        };
+      }
+      return {
+        id: relationshipId,
+        sourceId: record.source_module,
+        targetId: record.target_module,
         kind: "reviewed",
-        record: relation,
-      }));
+        record,
+      };
+    }).filter((edge) => (
+      visibleNodeIds.has(edge.sourceId)
+        && visibleNodeIds.has(edge.targetId)
+        && (edge.kind === "candidate"
+          ? edge.record.review_status === "candidate"
+          : edge.record.review_status === "current-reviewed" && edge.record.source_continuity?.status === "exact-match")
+    ));
   };
 
   const edgeEndpoints = (sourceRect, targetRect, surfaceRect) => {
@@ -993,19 +1019,20 @@
   };
 
   const renderNavigation = () => {
-    const drilldown = currentDrilldown(); const atTop = !drilldown;
-    breadcrumb.replaceChildren(); breadcrumb.append(text("span", navigation.root.name, "crumb"));
-    if (drilldown) breadcrumb.append(text("span", "›", "crumb-separator"), text("span", drilldown.name, "crumb current"));
+    const view = currentView(); const atTop = view.id === projection.root_view_id;
+    breadcrumb.replaceChildren(); breadcrumb.append(text("span", rootView.display_name, "crumb"));
+    if (!atTop) breadcrumb.append(text("span", "›", "crumb-separator"), text("span", view.display_name, "crumb current"));
     bottomNavigation.hidden = atTop;
-    heroTitle.textContent = atTop ? "顶层架构" : drilldown.name;
-    heroLede.textContent = atTop ? "已批准的逻辑职责，与源码覆盖核验分别呈现。" : drilldown.coverage_note;
+    heroTitle.textContent = atTop ? "顶层架构" : view.display_name;
+    heroLede.textContent = view.coverage_note;
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
 
-  const cardFor = (module, isChild) => {
+  const cardFor = (module, appearance, isChild) => {
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
-    const hasChildren = Boolean(drilldownByParent[module.id]);
+    const primaryAction = appearance.primary_action;
+    const hasChildren = primaryAction?.kind === "open-view";
     const expanded = state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
     article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
@@ -1028,7 +1055,7 @@
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);
     const activate = () => {
-      dispatch({ type: "MODULE_PRIMARY", moduleId: module.id, hasChildren }); render();
+      dispatch({ type: "MODULE_PRIMARY", moduleId: primaryAction?.target_view_id || module.id, hasChildren }); render();
       if (state.detailModuleId) showModuleDetail(moduleById[state.detailModuleId]);
     };
     article.addEventListener("click", activate);
@@ -1046,13 +1073,16 @@
   };
 
   const renderModules = () => {
-    const drilldown = currentDrilldown(); const visible = drilldown ? drilldown.children : modules;
-    grid.classList.toggle("top-level-grid", !drilldown);
-    grid.classList.toggle("candidate-graph-grid", Boolean(drilldown));
-    grid.classList.toggle("production-candidate-grid", drilldown?.parent_module_id === "production-control");
-    grid.replaceChildren(); visible.forEach((module) => grid.append(cardFor(module, Boolean(drilldown))));
-    moduleCount.textContent = `${visible.length} 个${drilldown ? "候选节点" : "模块"}`;
-    const collaborations = drilldown?.collaborations || [];
+    const view = currentView(); const atTop = view.id === projection.root_view_id;
+    const visible = view.appearances.map((appearance) => ({ appearance, module: moduleById[appearance.node_id] }));
+    grid.classList.toggle("top-level-grid", atTop);
+    grid.classList.toggle("candidate-graph-grid", !atTop);
+    grid.classList.toggle("production-candidate-grid", view.scope_node_id === "production-control");
+    grid.replaceChildren(); visible.forEach(({ appearance, module }) => grid.append(cardFor(module, appearance, !atTop)));
+    moduleCount.textContent = `${visible.length} 个${atTop ? "模块" : "候选节点"}`;
+    const collaborations = view.relationship_ids
+      .filter((relationshipId) => projection.relationship_index[relationshipId]?.semantic_family === "candidate-collaboration")
+      .map((relationshipId) => relationshipRecordById[relationshipId]);
     candidateCollaborations.hidden = collaborations.length === 0;
     candidateCollaborationList.replaceChildren();
     for (const collaboration of collaborations) {

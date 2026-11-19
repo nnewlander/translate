@@ -17,12 +17,15 @@ from .node_review_continuity import (
     update_node_review_state,
 )
 from .source_scanner import scan_python_source_facts
+from .view_projection import VIEW_PROJECTION_SCHEMA, apply_view_projection
 
 __all__ = [
     "SCANNER_VERSION",
     "NAVIGATION_SCHEMA",
+    "VIEW_PROJECTION_SCHEMA",
     "NODE_REVIEW_OBJECT_KEY",
     "apply_navigation",
+    "apply_view_projection",
     "build_explorer",
     "evaluate_review_state",
     "evaluate_node_review_state",

@@ -429,6 +429,9 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def write_site(data: dict[str, Any], output_directory: Path, web_assets: Path) -> None:
+    from .view_projection import apply_view_projection
+
+    data = apply_view_projection(data)
     output_directory.mkdir(parents=True, exist_ok=True)
     write_json(output_directory / "explorer-data.json", data)
     javascript_data = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")

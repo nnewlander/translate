@@ -131,6 +131,35 @@ def test_exactly_one_current_architecture_explorer_contract_is_versioned() -> No
     assert metadata["reviewer_conflict_policy"] == "report-and-block"
 
 
+def test_v2_contract_is_proposed_without_displacing_v1_current() -> None:
+    contracts = {
+        metadata["contract_ref"]: (path, metadata)
+        for path in DOCS.glob("architecture-explorer*.md")
+        if (metadata := _frontmatter(path)).get("contract_family")
+        == "architecture-explorer-acceptance"
+    }
+
+    assert set(contracts) == {"architecture-explorer/v1", "architecture-explorer/v2"}
+    assert contracts["architecture-explorer/v1"][1]["status"] == "current"
+    v2_path, v2 = contracts["architecture-explorer/v2"]
+    assert v2["status"] == "proposed"
+    assert "effective_baseline" not in v2
+    assert v2["runtime_authority"] == "false"
+    assert v2["authority_issue"] == "https://github.com/nnewlander/translate/issues/51"
+    assert v2["fixed_starting_baseline"] == (
+        "4c7f8be1f0be48189804a51ed42aaf8bdb64ab94"
+    )
+    assert v2["approved_spec_sha256"] == (
+        "b33db66aabf8869028db2c81207a4d65a109c4ea5c72d225dfd4637c11ce842e"
+    )
+    text = v2_path.read_text(encoding="utf-8")
+    assert "v1 remains the sole current contract" in text
+    assert "Candidate Nodes: 20" in text
+    assert "Candidate Collaborations: 9" in text
+    assert "Candidate Decomposition: 2" in text
+    assert "Views: 9" in text
+
+
 def test_current_contract_inventory_matches_existing_generated_inputs() -> None:
     _, metadata = _current_contract()
     modules = _json("architecture-explorer/modules.json")["modules"]

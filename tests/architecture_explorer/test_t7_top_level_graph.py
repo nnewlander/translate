@@ -18,6 +18,7 @@ from booktrans.architecture_explorer.source_scanner import (
     attach_python_source_facts,
     scan_python_source_facts,
 )
+from booktrans.architecture_explorer.view_projection import apply_view_projection
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -106,7 +107,11 @@ def explorer_data() -> dict:
     )
     with_facts = attach_python_source_facts(reviewed, scan_python_source_facts(REPOSITORY))
     navigable = apply_navigation(with_facts, _json(REPOSITORY / "architecture-explorer/navigation.v1.json"))
-    return apply_candidate_fragments(navigable, [_json(path) for path in CANDIDATE_FRAGMENTS])
+    with_candidates = apply_candidate_fragments(
+        navigable,
+        [_json(path) for path in CANDIDATE_FRAGMENTS],
+    )
+    return apply_view_projection(with_candidates)
 
 
 DESKTOP_BROWSERS = {
@@ -299,6 +304,51 @@ def test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids(
 
     assert sum(len(item["children"]) for item in drilldowns.values()) == 18
     assert sum(len(item["collaborations"]) for item in drilldowns.values()) == 8
+
+
+def test_real_browser_renders_the_normalized_current_view(
+    tmp_path: Path,
+    explorer_data: dict,
+) -> None:
+    browser_name, browser = _desktop_browser()
+    projected = deepcopy(explorer_data)
+    view = projected["view_projection"]["view_index"]["production-control"]
+    view["display_name"] = "规范化投影视图"
+    view["appearances"] = list(reversed(view["appearances"]))
+
+    site = tmp_path / "site"
+    write_site(explorer_data, site, WEB_ASSETS)
+    javascript_data = json.dumps(projected, ensure_ascii=False).replace("</", "<\\/")
+    (site / "explorer-data.js").write_text(
+        f"window.ARCHITECTURE_EXPLORER_DATA = {javascript_data};\n",
+        encoding="utf-8",
+    )
+    shutil.copyfile(
+        REPOSITORY / "tests/architecture_explorer/t11_view_projection_dom.js",
+        site / "t11-view-projection-dom.js",
+    )
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>", '<script src="t11-view-projection-dom.js"></script></body>',
+        ),
+        encoding="utf-8",
+    )
+
+    completed = _dump_dom(
+        browser,
+        page,
+        tmp_path / "browser-profile",
+        virtual_time_budget=2500,
+        viewport_width=1280,
+        viewport_height=900,
+    )
+
+    _assert_browser_dom(
+        completed,
+        browser_name=browser_name,
+        pass_marker='data-t11-view-projection="pass"',
+    )
 
 
 def test_inline_expansion_state_supports_multiple_cards_and_clears_on_navigation() -> None:
