@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from functools import lru_cache
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,19 +33,14 @@ def _recursive_fragment() -> dict:
     return _json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")
 
 
-@lru_cache(maxsize=1)
-def _base_explorer() -> dict:
-    return _current_explorer()
-
-
 def _recursive_explorer(fragment: dict | None = None) -> dict:
     return apply_candidate_fragments(
-        deepcopy(_base_explorer()), [fragment or _recursive_fragment()]
+        _current_explorer(), [fragment or _recursive_fragment()]
     )
 
 
 def _real_call_fact() -> dict:
-    for source_file in _base_explorer()["source_facts"]["python_call_facts"]["files"]:
+    for source_file in _current_explorer()["source_facts"]["python_call_facts"]["files"]:
         if source_file["calls"]:
             return source_file["calls"][0]
     raise AssertionError("fixed Source Facts contain no Call Fact")
@@ -54,7 +48,7 @@ def _real_call_fact() -> dict:
 
 def test_real_recursive_candidate_input_projects_the_approved_internal_view() -> None:
     explorer = apply_candidate_fragments(
-        deepcopy(_base_explorer()),
+        _current_explorer(),
         [_json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")],
     )
     explorer = apply_view_definitions(
@@ -401,7 +395,7 @@ def test_renderer_has_no_recursive_depth_or_new_view_special_case() -> None:
 @pytest.fixture(scope="module")
 def recursive_explorer_data() -> dict:
     explorer = apply_candidate_fragments(
-        deepcopy(_base_explorer()),
+        _current_explorer(),
         [_json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")],
     )
     explorer = apply_view_definitions(
@@ -447,7 +441,7 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     generated = _json(str(site.relative_to(REPOSITORY) / "explorer-data.json"))
     assert len(generated["view_projection"]["view_index"]) == 9
     assert generated["view_projection"]["view_index"]["worker-launch-boundary-internal"]
-    legacy = _base_explorer()
+    legacy = _current_explorer()
     assert generated["architecture"]["relationships"] == legacy["architecture"]["relationships"]
     assert len(generated["architecture"]["relationships"][0]["evidence"]) == 13
     assert sum(
@@ -529,7 +523,7 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
         ],
     }
     explorer = apply_candidate_fragments(
-        deepcopy(_base_explorer()), [production_fragment, test_fragment]
+        _current_explorer(), [production_fragment, test_fragment]
     )
     definitions = _json("architecture-explorer/views/recursive-views.v1.json")
     definitions["entry_actions"].append(
