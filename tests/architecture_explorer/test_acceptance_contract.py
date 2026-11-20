@@ -184,7 +184,11 @@ def test_exactly_one_current_architecture_explorer_contract_is_versioned() -> No
 def test_v2_contract_activation_supersedes_v1_and_binds_candidate_head() -> None:
     contracts = _contracts()
 
-    assert set(contracts) == {"architecture-explorer/v1", "architecture-explorer/v2"}
+    assert set(contracts) == {
+        "architecture-explorer/v1",
+        "architecture-explorer/v2",
+        "architecture-explorer/v3",
+    }
     v1 = contracts["architecture-explorer/v1"][1]
     assert v1["status"] == "superseded-by-v2"
     assert v1["superseded_by"] == "architecture-explorer/v2"
@@ -205,6 +209,30 @@ def test_v2_contract_activation_supersedes_v1_and_binds_candidate_head() -> None
     assert "Candidate Collaborations: 9" in text
     assert "Candidate Decomposition: 2" in text
     assert "Views: 9" in text
+    v3_path, v3 = contracts["architecture-explorer/v3"]
+    assert v3 == {
+        "contract_family": "architecture-explorer-acceptance",
+        "contract_version": "3",
+        "contract_ref": "architecture-explorer/v3",
+        "status": "proposed",
+        "runtime_authority": "false",
+        "authority_issue": "https://github.com/nnewlander/translate/issues/58",
+        "implementation_issue": "https://github.com/nnewlander/translate/issues/59",
+        "fixed_starting_baseline": "6a239f6919cbb791e69e56383b91dbb634aeaf0f",
+        "approved_spec_sha256": (
+            "0eb5f5650897fc0ba15b129a2782c09eeceda551e087cb3ff7e51ca5afbf1283"
+        ),
+        "inherits": "architecture-explorer/v2",
+        "activation": "candidate-head-acceptance-then-contract-status-only-switch",
+        "content_delta_manifest_schema": (
+            "architecture-explorer.content-delta-manifest.v1"
+        ),
+    }
+    v3_text = v3_path.read_text(encoding="utf-8")
+    assert v3_text.count("## Contract status") == 1
+    assert "- current_contract: architecture-explorer/v2" in v3_text
+    assert "- target_status: proposed" in v3_text
+    assert "v2 remains\nthe sole current contract" not in v3_text
 
 
 def test_current_v2_status_explanation_matches_frontmatter() -> None:

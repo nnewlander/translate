@@ -1,0 +1,9 @@
+{
+  "schema": "architecture-explorer.content-delta-manifest.v1",
+  "delta_id": "architecture-explorer-v3-ticket-01",
+  "target_contract": "architecture-explorer/v3",
+  "base_revision": "6a239f6919cbb791e69e56383b91dbb634aeaf0f",
+  "base_content_sha256": "af7fcc843f306765b0135390fc6b184a2d47af8d14322a11de4ad26bdfcd1be7",
+  "head_content_sha256": "af7fcc843f306765b0135390fc6b184a2d47af8d14322a11de4ad26bdfcd1be7",
+  "changes": []
+}
