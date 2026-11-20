@@ -953,21 +953,24 @@ def test_reviewed_build_cli_accepts_independent_candidate_fragments(tmp_path: Pa
         CANDIDATE_RELEASE_FRAGMENT.name,
     ]
     assert data["architecture"]["relationships"][0]["review_status"] == "current-reviewed"
-    production = next(
-        item
-        for item in data["navigation"]["drilldowns"]
-        if item["parent_module_id"] == "production-control"
-    )
-    target = next(
-        item for item in production["children"] if item["id"] == "worker-launch-boundary"
-    )
-    assert target["node_review"]["projection"] == "Pending Review"
-    assert target["node_review"]["decision"] is None
-    assert sum(
-        "node_review" in item
+    assert "node_review_projection" not in data
+    assert all(
+        "node_review" not in item
         for drilldown in data["navigation"]["drilldowns"]
         for item in drilldown["children"]
-    ) == 1
+    )
+
+    legacy_option = build_args.index("--web-assets")
+    build_args[legacy_option:legacy_option] = ["--legacy-node-review-v1"]
+    assert review_main(build_args) == 0
+    data = json.loads(
+        (repository / "output/site/explorer-data.json").read_text(encoding="utf-8")
+    )
+    legacy_review = data["node_review_projection"]["objects"][
+        "candidate-node::worker-launch-boundary"
+    ]
+    assert legacy_review["projection"] == "Pending Review"
+    assert legacy_review["decision"] is None
 
     supervisor = repository / "scripts/production/production_campaign_supervisor.ps1"
     supervisor.write_text(

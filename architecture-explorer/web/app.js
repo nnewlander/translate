@@ -28,6 +28,10 @@
     history_and_auxiliary: { title: "历史与辅助区", description: "暂无导航数据。", default_expanded: false, items: [] },
   };
   const projection = data.view_projection;
+  const nodeReviewObjects = data.node_review_projection?.schema === "architecture-explorer.node-review-projection.v1"
+    ? data.node_review_projection.objects || {}
+    : {};
+  const nodeReviewFor = (module) => nodeReviewObjects[`candidate-node::${module.id}`] || null;
   const viewById = projection.view_index || {};
   const rootView = viewById[projection.root_view_id];
   const drilldownByParent = Object.fromEntries(navigation.drilldowns.map((item) => [item.parent_module_id, item]));
@@ -823,7 +827,7 @@
 
   const candidateKindFor = (module) => module.node_type === "component" ? "组件" : "职责";
 
-  const isProgressiveNodeDetail = (module) => module.id === "worker-launch-boundary" && Boolean(module.node_review);
+  const isProgressiveNodeDetail = (module) => Boolean(nodeReviewFor(module));
 
   const nodeDetailReviewLabel = (review) => {
     if (review.projection === "Current · Approved" && review.state.status === "current" && review.state.continuity === "exact-match") {
@@ -839,14 +843,14 @@
     : "candidate";
 
   const appendNodeReviewStatuses = (statuses, module) => {
-    const review = module.node_review;
+    const review = nodeReviewFor(module);
     if (!review) return;
     statuses.classList.add("node-review-statuses");
     statuses.append(text("span", `人工审核：${nodeReviewLabels[review.projection] || nodeReviewLabels.Unknown}`, "candidate-card-status node-review-status"));
   };
 
   const appendNodeReviewDetail = (module) => {
-    const review = module.node_review;
+    const review = nodeReviewFor(module);
     if (!review) return;
     const progressive = isProgressiveNodeDetail(module);
     const container = progressive ? expandable("专业技术信息（审核记录与完整证据）", "node-review-technical") : detailContent;
@@ -859,7 +863,7 @@
     container.append(text("h3", "节点审核（只读）"));
     const identity = document.createElement("dl"); identity.className = "raw-evidence-facts node-review-identity";
     const identityRows = [
-      ["对象键", `${review.object_key.kind} + ${review.object_key.parent_module_id} + ${review.object_key.node_id}`],
+      ["对象键", [review.object_key.kind, review.object_key.parent_module_id, review.object_key.node_id].filter(Boolean).join(" + ")],
       ["Decision", review.decision?.result || "Pending Review"],
       ["Node Review State", `${review.state.status} · ${review.state.continuity}`],
     ];
@@ -924,11 +928,12 @@
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
+    const nodeReview = nodeReviewFor(module);
     const progressive = isProgressiveNodeDetail(module);
     const candidateLinks = isCandidate ? candidateRelationshipsForNode(module.id) : [];
     if (progressive) {
       statuses.append(
-        text("span", nodeDetailReviewLabel(module.node_review), `status ${nodeDetailReviewStatusClass(module.node_review)} node-detail-review-status`),
+        text("span", nodeDetailReviewLabel(nodeReview), `status ${nodeDetailReviewStatusClass(nodeReview)} node-detail-review-status`),
         text("span", module.source_assignment.status === "partial" ? "源码归属：部分确认" : assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`)
       );
       if (candidateLinks.length) statuses.append(text("span", "候选协作：未审核", "status candidate"));
@@ -939,7 +944,7 @@
     if (isCandidate) {
       if (!progressive) statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
-      if (progressive) detailContent.append(text("p", "这些是静态源码事实和审核结论：它们不证明 Worker 实际启动、运行成功、凭据或外部依赖可用，也不证明生产 Checkpoint 已完成。", "candidate-warning node-review-runtime-limit"));
+      if (progressive) detailContent.append(text("p", "这些是静态源码事实和审核结论：它们不证明该职责在真实运行中被到达，也不证明运行成功、凭据或外部依赖可用。", "candidate-warning node-review-runtime-limit"));
       const visibleDecomposition = currentView().relationship_ids.some((relationshipId) => {
         const reference = projection.relationship_index[relationshipId];
         const record = relationshipRecordById[relationshipId];
@@ -1136,7 +1141,7 @@
     inlineDetail.addEventListener("click", (event) => event.stopPropagation()); article.append(inlineDetail);
     const statuses = document.createElement("div"); statuses.className = "statuses";
     if (isChild) {
-      if (module.node_review) {
+      if (nodeReviewFor(module)) {
         statuses.append(text("span", assignmentLabels[module.source_assignment.status], "candidate-card-status source-assignment-status"));
         appendNodeReviewStatuses(statuses, module);
       } else {

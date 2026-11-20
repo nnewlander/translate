@@ -1,4 +1,4 @@
-"""Persistent continuity state for the one T8 node-review object."""
+"""Continuity adapter for the exact historical worker Decision v1 object."""
 
 from __future__ import annotations
 
@@ -344,6 +344,28 @@ def _evaluate_node_review_state(
         "evaluated_source_snapshot": deepcopy(state["evaluated_source_snapshot"]),
         "current_evidence_locations": deepcopy(state["current_evidence_locations"]),
     }
+
+
+def _valid_current_projection_state(
+    explorer: dict[str, Any], state: dict[str, Any]
+) -> bool:
+    """Bind a projected Current state to this v1 object's live snapshot and Evidence."""
+
+    assessment = _assessment(explorer)
+    source_facts = explorer.get("source_facts", {})
+    source_snapshot = source_facts.get("source_snapshot", {})
+    expected_snapshot = {
+        "revision": source_snapshot.get("revision"),
+        "worktree_state": source_snapshot.get("worktree", {}).get("state"),
+        "source_facts_sha256": source_facts.get("deterministic_facts_sha256"),
+    }
+    return (
+        assessment.get("state") == "current"
+        and assessment.get("continuity") == "exact-match"
+        and state.get("evaluated_source_snapshot") == expected_snapshot
+        and state.get("current_evidence_locations")
+        == assessment.get("current_evidence_locations")
+    )
 
 
 def _unknown_state(decision: dict[str, Any], reason: str) -> dict[str, Any]:

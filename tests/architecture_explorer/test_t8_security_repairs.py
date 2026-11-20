@@ -9,22 +9,35 @@ import shutil
 import pytest
 
 import booktrans.architecture_explorer as explorer_api
+import booktrans.architecture_explorer.node_review_definitions as definition_api
 from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.node_review import (
+    _NodeReviewApprovalAnchor as NodeReviewApprovalAnchor,
+    _NodeReviewTrustPolicy as NodeReviewTrustPolicy,
     _verify_node_review_materials,
     import_node_review_from_github,
     verify_node_review_materials,
+)
+from booktrans.architecture_explorer.node_review_definitions import (
+    build_node_review_packets,
+    render_node_review_decision_body,
+    validate_node_review_definitions,
+)
+from booktrans.architecture_explorer.node_review_v2_continuity import (
+    update_node_review_v2_state,
 )
 from booktrans.architecture_explorer.review_cli import (
     _main as _review_main_with_test_policy,
     _parser,
     main as review_main,
 )
+from booktrans.architecture_explorer.review_source import review_source_sha256
 from test_t8_node_review import (
     _canonical_sha256,
     _fixture_materials,
     _fixture_policy,
     _fixture_source,
+    _projected_node_review,
     _published_explorer,
     _source_evidence_record,
     _target,
@@ -35,6 +48,9 @@ from t5_lite_fixture import commit, create_source_repository
 
 def test_supported_python_api_has_no_projection_or_trust_root_injection() -> None:
     assert not hasattr(explorer_api, "apply_node_review")
+    assert not hasattr(explorer_api, "project_node_reviews")
+    assert "project_node_reviews" not in explorer_api.__all__
+    assert "project_node_reviews" not in definition_api.__all__
     assert "trust_policy" not in inspect.signature(
         import_node_review_from_github
     ).parameters
@@ -270,6 +286,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         build_args.extend(("--candidate-fragment", str(fragment)))
     build_args.extend(
         (
+            "--legacy-node-review-v1",
             "--node-review-decision", str(decision_path),
             "--node-review-source", str(source_path),
             "--node-review-state", str(node_review_state),
@@ -277,6 +294,13 @@ def test_github_import_flows_through_offline_build_to_generated_site(
             "--output-directory", "output/site",
         )
     )
+    implicit_legacy_args = list(build_args)
+    implicit_legacy_args.remove("--legacy-node-review-v1")
+    with pytest.raises(ExplorerInputError, match="explicit --legacy-node-review-v1"):
+        _review_main_with_test_policy(
+            implicit_legacy_args,
+            node_review_trust_policy=policy,
+        )
     if decision_result == "APPROVED":
         decision_only_args = list(build_args)
         source_option = decision_only_args.index("--node-review-source")
@@ -303,7 +327,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         missing_state_data = json.loads(
             (missing_state_site / "explorer-data.json").read_text(encoding="utf-8")
         )
-        assert _target(missing_state_data)["node_review"]["projection"] == "Unknown"
+        assert _projected_node_review(missing_state_data)["projection"] == "Unknown"
 
     with pytest.raises(ExplorerInputError, match="independently trusted"):
         review_main(build_args)
@@ -314,15 +338,154 @@ def test_github_import_flows_through_offline_build_to_generated_site(
     ) == 0
 
     generated = json.loads((site / "explorer-data.json").read_text(encoding="utf-8"))
-    target = next(
-        node
-        for drilldown in generated["navigation"]["drilldowns"]
-        if drilldown["parent_module_id"] == "production-control"
-        for node in drilldown["children"]
-        if node["id"] == "worker-launch-boundary"
+    projected_review = _projected_node_review(generated)
+    assert projected_review["projection"] == expected_projection
+    persisted_node_state = json.loads(node_review_state.read_text(encoding="utf-8"))
+    assert projected_review["state"]["evaluated_source_snapshot"] == (
+        persisted_node_state["evaluated_source_snapshot"]
     )
-    assert target["node_review"]["projection"] == expected_projection
-    assert expected_projection in (site / "explorer-data.js").read_text(encoding="utf-8")
+    assert projected_review["state"]["current_evidence_locations"] == (
+        persisted_node_state["current_evidence_locations"]
+    )
+    generated_javascript = (site / "explorer-data.js").read_text(encoding="utf-8")
+    assert expected_projection in generated_javascript
+    assert persisted_node_state["current_evidence_locations"][0]["path"] in (
+        generated_javascript
+    )
+
+    generic_v1_args = list(build_args)
+    generic_v1_args.remove("--legacy-node-review-v1")
+    generic_v1_args.extend(
+        (
+            "--node-review-definitions",
+            str(REPOSITORY / "architecture-explorer/review-definitions/node-reviews.v1.json"),
+        )
+    )
+    generic_output_option = generic_v1_args.index("--output-directory")
+    generic_v1_args[generic_output_option + 1] = "output/generic-v1-site"
+    assert _review_main_with_test_policy(
+        generic_v1_args,
+        node_review_trust_policy=policy,
+    ) == 0
+    generic_v1_data = json.loads(
+        (repository / "output/generic-v1-site/explorer-data.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    generic_v1_review = _projected_node_review(generic_v1_data)
+    assert generic_v1_review["projection"] == expected_projection
+    assert generic_v1_review["state"]["evaluated_source_snapshot"] == (
+        persisted_node_state["evaluated_source_snapshot"]
+    )
+    assert generic_v1_review["state"]["current_evidence_locations"] == (
+        persisted_node_state["current_evidence_locations"]
+    )
+
+    if decision_result == "APPROVED":
+        definitions = validate_node_review_definitions(
+            json.loads(
+                (
+                    REPOSITORY
+                    / "architecture-explorer/review-definitions/node-reviews.v1.json"
+                ).read_text(encoding="utf-8")
+            )
+        )
+        worker_definition = next(
+            item
+            for item in definitions
+            if item["object_key"]["node_id"] == "worker-launch-boundary"
+        )
+        packet = build_node_review_packets(explorer, [worker_definition])[
+            "candidate-node::worker-launch-boundary"
+        ]
+        v2_source = deepcopy(source)
+        v2_decision = {
+            "schema": "architecture-explorer.node-review-decision.v2",
+            "decision_id": f"github-comment:{v2_source['comment']['id']}",
+            "object_key": packet["object_key"],
+            "result": "APPROVED",
+            "reviewed_source_snapshot": packet["reviewed_source_snapshot"],
+            "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+            "source_receipt_sha256": "pending",
+            "inputs": packet["inputs"],
+            "claims": packet["claims"],
+        }
+        v2_source["comment"]["body"] = render_node_review_decision_body(v2_decision)
+        v2_decision["source_receipt_sha256"] = review_source_sha256(v2_source)
+        v2_source["comment"]["body"] = render_node_review_decision_body(v2_decision)
+        v2_policy = NodeReviewTrustPolicy(
+            (
+                NodeReviewApprovalAnchor(
+                    issue_id=v2_source["issue"]["id"],
+                    issue_number=v2_source["issue"]["number"],
+                    comment_id=v2_source["comment"]["id"],
+                    comment_created_at=v2_source["comment"]["created_at"],
+                    comment_updated_at=v2_source["comment"]["updated_at"],
+                    source_receipt_sha256=v2_decision["source_receipt_sha256"],
+                ),
+            )
+        )
+        v2_materials = repository / "output/v2-worker-materials"
+        v2_materials.mkdir(parents=True)
+        (v2_materials / "decision.json").write_text(
+            json.dumps(v2_decision, ensure_ascii=False), encoding="utf-8"
+        )
+        (v2_materials / "source.json").write_text(
+            json.dumps(v2_source, ensure_ascii=False), encoding="utf-8"
+        )
+        update_node_review_v2_state(
+            generic_v1_data,
+            worker_definition,
+            v2_decision,
+            v2_source,
+            v2_materials / "state.json",
+            assessed_at="2026-11-20T12:30:00Z",
+            trust_policy=v2_policy,
+        )
+        v2_args = list(build_args)
+        for option in (
+            "--node-review-decision",
+            "--node-review-source",
+            "--node-review-state",
+        ):
+            option_index = v2_args.index(option)
+            del v2_args[option_index : option_index + 2]
+        v2_args.remove("--legacy-node-review-v1")
+        v2_args.extend(
+            (
+                "--node-review-definitions",
+                str(
+                    REPOSITORY
+                    / "architecture-explorer/review-definitions/node-reviews.v1.json"
+                ),
+                "--node-review-material-directory",
+                str(v2_materials),
+            )
+        )
+        v2_output_option = v2_args.index("--output-directory")
+        v2_args[v2_output_option + 1] = "output/generic-v2-site"
+        assert _review_main_with_test_policy(
+            v2_args,
+            node_review_trust_policy=v2_policy,
+        ) == 0
+        v2_site = repository / "output/generic-v2-site"
+        v2_data = json.loads(
+            (v2_site / "explorer-data.json").read_text(encoding="utf-8")
+        )
+        v2_review = _projected_node_review(v2_data)
+        persisted_v2_state = json.loads(
+            (v2_materials / "state.json").read_text(encoding="utf-8")
+        )
+        assert v2_review["projection"] == "Current · Approved"
+        assert v2_review["state"]["evaluated_source_snapshot"] == (
+            persisted_v2_state["evaluated_source_snapshot"]
+        )
+        assert v2_review["state"]["current_evidence_locations"] == (
+            persisted_v2_state["current_evidence_locations"]
+        )
+        assert persisted_v2_state["current_evidence_locations"][0]["path"] in (
+            v2_site / "explorer-data.js"
+        ).read_text(encoding="utf-8")
 
     material_fragment = tmp_path / "production-control.v1.json"
     material_fragment.write_text(
@@ -390,7 +553,7 @@ def test_github_import_flows_through_offline_build_to_generated_site(
         if decision_result == "APPROVED"
         else "Historical · Rejected"
     )
-    assert _target(historical_data)["node_review"]["projection"] == expected_history
+    assert _projected_node_review(historical_data)["projection"] == expected_history
     assert expected_history in (
         historical_site / "explorer-data.js"
     ).read_text(encoding="utf-8")

@@ -1,0 +1,115 @@
+{
+  "schema": "architecture-explorer.node-review-definitions.v1",
+  "definitions": [
+    {
+      "object_key": {
+        "kind": "candidate-node",
+        "node_id": "worker-launch-boundary"
+      },
+      "reviewed_source_snapshot": {
+        "revision": "95e219a926023aff0022dbe0174e9a361e20c8b1",
+        "worktree_state": "clean"
+      },
+      "classification_rationale": "worker-launch-boundary 描述的是生产控制把受参数和守卫约束的启动请求跨越进程边界交给翻译执行这一稳定架构职责，而不是某一个文件、函数、脚本包装器或可部署组件。三条 Candidate Evidence 跨越控制侧启动准备与 Worker 入口定位，只支持该职责边界值得作为候选节点表达；它们不足以证明一个物理组件、完整源码边界或排他所有权。",
+      "claim_kinds": [
+        "IDENTITY",
+        "NAME",
+        "CLASSIFICATION",
+        "RESPONSIBILITY",
+        "PLAIN_EXPLANATION",
+        "SOURCE_ASSIGNMENT",
+        "CANDIDATE_EVIDENCE",
+        "DEPENDENCIES_AND_LIMITS"
+      ],
+      "candidate_evidence_ids": [
+        "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+        "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+      ],
+      "dependencies_and_limits": {
+        "dependencies": [
+          {
+            "kind": "reviewed-relationship",
+            "object_id": "relationship:production-control:launches:translation-execution",
+            "decision_id": "github-comment:6516894339",
+            "result": "APPROVED",
+            "reviewed_revision": "857a4b85cf4763b74ecff0d02e660b005a0c8bae",
+            "claims_sha256": "7197e0b96a1aafc1520a01d5e52a039a92532d7339c44a06ed586e6b4aaa2e1a",
+            "evidence_ids": [
+              "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13",
+              "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711",
+              "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3",
+              "evidence:sha256:3929e17745639510a1a3c6a39b5be55b5a6afc2070c3f18cb300fa0107983308",
+              "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a",
+              "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc",
+              "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2",
+              "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa",
+              "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2",
+              "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d",
+              "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5",
+              "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914",
+              "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d"
+            ]
+          }
+        ],
+        "zero_dependency_reason": null,
+        "retained_unknowns": [
+          "是否在某次实际运行中到达或成功跨越该边界",
+          "运行时前置条件、凭据和外部依赖是否可用",
+          "该职责的完整源码覆盖",
+          "任何文件、symbol 或代码区域是否排他归属该节点",
+          "观察到的名称、字面值和直接绑定以外的参数业务含义",
+          "相邻组件是否获批",
+          "任何 Candidate Collaboration 是否获批",
+          "顶层模块源码覆盖是否完成"
+        ]
+      },
+      "legacy_compatibility": {
+        "schema": "architecture-explorer.node-review-decision.v1",
+        "object_key": {
+          "kind": "candidate-node",
+          "parent_module_id": "production-control",
+          "node_id": "worker-launch-boundary"
+        }
+      }
+    },
+    {
+      "object_key": {
+        "kind": "candidate-node",
+        "node_id": "translation-routing-and-acquisition"
+      },
+      "reviewed_source_snapshot": {
+        "revision": "6a239f6919cbb791e69e56383b91dbb634aeaf0f",
+        "worktree_state": "clean"
+      },
+      "classification_rationale": "该对象描述 Worker/pipeline 对请求处理、Provider 路由选择和 RAW 候选投影的候选职责；静态 Evidence 支持这项职责解释，但不证明运行时到达、Provider 可用性、完整调用链或排他源码归属。",
+      "claim_kinds": [
+        "IDENTITY",
+        "NAME",
+        "CLASSIFICATION",
+        "RESPONSIBILITY",
+        "PLAIN_EXPLANATION",
+        "SOURCE_ASSIGNMENT",
+        "CANDIDATE_EVIDENCE",
+        "DEPENDENCIES_AND_LIMITS"
+      ],
+      "candidate_evidence_ids": [
+        "evidence:sha256:d55785f6425c76a38557500a8aa1a213b233cfcfbe166e90ea493cec7ef8bad9",
+        "evidence:sha256:cf8b1f80bc34f3f0b0b6948f8f21e9a2a616e36256dee5f68910ea5363cf4358"
+      ],
+      "dependencies_and_limits": {
+        "dependencies": [],
+        "zero_dependency_reason": "当前没有已审核的正式架构关系被声明为该候选职责的审核前置依赖；这不表示不存在运行时或外部依赖。",
+        "retained_unknowns": [
+          "某次真实请求是否到达该路由职责",
+          "Provider、凭据和外部服务在运行时是否可用",
+          "该职责的完整源码覆盖",
+          "任何文件、symbol 或代码区域是否排他归属该节点",
+          "translation-routing-to-provider Candidate Collaboration 是否获批",
+          "RAW 候选投影在真实运行中的结果"
+        ]
+      },
+      "legacy_compatibility": null
+    }
+  ]
+}

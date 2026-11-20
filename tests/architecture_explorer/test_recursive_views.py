@@ -431,6 +431,7 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
             str(REPOSITORY / "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"),
             "--view-definition",
             str(REPOSITORY / "architecture-explorer/views/recursive-views.v1.json"),
+            "--legacy-node-review-v1",
             "--web-assets",
             str(REPOSITORY / "architecture-explorer/web"),
             "--output-directory",
@@ -450,15 +451,10 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     assert sum(
         len(view["collaborations"]) for view in generated["navigation"]["drilldowns"]
     ) == 8
-    production = next(
-        view
-        for view in generated["navigation"]["drilldowns"]
-        if view["parent_module_id"] == "production-control"
-    )
-    parent = next(
-        node for node in production["children"] if node["id"] == "worker-launch-boundary"
-    )
-    assert parent["node_review"]["projection"] == "Pending Review"
+    legacy_review = generated["node_review_projection"]["objects"][
+        "candidate-node::worker-launch-boundary"
+    ]
+    assert legacy_review["projection"] == "Pending Review"
     recursive_nodes = generated["recursive_candidate_fragments"][0]["nodes"]
     assert all("node_review" not in node for node in recursive_nodes)
     assert all(node["source_assignment"]["status"] == "unverified" for node in recursive_nodes)

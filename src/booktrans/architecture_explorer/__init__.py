@@ -7,7 +7,6 @@ from .review_mapping import import_review_mapping, parse_review_decision, publis
 from .review_source import fetch_github_review_source, verify_trusted_review_source
 from .navigation import NAVIGATION_SCHEMA, apply_navigation
 from .node_review import (
-    NODE_REVIEW_OBJECT_KEY,
     import_node_review_from_github,
     verify_node_review_materials,
 )
@@ -16,6 +15,14 @@ from .node_review_continuity import (
     evaluate_node_review_state,
     update_node_review_state,
 )
+from .node_review_definitions import (
+    NODE_REVIEW_DECISION_V2_SCHEMA,
+    NODE_REVIEW_DEFINITIONS_SCHEMA,
+    NODE_REVIEW_PACKET_V2_SCHEMA,
+    build_node_review_packets,
+    validate_node_review_definitions,
+)
+from .node_review_projection import NODE_REVIEW_PROJECTION_SCHEMA
 from .source_scanner import scan_python_source_facts
 from .view_projection import VIEW_PROJECTION_SCHEMA, apply_view_projection
 from .view_definitions import VIEW_DEFINITIONS_SCHEMA, apply_view_definitions
@@ -23,14 +30,18 @@ from .view_definitions import VIEW_DEFINITIONS_SCHEMA, apply_view_definitions
 __all__ = [
     "SCANNER_VERSION",
     "NAVIGATION_SCHEMA",
+    "NODE_REVIEW_DECISION_V2_SCHEMA",
+    "NODE_REVIEW_DEFINITIONS_SCHEMA",
+    "NODE_REVIEW_PACKET_V2_SCHEMA",
+    "NODE_REVIEW_PROJECTION_SCHEMA",
     "VIEW_PROJECTION_SCHEMA",
-    "NODE_REVIEW_OBJECT_KEY",
     "apply_navigation",
     "apply_view_projection",
     "apply_view_definitions",
     "build_explorer",
     "evaluate_review_state",
     "evaluate_node_review_state",
+    "build_node_review_packets",
     "fetch_github_review_source",
     "import_review_mapping",
     "import_node_review_from_github",
@@ -43,6 +54,7 @@ __all__ = [
     "update_review_state",
     "update_node_review_state",
     "verify_node_review_materials",
+    "validate_node_review_definitions",
     "verify_trusted_review_source",
     "write_candidate_outputs",
     "VIEW_DEFINITIONS_SCHEMA",
