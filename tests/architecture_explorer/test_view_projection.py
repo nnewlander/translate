@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from functools import lru_cache
 import json
 from pathlib import Path
 
@@ -21,7 +22,8 @@ def _json(relative_path: str) -> dict:
     return json.loads((REPOSITORY / relative_path).read_text(encoding="utf-8"))
 
 
-def _current_explorer() -> dict:
+@lru_cache(maxsize=1)
+def _current_explorer_baseline() -> dict:
     reviewed = publish_reviewed_explorer(
         REPOSITORY,
         REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json",
@@ -48,6 +50,19 @@ def _current_explorer() -> dict:
         )
     ]
     return apply_candidate_fragments(navigable, fragments)
+
+
+def _current_explorer() -> dict:
+    return deepcopy(_current_explorer_baseline())
+
+
+def test_current_explorer_reuses_an_isolated_read_only_baseline() -> None:
+    first = _current_explorer()
+    first["architecture"]["modules"].clear()
+    second = _current_explorer()
+
+    assert second["architecture"]["modules"]
+    assert _current_explorer_baseline.cache_info().misses == 1
 
 
 def test_current_eight_views_are_projected_without_changing_authorities() -> None:
