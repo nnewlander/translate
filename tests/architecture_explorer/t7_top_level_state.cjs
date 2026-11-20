@@ -4,7 +4,15 @@ const assert = require("node:assert/strict");
 const { initialState, reduce } = require("../../architecture-explorer/web/t4-state.js");
 
 const toggle = (state, moduleId) => reduce(state, { type: "NODE_DETAIL_TOGGLE", moduleId });
-const productionControl = { type: "MODULE_PRIMARY", moduleId: "production-control", hasChildren: true };
+const productionControl = {
+  type: "APPEARANCE_PRIMARY",
+  nodeId: "production-control",
+  primaryAction: {
+    kind: "open-view",
+    target_view_id: "production-control",
+    destination_label: "进入生产调度与控制",
+  },
+};
 
 let state = initialState();
 assert.deepEqual(state.expandedNodeIds, []);

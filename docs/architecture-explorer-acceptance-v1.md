@@ -2,7 +2,8 @@
 contract_family: architecture-explorer-acceptance
 contract_version: 1
 contract_ref: architecture-explorer/v1
-status: current
+status: superseded-by-v2
+superseded_by: architecture-explorer/v2
 effective_baseline: 47ca4276075735508c23e7caa3c03965d93cde5b
 runtime_authority: false
 reviewer_conflict_policy: report-and-block

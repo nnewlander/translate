@@ -36,12 +36,18 @@
     if (reference.record_source === "navigation.drilldowns.children") {
       return drilldownByParent[reference.owner_view_id]?.children?.[reference.record_index];
     }
+    if (reference.record_source === "recursive_candidate_fragments.nodes") {
+      return data.recursive_candidate_fragments?.[reference.fragment_index]?.nodes?.[reference.record_index];
+    }
     return null;
   };
   const resolveRelationship = (reference) => {
     if (reference.record_source === "architecture.relationships") return authoritativeRelationships[reference.record_index];
     if (reference.record_source === "navigation.drilldowns.collaborations") {
       return drilldownByParent[reference.owner_view_id]?.collaborations?.[reference.record_index];
+    }
+    if (reference.record_source === "recursive_candidate_fragments.relationships") {
+      return data.recursive_candidate_fragments?.[reference.fragment_index]?.relationships?.[reference.record_index];
     }
     return null;
   };
@@ -60,29 +66,48 @@
   );
   const modules = (rootView?.appearances || []).map((appearance) => moduleById[appearance.node_id]);
   const sourceEvidenceById = {};
-  const definitionFileByPath = Object.fromEntries(
-    (data.source_facts?.python_definition_index?.files || []).map((item) => [item.path, item]),
+  const definitionFiles = data.source_facts?.python_definition_index?.files || [];
+  const callFiles = data.source_facts?.python_call_facts?.files || [];
+  const definitionFileByPath = Object.fromEntries(definitionFiles.map((item) => [item.path, item]));
+  const resolveSourceEvidence = (reference) => {
+    const source = reference.record_source;
+    if (source?.startsWith("source_facts.modules.")) {
+      const collection = source.slice("source_facts.modules.".length);
+      const sourceModule = data.source_facts?.modules?.[reference.module_index];
+      const fact = sourceModule?.[collection]?.[reference.record_index];
+      return fact ? { fact, sourceModule } : null;
+    }
+    if (source?.startsWith("source_facts.powershell_scripts.")) {
+      const collection = source.slice("source_facts.powershell_scripts.".length);
+      const sourceModule = data.source_facts?.powershell_scripts?.[reference.script_index];
+      const fact = sourceModule?.[collection]?.[reference.record_index];
+      return fact ? { fact, sourceModule, language: "powershell" } : null;
+    }
+    if (source === "source_facts.python_definition_index.files.definitions") {
+      const file = definitionFiles[reference.file_index];
+      const definition = file?.definitions?.[reference.record_index];
+      return definition ? { definition, file } : null;
+    }
+    if (source === "source_facts.python_call_facts.files.calls") {
+      const file = callFiles[reference.file_index];
+      const call = file?.calls?.[reference.record_index];
+      return call ? { call, file } : null;
+    }
+    return null;
+  };
+  for (const [evidenceId, reference] of Object.entries(data.source_evidence_index || {})) {
+    const resolved = resolveSourceEvidence(reference);
+    if (resolved) sourceEvidenceById[evidenceId] = { ...resolved, reference };
+  }
+  const definitionByEvidenceId = Object.fromEntries(
+    Object.entries(sourceEvidenceById)
+      .filter(([, record]) => record.definition)
+      .map(([evidenceId, record]) => [evidenceId, record]),
   );
-  const definitionByEvidenceId = {};
-  for (const file of Object.values(definitionFileByPath)) {
-    for (const definition of file.definitions) {
-      definitionByEvidenceId[definition.evidence.evidence_id] = { definition, file };
-    }
-  }
   const callsByDefinitionEvidenceId = {};
-  for (const file of data.source_facts?.python_call_facts?.files || []) {
-    for (const call of file.calls) {
-      (callsByDefinitionEvidenceId[call.enclosing_definition_evidence_id] ||= []).push(call);
-    }
-  }
-  for (const sourceModule of data.source_facts?.modules || []) {
-    for (const fact of [...sourceModule.direct_imports, ...sourceModule.entries]) {
-      sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule };
-    }
-  }
-  for (const sourceModule of data.source_facts?.powershell_scripts || []) {
-    for (const fact of [...sourceModule.entries, ...sourceModule.script_bindings, ...sourceModule.dot_sources]) {
-      sourceEvidenceById[fact.evidence.evidence_id] = { fact, sourceModule, language: "powershell" };
+  for (const record of Object.values(sourceEvidenceById)) {
+    if (record.call) {
+      (callsByDefinitionEvidenceId[record.call.enclosing_definition_evidence_id] ||= []).push(record.call);
     }
   }
   let state = stateApi.initialState();
@@ -228,10 +253,15 @@
   const candidateEvidenceCard = (evidenceId, returnContext, progressive = false) => {
     const record = sourceEvidenceById[evidenceId];
     if (!record) return text("p", `无法解析源码依据：${evidenceId}`, "load-error");
-    const { fact, sourceModule, language } = record; const evidence = fact.evidence;
+    const { fact, sourceModule, language, definition, call, file } = record;
+    const evidence = fact?.evidence || definition?.evidence || call?.evidence;
     const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
     const label = language === "powershell"
       ? `${fact.kind} · ${fact.symbol || `$${fact.variable}`}`
+      : definition
+      ? `${definition.kind} · ${definition.qualified_symbol}`
+      : call
+      ? `调用 · ${call.callee}`
       : fact.kind === "from"
       ? `${".".repeat(fact.level)}${fact.module} → ${fact.names.join(", ")}`
       : fact.module || `${fact.kind} · ${evidence.symbol}`;
@@ -241,9 +271,18 @@
         : fact.kind === "dot_source"
           ? `PowerShell 静态 AST 确认这里使用 dot-source 接入明确绑定的脚本；它支持当前未审核候选，但不证明运行时调用或决策结果。`
           : `PowerShell 静态 AST 确认这个关键函数入口写在 Supervisor 中；它支持当前未审核候选，但不证明入口在某次运行中被调用。`
-      : `这条依据来自“${sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`;
+      : call
+        ? `这条静态调用事实来自“${file.path}”。它支持当前未审核候选的调查方向，但不证明调用已经执行；只有 Call Fact 明确给出的静态目标才允许继续导航。`
+        : `这条依据来自“${definition ? file.path : sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`;
     const card = document.createElement("article"); card.className = "candidate-evidence-card";
-    card.append(text("p", language === "powershell" ? "PowerShell AST 自动静态源码事实" : "Python AST 自动静态源码事实", "evidence-role"), text("h4", label));
+    const evidenceRole = language === "powershell"
+      ? "PowerShell AST 自动静态源码事实"
+      : call
+        ? "Python 静态调用事实"
+        : definition
+          ? "Python 静态定义事实"
+          : "Python AST 自动静态源码事实";
+    card.append(text("p", evidenceRole, "evidence-role"), text("h4", label));
     const summary = progressive ? progressiveEvidenceSummary(evidence) : null;
     if (summary) {
       card.classList.add("progressive-candidate-evidence");
@@ -263,12 +302,19 @@
       copy.addEventListener("click", () => copyLocation(location, copy));
       raw.append(facts, text("pre", evidence.snippet), copy); card.append(raw);
     } else card.append(facts, text("pre", evidence.snippet));
-    const definitionFile = language ? null : definitionFileByPath[sourceModule.path];
-    if (definitionFile) {
+    const definitionFile = definition ? file : (!language && sourceModule ? definitionFileByPath[sourceModule.path] : null);
+    if (definitionFile && !call) {
       const browse = text("button", "浏览此文件定义", "browse-definitions");
       browse.type = "button";
       browse.dataset.evidenceId = evidenceId;
       browse.addEventListener("click", () => showDefinitionFile(definitionFile, returnContext, evidenceId));
+      card.append(browse);
+    }
+    if (call && record.reference.source_trail_kind === "call") {
+      const browse = text("button", "在 Source Trail 中查看此调用", "browse-call-fact");
+      browse.type = "button";
+      browse.dataset.evidenceId = evidenceId;
+      browse.addEventListener("click", () => showSourceTrailEvidence(evidenceId, returnContext));
       card.append(browse);
     }
     return card;
@@ -313,7 +359,7 @@
     if (returnContext.kind === "candidate-node") {
       showModuleDetail(returnContext.module);
     } else {
-      showCandidateCollaboration(returnContext.collaboration);
+      showCandidateRelationship(returnContext.collaboration);
     }
     window.setTimeout(() => {
       detailContent.querySelector(`.browse-definitions[data-evidence-id="${CSS.escape(returnEvidenceId)}"]`)?.focus();
@@ -553,6 +599,34 @@
     renderSourceTrail();
   };
 
+  const showSourceTrailEvidence = (evidenceId, returnContext) => {
+    const record = sourceEvidenceById[evidenceId];
+    if (!record || !record.reference.source_trail_kind) return false;
+    if (record.definition) {
+      sourceTrail = {
+        returnContext,
+        returnEvidenceId: evidenceId,
+        entries: [{ kind: "definition", file: record.file, definition: record.definition }],
+      };
+    } else if (record.call) {
+      const enclosing = definitionByEvidenceId[record.reference.enclosing_definition_evidence_id];
+      if (!enclosing) return false;
+      sourceTrail = {
+        returnContext,
+        returnEvidenceId: evidenceId,
+        entries: [{
+          kind: "call",
+          file: record.file,
+          definition: enclosing.definition,
+          call: record.call,
+        }],
+      };
+    } else return false;
+    renderSourceTrail();
+    openDialog();
+    return true;
+  };
+
   const renderSourceModule = () => {
     const sourceFacts = data.source_facts;
     const module = sourceFacts?.modules?.[Number(sourceModuleSelect.value)];
@@ -707,29 +781,32 @@
     detailContent.append(original); openDialog();
   };
 
-  const candidateCollaborationsForNode = (nodeId) => Object.entries(projection.relationship_index || {})
-    .filter(([, reference]) => reference.semantic_family === "candidate-collaboration")
+  const candidateRelationshipsForNode = (nodeId) => Object.entries(projection.relationship_index || {})
+    .filter(([, reference]) => reference.semantic_family.startsWith("candidate-"))
     .map(([relationshipId]) => relationshipRecordById[relationshipId])
     .filter((item) => item.source_node_id === nodeId || item.target_node_id === nodeId);
 
-  const showCandidateCollaboration = (collaboration) => {
+  const showCandidateRelationship = (collaboration) => {
     const source = childById[collaboration.source_node_id];
     const target = childById[collaboration.target_node_id];
+    const semanticFamily = projection.relationship_index[collaboration.id]?.semantic_family;
+    const isDecomposition = semanticFamily === "candidate-decomposition";
+    const semanticLabel = isDecomposition ? "候选分解" : "候选协作";
     detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.collaborationId = collaboration.id;
     const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
-      text("p", "候选协作 · 未审核", "eyebrow"),
+      text("p", `${semanticLabel} · 未审核`, "eyebrow"),
       title,
       text("p", collaboration.name, "plain-relation-name"),
-      text("p", "关系类型：候选协作", "candidate-collaboration-type"),
-      text("p", `Candidate Collaboration ID：${collaboration.id}`, "candidate-collaboration-id"),
+      text("p", `关系类型：${semanticLabel}`, "candidate-collaboration-type"),
+      text("p", `${isDecomposition ? "Candidate Decomposition" : "Candidate Collaboration"} ID：${collaboration.id}`, "candidate-collaboration-id"),
       text("p", collaboration.professional_description, "relationship-summary"),
       text("p", collaboration.plain_explanation, "plain-collaboration-explanation")
     );
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
-    statuses.append(text("span", "协作状态：未审核", "status candidate"), text("span", "源码归属：未核验", "status coverage-unverified"));
-    detailContent.append(statuses, text("p", "这些静态源码依据只支持候选解释，不证明运行时协作已经发生。", "candidate-warning"));
+    statuses.append(text("span", `${isDecomposition ? "分解" : "协作"}状态：未审核`, "status candidate"), text("span", "源码归属：未核验", "status coverage-unverified"));
+    detailContent.append(statuses, text("p", `这些静态源码依据只支持${semanticLabel}解释，不证明运行时行为或审核批准。`, "candidate-warning"));
     detailContent.append(text("h3", `源码依据（${collaboration.evidence_ids.length}）`));
     const returnContext = { kind: "candidate-collaboration", collaboration };
     for (const evidenceId of collaboration.evidence_ids) {
@@ -848,7 +925,7 @@
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
     const progressive = isProgressiveNodeDetail(module);
-    const candidateLinks = isCandidate ? candidateCollaborationsForNode(module.id) : [];
+    const candidateLinks = isCandidate ? candidateRelationshipsForNode(module.id) : [];
     if (progressive) {
       statuses.append(
         text("span", nodeDetailReviewLabel(module.node_review), `status ${nodeDetailReviewStatusClass(module.node_review)} node-detail-review-status`),
@@ -863,6 +940,13 @@
       if (!progressive) statuses.append(text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       detailContent.append(statuses, text("p", module.source_assignment.note, "candidate-warning"));
       if (progressive) detailContent.append(text("p", "这些是静态源码事实和审核结论：它们不证明 Worker 实际启动、运行成功、凭据或外部依赖可用，也不证明生产 Checkpoint 已完成。", "candidate-warning node-review-runtime-limit"));
+      const visibleDecomposition = currentView().relationship_ids.some((relationshipId) => {
+        const reference = projection.relationship_index[relationshipId];
+        const record = relationshipRecordById[relationshipId];
+        return reference?.semantic_family === "candidate-decomposition"
+          && record?.source_node_id === module.id;
+      });
+      if (visibleDecomposition) detailContent.append(text("p", "此节点既有审核只适用于已批准的职责主张；不批准当前 View 中新增的候选分解、候选协作或子节点。", "candidate-warning node-review-scope-limit"));
       if (module.source_assignment.evidence_ids?.length) {
         detailContent.append(text("h3", `源码依据（${module.source_assignment.evidence_ids.length}）`));
         const returnContext = { kind: "candidate-node", module };
@@ -875,7 +959,7 @@
         const links = document.createElement("div"); links.className = "module-evidence-links";
         for (const collaboration of candidateLinks) {
           const button = text("button", `打开：${collaboration.name}`, "evidence-link"); button.type = "button";
-          button.addEventListener("click", () => showCandidateCollaboration(collaboration)); links.append(button);
+          button.addEventListener("click", () => showCandidateRelationship(collaboration)); links.append(button);
         }
         detailContent.append(links);
       }
@@ -906,12 +990,13 @@
     return view.relationship_ids.map((relationshipId) => {
       const reference = projection.relationship_index[relationshipId];
       const record = relationshipRecordById[relationshipId];
-      if (reference.semantic_family === "candidate-collaboration") {
+      if (reference.semantic_family.startsWith("candidate-")) {
         return {
           id: relationshipId,
           sourceId: record.source_node_id,
           targetId: record.target_node_id,
           kind: "candidate",
+          semanticFamily: reference.semantic_family,
           record,
         };
       }
@@ -953,7 +1038,7 @@
   };
 
   const activateGraphEdge = (edge) => {
-    if (edge.kind === "candidate") showCandidateCollaboration(edge.record);
+    if (edge.kind === "candidate") showCandidateRelationship(edge.record);
     else activateRelationship(edge.id);
   };
 
@@ -979,11 +1064,13 @@
       const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
       group.dataset.sourceNodeId = edge.sourceId; group.dataset.targetNodeId = edge.targetId;
-      if (edge.kind === "candidate") group.dataset.collaborationId = edge.id;
+      if (edge.semanticFamily === "candidate-decomposition") group.dataset.decompositionId = edge.id;
+      else if (edge.kind === "candidate") group.dataset.collaborationId = edge.id;
       else group.dataset.relationshipId = edge.id;
       const title = document.createElementNS(relationshipGraph.namespaceURI, "title");
       const sourceName = moduleById[edge.sourceId].name; const targetName = moduleById[edge.targetId].name;
-      title.textContent = `${sourceName} 到 ${targetName}，${edge.kind === "candidate" ? "候选·未审核" : "当前已审核"}`;
+      const candidateType = edge.semanticFamily === "candidate-decomposition" ? "候选分解" : "候选协作";
+      title.textContent = `${sourceName} 到 ${targetName}，${edge.kind === "candidate" ? `${candidateType}·未审核` : "当前已审核"}`;
       const hit = document.createElementNS(relationshipGraph.namespaceURI, "path");
       hit.setAttribute("d", pathData); hit.setAttribute("class", "graph-edge-hit");
       const line = document.createElementNS(relationshipGraph.namespaceURI, "path");
@@ -993,10 +1080,11 @@
       group.append(title, hit, line); relationshipEdgeLayer.append(group);
 
       const labelText = edge.kind === "candidate" ? edge.record.name : edge.record.presentation_zh.relationship_name;
-      const trustLabel = edge.kind === "candidate" ? "候选关系，未经审核" : "当前已审核关系";
+      const trustLabel = edge.kind === "candidate" ? `${candidateType}，未经审核` : "当前已审核关系";
       const label = text("button", labelText, `graph-edge-label ${edge.kind}`);
       label.type = "button";
-      if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
+      if (edge.semanticFamily === "candidate-decomposition") label.dataset.decompositionId = edge.id;
+      else if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;
       label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，${trustLabel}，打开关系证据`);
       const labelX = (start.x + end.x) / 2; const labelY = (start.y + end.y) / 2;
@@ -1020,8 +1108,11 @@
 
   const renderNavigation = () => {
     const view = currentView(); const atTop = view.id === projection.root_view_id;
-    breadcrumb.replaceChildren(); breadcrumb.append(text("span", rootView.display_name, "crumb"));
-    if (!atTop) breadcrumb.append(text("span", "›", "crumb-separator"), text("span", view.display_name, "crumb current"));
+    breadcrumb.replaceChildren();
+    state.navigationPath.forEach((frame, index) => {
+      if (index) breadcrumb.append(text("span", "›", "crumb-separator"));
+      breadcrumb.append(text("span", viewById[frame.viewId].display_name, index === state.navigationPath.length - 1 ? "crumb current" : "crumb"));
+    });
     bottomNavigation.hidden = atTop;
     heroTitle.textContent = atTop ? "顶层架构" : view.display_name;
     heroLede.textContent = view.coverage_note;
@@ -1032,10 +1123,10 @@
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
     const primaryAction = appearance.primary_action;
-    const hasChildren = primaryAction?.kind === "open-view";
+    const opensView = primaryAction?.kind === "open-view";
     const expanded = state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
-    article.setAttribute("aria-label", `${module.name}，${hasChildren ? "左键下钻" : "左键打开详情"}，右键打开节点操作`);
+    article.setAttribute("aria-label", `${module.name}，${primaryAction?.destination_label || (opensView ? "进入下一视图" : "打开详情")}，右键打开节点操作`);
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
@@ -1055,8 +1146,12 @@
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);
     const activate = () => {
-      dispatch({ type: "MODULE_PRIMARY", moduleId: primaryAction?.target_view_id || module.id, hasChildren }); render();
+      dialogOpener = article;
+      dispatch({ type: "APPEARANCE_PRIMARY", nodeId: module.id, primaryAction }); render();
       if (state.detailModuleId) showModuleDetail(moduleById[state.detailModuleId]);
+      if (primaryAction?.kind === "open-source-trail") {
+        showSourceTrailEvidence(primaryAction.target_evidence_id, { kind: "candidate-node", module });
+      }
     };
     article.addEventListener("click", activate);
     article.addEventListener("keydown", (event) => {
@@ -1081,20 +1176,21 @@
     grid.replaceChildren(); visible.forEach(({ appearance, module }) => grid.append(cardFor(module, appearance, !atTop)));
     moduleCount.textContent = `${visible.length} 个${atTop ? "模块" : "候选节点"}`;
     const collaborations = view.relationship_ids
-      .filter((relationshipId) => projection.relationship_index[relationshipId]?.semantic_family === "candidate-collaboration")
+      .filter((relationshipId) => projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-"))
       .map((relationshipId) => relationshipRecordById[relationshipId]);
     candidateCollaborations.hidden = collaborations.length === 0;
+    document.querySelector("#candidate-collaborations-heading").textContent = "候选关系";
     candidateCollaborationList.replaceChildren();
     for (const collaboration of collaborations) {
       const button = document.createElement("button"); button.type = "button"; button.className = "candidate-collaboration";
       button.append(
-        text("span", "协作状态：未审核", "status candidate"),
+        text("span", `${projection.relationship_index[collaboration.id].semantic_family === "candidate-decomposition" ? "分解" : "协作"}状态：未审核`, "status candidate"),
         text("h4", collaboration.name),
         text("p", collaboration.professional_description, "candidate-collaboration-professional"),
         text("p", collaboration.plain_explanation, "candidate-plain-explanation"),
         text("span", `源码依据：${collaboration.evidence_ids.length} 条`, "candidate-evidence-count")
       );
-      button.addEventListener("click", () => showCandidateCollaboration(collaboration));
+      button.addEventListener("click", () => showCandidateRelationship(collaboration));
       candidateCollaborationList.append(button);
     }
   };
@@ -1122,7 +1218,14 @@
     contextMenu.style.left = `${Math.min(state.contextMenu.x, maxLeft)}px`; contextMenu.style.top = `${Math.min(state.contextMenu.y, maxTop)}px`;
     contextDetailToggle.focus({ preventScroll: true });
   };
-  const render = () => { renderNavigation(); renderModules(); renderContextMenu(); scheduleRelationshipGraph(); };
+  const render = () => {
+    renderNavigation(); renderModules(); renderContextMenu(); scheduleRelationshipGraph();
+    if (state.focusNodeId) {
+      const focusNodeId = state.focusNodeId;
+      window.setTimeout(() => grid.querySelector(`[data-module-id="${CSS.escape(focusNodeId)}"]`)?.focus({ preventScroll: true }), 0);
+      dispatch({ type: "FOCUS_RESTORED" });
+    }
+  };
 
   backButton.addEventListener("click", () => { dispatch({ type: "BACK" }); render(); });
   homeButton.addEventListener("click", () => { dispatch({ type: "HOME" }); render(); });

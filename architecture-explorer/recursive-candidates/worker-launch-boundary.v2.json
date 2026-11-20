@@ -1,0 +1,72 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "worker-launch-boundary",
+  "nodes": [
+    {
+      "id": "supervisor-process-launch-construction",
+      "node_type": "responsibility",
+      "name": "Supervisor 进程启动构造",
+      "professional_description": "构造确定性 Worker 子进程的参数、工作目录、输出重定向、规范化环境和启动结果处理。",
+      "plain_explanation": "它负责把一次受约束的 Worker 启动请求整理成真正的子进程启动动作；源码事实不证明某次生产运行已经执行到这里。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a"
+      ]
+    },
+    {
+      "id": "worker-production-entry-guard",
+      "node_type": "responsibility",
+      "name": "Worker 生产入口守卫",
+      "professional_description": "解析 Worker 启动参数，并在进入生产 Checkpoint 前校验 Worker ID、批次与 Checkpoint 绑定等生产入口条件。",
+      "plain_explanation": "它像生产入口的门卫：先检查启动信息是否齐全且成对，再允许控制进入具体 Checkpoint；源码定义不证明真实运行已经通过守卫。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6e36e3c009c8408b2fddd0188c1597ee8fa83511b38d60f09f734a1a4c722aad",
+        "evidence:sha256:73ff577c855008cf0261991574392080b5d717caadbea0d82cbd75612fc7d43d"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "worker-launch-boundary",
+      "target_node_id": "supervisor-process-launch-construction",
+      "name": "启动边界分解为进程启动构造",
+      "professional_description": "候选分解把受控进程参数、环境和子进程启动处理解释为 Worker 启动边界的一项内部职责。",
+      "plain_explanation": "Worker 启动边界包含一项候选职责：把受约束的启动信息构造成子进程；这不是已审核结论，也不证明运行发生。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:worker-launch-boundary-to-worker-production-entry-guard",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "worker-launch-boundary",
+      "target_node_id": "worker-production-entry-guard",
+      "name": "启动边界分解为生产入口守卫",
+      "professional_description": "候选分解把参数解析和生产侧 Worker、批次、Checkpoint 守卫解释为 Worker 启动边界的一项内部职责。",
+      "plain_explanation": "Worker 启动边界还包含一项候选入口检查职责；源码定义不证明某次生产运行已到达或通过这些检查。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6e36e3c009c8408b2fddd0188c1597ee8fa83511b38d60f09f734a1a4c722aad",
+        "evidence:sha256:73ff577c855008cf0261991574392080b5d717caadbea0d82cbd75612fc7d43d"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:worker-wrapper-to-production-entry-guard",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "deterministic-worker-wrapper",
+      "target_node_id": "worker-production-entry-guard",
+      "name": "Worker 包装入口交给生产入口守卫",
+      "professional_description": "确定性包装脚本的 main guard 把控制交给 Worker main，后者持有生产参数与入口守卫。",
+      "plain_explanation": "包装器候选地把控制交给 Worker 的生产入口检查；这只是一条未审核协作解释，不证明真实运行可达。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+        "evidence:sha256:73ff577c855008cf0261991574392080b5d717caadbea0d82cbd75612fc7d43d"
+      ]
+    }
+  ]
+}

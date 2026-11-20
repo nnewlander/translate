@@ -18,6 +18,7 @@ from .node_review_continuity import (
 )
 from .source_scanner import scan_python_source_facts
 from .view_projection import VIEW_PROJECTION_SCHEMA, apply_view_projection
+from .view_definitions import VIEW_DEFINITIONS_SCHEMA, apply_view_definitions
 
 __all__ = [
     "SCANNER_VERSION",
@@ -26,6 +27,7 @@ __all__ = [
     "NODE_REVIEW_OBJECT_KEY",
     "apply_navigation",
     "apply_view_projection",
+    "apply_view_definitions",
     "build_explorer",
     "evaluate_review_state",
     "evaluate_node_review_state",
@@ -43,4 +45,5 @@ __all__ = [
     "verify_node_review_materials",
     "verify_trusted_review_source",
     "write_candidate_outputs",
+    "VIEW_DEFINITIONS_SCHEMA",
 ]

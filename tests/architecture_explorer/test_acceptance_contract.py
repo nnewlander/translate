@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -12,11 +13,17 @@ from booktrans.architecture_explorer.source_scanner import (
     attach_python_source_facts,
     scan_python_source_facts,
 )
+from booktrans.architecture_explorer.view_definitions import apply_view_definitions
+from booktrans.architecture_explorer.view_projection import apply_view_projection
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 DOCS = REPOSITORY / "docs"
-FIXED_BASELINE = "47ca4276075735508c23e7caa3c03965d93cde5b"
+V1_EFFECTIVE_BASELINE = "47ca4276075735508c23e7caa3c03965d93cde5b"
+CANDIDATE_HEAD = "ef2782873d23db77731aabbb3aaef7362f8f75b0"
+V1_NORMATIVE_BODY_SHA256 = (
+    "f71e35e0865e403d76a5ee8aa4e2e07f0749ffd0ffea10aa0eb3d81626740e2e"
+)
 CANDIDATE_FRAGMENTS = tuple(
     sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json"))
 )
@@ -60,6 +67,35 @@ def _current_contract() -> tuple[Path, dict[str, str]]:
     ]
     assert len(contracts) == 1, [str(path) for path, _ in contracts]
     return contracts[0]
+
+
+def _contracts() -> dict[str, tuple[Path, dict[str, str]]]:
+    return {
+        metadata["contract_ref"]: (path, metadata)
+        for path in DOCS.glob("architecture-explorer*.md")
+        if (metadata := _frontmatter(path)).get("contract_family")
+        == "architecture-explorer-acceptance"
+    }
+
+
+def _effective_value(metadata: dict[str, str], key: str) -> str:
+    contracts = _contracts()
+    current = metadata
+    seen: set[str] = set()
+    while True:
+        if key in current:
+            return current[key]
+        parent_ref = current.get("inherits")
+        assert parent_ref and parent_ref not in seen, (key, parent_ref)
+        seen.add(parent_ref)
+        current = contracts[parent_ref][1]
+
+
+def _contract_body(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    parts = text.split("---", 2)
+    assert len(parts) == 3, path
+    return parts[2]
 
 
 def _json(relative_path: str) -> dict:
@@ -107,10 +143,24 @@ def published_explorer() -> dict:
         with_facts,
         _json("architecture-explorer/navigation.v1.json"),
     )
-    return apply_candidate_fragments(
+    with_candidates = apply_candidate_fragments(
         navigable,
-        [json.loads(path.read_text(encoding="utf-8")) for path in CANDIDATE_FRAGMENTS],
+        [
+            *[
+                json.loads(path.read_text(encoding="utf-8"))
+                for path in CANDIDATE_FRAGMENTS
+            ],
+            _json(
+                "architecture-explorer/recursive-candidates/"
+                "worker-launch-boundary.v2.json"
+            ),
+        ],
     )
+    with_views = apply_view_definitions(
+        with_candidates,
+        _json("architecture-explorer/views/recursive-views.v1.json"),
+    )
+    return apply_view_projection(with_views)
 
 
 def test_exactly_one_current_architecture_explorer_contract_is_versioned() -> None:
@@ -124,26 +174,24 @@ def test_exactly_one_current_architecture_explorer_contract_is_versioned() -> No
 
     assert len(current) == 1, [str(path) for path, _ in current]
     _, metadata = current[0]
-    assert metadata["contract_version"] == "1"
-    assert metadata["contract_ref"] == "architecture-explorer/v1"
-    assert metadata["effective_baseline"] == FIXED_BASELINE
+    assert metadata["contract_version"] == "2"
+    assert metadata["contract_ref"] == "architecture-explorer/v2"
+    assert metadata["effective_baseline"] == CANDIDATE_HEAD
     assert metadata["runtime_authority"] == "false"
-    assert metadata["reviewer_conflict_policy"] == "report-and-block"
+    assert _effective_value(metadata, "reviewer_conflict_policy") == "report-and-block"
 
 
-def test_v2_contract_is_proposed_without_displacing_v1_current() -> None:
-    contracts = {
-        metadata["contract_ref"]: (path, metadata)
-        for path in DOCS.glob("architecture-explorer*.md")
-        if (metadata := _frontmatter(path)).get("contract_family")
-        == "architecture-explorer-acceptance"
-    }
+def test_v2_contract_activation_supersedes_v1_and_binds_candidate_head() -> None:
+    contracts = _contracts()
 
     assert set(contracts) == {"architecture-explorer/v1", "architecture-explorer/v2"}
-    assert contracts["architecture-explorer/v1"][1]["status"] == "current"
+    v1 = contracts["architecture-explorer/v1"][1]
+    assert v1["status"] == "superseded-by-v2"
+    assert v1["superseded_by"] == "architecture-explorer/v2"
+    assert v1["effective_baseline"] == V1_EFFECTIVE_BASELINE
     v2_path, v2 = contracts["architecture-explorer/v2"]
-    assert v2["status"] == "proposed"
-    assert "effective_baseline" not in v2
+    assert v2["status"] == "current"
+    assert v2["effective_baseline"] == CANDIDATE_HEAD
     assert v2["runtime_authority"] == "false"
     assert v2["authority_issue"] == "https://github.com/nnewlander/translate/issues/51"
     assert v2["fixed_starting_baseline"] == (
@@ -153,22 +201,40 @@ def test_v2_contract_is_proposed_without_displacing_v1_current() -> None:
         "b33db66aabf8869028db2c81207a4d65a109c4ea5c72d225dfd4637c11ce842e"
     )
     text = v2_path.read_text(encoding="utf-8")
-    assert "v1 remains the sole current contract" in text
     assert "Candidate Nodes: 20" in text
     assert "Candidate Collaborations: 9" in text
     assert "Candidate Decomposition: 2" in text
     assert "Views: 9" in text
 
 
-def test_current_contract_inventory_matches_existing_generated_inputs() -> None:
+def test_current_v2_status_explanation_matches_frontmatter() -> None:
+    v2_path, v2 = _contracts()["architecture-explorer/v2"]
+    body = _contract_body(v2_path)
+
+    assert v2["status"] == "current"
+    assert v2["effective_baseline"] == CANDIDATE_HEAD
+    assert "# Architecture Explorer v2 current acceptance contract" in body
+    assert "v2 is the sole current contract" in body
+    assert f"`effective_baseline` is `{CANDIDATE_HEAD}`" in body
+    for stale_status_text in (
+        "# Architecture Explorer v2 proposed acceptance contract",
+        "does not activate v2",
+        "v1 remains the sole current contract",
+        "This proposed contract intentionally has no `effective_baseline`",
+    ):
+        assert stale_status_text not in body
+
+
+def test_current_contract_inventory_matches_generated_v2_projection(
+    published_explorer: dict,
+) -> None:
     _, metadata = _current_contract()
     modules = _json("architecture-explorer/modules.json")["modules"]
     review = _json("architecture-explorer/reviews/supervisor-worker.v1.json")
     navigation = _json("architecture-explorer/navigation.v1.json")
-    fragments = [
-        json.loads(path.read_text(encoding="utf-8"))
-        for path in sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json"))
-    ]
+    relationship_references = published_explorer["view_projection"][
+        "relationship_index"
+    ].values()
 
     relationship_ids = {
         relationship_id
@@ -180,24 +246,37 @@ def test_current_contract_inventory_matches_existing_generated_inputs() -> None:
         "top_level_modules": len(modules),
         "reviewed_relationships": len(relationship_ids),
         "approved_evidence": len(review["decision"]["approved_evidence_ids"]),
-        "candidate_nodes": sum(len(fragment["nodes"]) for fragment in fragments),
-        "candidate_collaborations": sum(
-            len(fragment["collaborations"]) for fragment in fragments
+        "candidate_nodes": (
+            len(published_explorer["view_projection"]["node_index"])
+            - len(modules)
         ),
+        "candidate_collaborations": sum(
+            reference["semantic_family"] == "candidate-collaboration"
+            for reference in relationship_references
+        ),
+        "candidate_decompositions": sum(
+            reference["semantic_family"] == "candidate-decomposition"
+            for reference in published_explorer["view_projection"][
+                "relationship_index"
+            ].values()
+        ),
+        "views": len(published_explorer["view_projection"]["view_index"]),
     }
 
-    assert set(metadata["top_level_module_ids"].split(",")) == {
+    assert set(_effective_value(metadata, "top_level_module_ids").split(",")) == {
         module["id"] for module in modules
     }
-    assert relationship_ids == {metadata["reviewed_relationship_id"]}
+    assert relationship_ids == {_effective_value(metadata, "reviewed_relationship_id")}
     assert actual == {
-        key: int(metadata[key])
+        key: int(_effective_value(metadata, key))
         for key in (
             "top_level_modules",
             "reviewed_relationships",
             "approved_evidence",
             "candidate_nodes",
             "candidate_collaborations",
+            "candidate_decompositions",
+            "views",
         )
     }
 
@@ -205,37 +284,45 @@ def test_current_contract_inventory_matches_existing_generated_inputs() -> None:
 def test_current_contract_records_final_t7_trust_and_browser_roles() -> None:
     _, metadata = _current_contract()
 
-    assert metadata["inline_evidence"] == "false"
-    assert metadata["evidence_entry"] == "context-menu-detail"
-    assert metadata["reviewed_edge_style"] == "solid"
-    assert metadata["candidate_edge_style"] == "dashed"
-    assert metadata["reviewed_relationship_gate"] == "current-reviewed+exact-match"
-    assert metadata["desktop_viewports"] == "1440x900,1280x900,960x900"
-    assert metadata["continuous_resize"] == (
+    assert _effective_value(metadata, "inline_evidence") == "false"
+    assert _effective_value(metadata, "evidence_entry") == "context-menu-detail"
+    assert _effective_value(metadata, "reviewed_edge_style") == "solid"
+    assert _effective_value(metadata, "candidate_edge_style") == "dashed"
+    assert _effective_value(metadata, "reviewed_relationship_gate") == (
+        "current-reviewed+exact-match"
+    )
+    assert _effective_value(metadata, "desktop_viewports") == (
+        "1440x900,1280x900,960x900"
+    )
+    assert _effective_value(metadata, "continuous_resize") == (
         "1440x900>1280x900>960x900>1440x900"
     )
-    assert metadata["automated_browser"] == "chrome"
-    assert metadata["owner_manual_browser"] == "firefox"
-    assert metadata["supplemental_browser"] == "edge"
-    assert metadata["supplemental_blocked_is_pass"] == "false"
+    assert _effective_value(metadata, "automated_browser") == "chrome"
+    assert _effective_value(metadata, "owner_manual_browser") == "firefox"
+    assert _effective_value(metadata, "supplemental_browser") == "edge"
+    assert _effective_value(metadata, "supplemental_blocked_is_pass") == "false"
 
 
 def test_current_contract_exposes_downstream_and_reviewer_inputs() -> None:
     _, metadata = _current_contract()
 
-    assert metadata["downstream_reference_fields"] == (
+    assert _effective_value(metadata, "downstream_reference_fields") == (
         "contract,inherits,delta,owner-overrides"
     )
-    assert metadata["spec_reviewer_inputs"] == (
+    assert _effective_value(metadata, "spec_reviewer_inputs") == (
         "contract,ticket-delta,owner-overrides,fixed-base-head"
     )
-    assert metadata["reviewer_conflict_policy"] == "report-and-block"
+    assert _effective_value(metadata, "reviewer_conflict_policy") == (
+        "report-and-block"
+    )
 
 
-def test_current_contract_body_contains_complete_normative_clauses() -> None:
-    path, _ = _current_contract()
+def test_superseded_v1_normative_body_is_preserved() -> None:
+    path, _ = _contracts()["architecture-explorer/v1"]
+    body = _contract_body(path)
 
-    _assert_normative_contract(path.read_text(encoding="utf-8"))
+    assert sha256(body.encode("utf-8")).hexdigest() == V1_NORMATIVE_BODY_SHA256
+    _assert_normative_contract(body)
 
 
 @pytest.mark.parametrize(
@@ -255,7 +342,7 @@ def test_normative_clause_guard_rejects_missing_or_changed_rule(
     old: str,
     new: str,
 ) -> None:
-    path, _ = _current_contract()
+    path, _ = _contracts()["architecture-explorer/v1"]
     original = path.read_text(encoding="utf-8")
     mutated = original.replace(old, new, 1)
     assert mutated != original

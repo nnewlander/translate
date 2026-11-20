@@ -7,16 +7,17 @@
 
   const initialState = () => ({
     levelId: "top-level",
-    navigationPath: ["top-level"],
+    navigationPath: [{ viewId: "top-level", originNodeId: null }],
     parentModuleId: null,
     detailModuleId: null,
     relationshipId: null,
     contextMenu: null,
     expandedNodeIds: [],
+    focusNodeId: null,
   });
 
   const navigationState = (state, navigationPath) => {
-    const levelId = navigationPath[navigationPath.length - 1];
+    const levelId = navigationPath[navigationPath.length - 1].viewId;
     return {
       ...state,
       levelId,
@@ -26,6 +27,7 @@
       relationshipId: null,
       contextMenu: null,
       expandedNodeIds: [],
+      focusNodeId: null,
     };
   };
 
@@ -43,18 +45,38 @@
       if (!state.contextMenu) return state;
       return { ...state, contextMenu: null };
     }
-    if (action.type === "MODULE_PRIMARY") {
+    if (action.type === "APPEARANCE_PRIMARY") {
       if (state.contextMenu) return { ...state, contextMenu: null };
-      if (action.hasChildren) {
-        return navigationState(state, [...state.navigationPath, action.moduleId]);
+      const primaryAction = action.primaryAction;
+      if (primaryAction?.kind === "open-view") {
+        const targetViewId = primaryAction.target_view_id;
+        let existingIndex = -1;
+        for (let index = state.navigationPath.length - 1; index >= 0; index -= 1) {
+          if (state.navigationPath[index].viewId === targetViewId) {
+            existingIndex = index;
+            break;
+          }
+        }
+        if (existingIndex >= 0) {
+          return navigationState(state, state.navigationPath.slice(0, existingIndex + 1));
+        }
+        return navigationState(state, [
+          ...state.navigationPath,
+          { viewId: targetViewId, originNodeId: action.nodeId },
+        ]);
       }
-      return { ...state, detailModuleId: action.moduleId, relationshipId: null };
+      return { ...state, detailModuleId: action.nodeId, relationshipId: null };
     }
     if (action.type === "BACK") {
-      if (state.navigationPath.length <= 1) return navigationState(state, ["top-level"]);
-      return navigationState(state, state.navigationPath.slice(0, -1));
+      if (state.navigationPath.length <= 1) return navigationState(state, initialState().navigationPath);
+      const departed = state.navigationPath[state.navigationPath.length - 1];
+      return {
+        ...navigationState(state, state.navigationPath.slice(0, -1)),
+        focusNodeId: departed.originNodeId,
+      };
     }
-    if (action.type === "HOME") return navigationState(state, ["top-level"]);
+    if (action.type === "HOME") return navigationState(state, initialState().navigationPath);
+    if (action.type === "FOCUS_RESTORED") return { ...state, focusNodeId: null };
     if (action.type === "MENU_EVIDENCE") {
       return { ...state, contextMenu: null, relationshipId: action.relationshipId || null };
     }
