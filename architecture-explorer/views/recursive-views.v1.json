@@ -10,6 +10,16 @@
         "transition_kind": "decomposition",
         "destination_label": "查看 Worker 启动边界内部职责"
       }
+    },
+    {
+      "view_id": "translation-execution",
+      "node_id": "translation-routing-and-acquisition",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "translation-routing-and-acquisition-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看语义路由与候选获取内部职责"
+      }
     }
   ],
   "views": [
@@ -30,6 +40,23 @@
         "candidate-decomposition:worker-launch-boundary-to-worker-production-entry-guard",
         "candidate-collaboration:supervisor-to-worker-wrapper",
         "candidate-collaboration:worker-wrapper-to-production-entry-guard"
+      ]
+    },
+    {
+      "id": "translation-routing-and-acquisition-internal",
+      "display_name": "语义路由与候选获取",
+      "perspective": "responsibility",
+      "scope_node_id": "translation-routing-and-acquisition",
+      "coverage_note": "展示语义单元路由判定与 Provider 分派/RAW 投影的候选边界；Provider runtime receiver dispatch 仍是静态未知项，所有新增对象均未审核，父节点状态不向内传播。",
+      "appearances": [
+        {"node_id": "translation-routing-and-acquisition"},
+        {"node_id": "semantic-unit-route-decision"},
+        {"node_id": "translation-provider-dispatch-and-raw-projection"}
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:translation-routing-and-acquisition-to-semantic-unit-route-decision",
+        "candidate-decomposition:translation-routing-and-acquisition-to-translation-provider-dispatch-and-raw-projection",
+        "candidate-collaboration:semantic-unit-route-decision-to-translation-provider-dispatch-and-raw-projection"
       ]
     }
   ]

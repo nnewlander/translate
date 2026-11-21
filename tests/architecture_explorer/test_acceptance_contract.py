@@ -156,9 +156,21 @@ def published_explorer() -> dict:
             ),
         ],
     )
+    v2_views = _json("architecture-explorer/views/recursive-views.v1.json")
+    v2_views["entry_actions"] = [
+        action
+        for action in v2_views["entry_actions"]
+        if action["primary_action"]["target_view_id"]
+        == "worker-launch-boundary-internal"
+    ]
+    v2_views["views"] = [
+        view
+        for view in v2_views["views"]
+        if view["id"] == "worker-launch-boundary-internal"
+    ]
     with_views = apply_view_definitions(
         with_candidates,
-        _json("architecture-explorer/views/recursive-views.v1.json"),
+        v2_views,
     )
     return apply_view_projection(with_views)
 

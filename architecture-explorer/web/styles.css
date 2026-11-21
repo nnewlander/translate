@@ -106,6 +106,20 @@ h1 {
   line-height: 1.02;
 }
 
+.view-status {
+  display: inline-flex;
+  margin: 18px 0 0;
+  padding: 7px 11px;
+  border: 1px solid #d7c28f;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: #6f541f;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+.view-status[hidden] { display: none; }
+
 .lede {
   max-width: 620px;
   margin: 22px 0 0;
@@ -387,6 +401,25 @@ h2 {
   z-index: 2;
   pointer-events: none;
 }
+.graph-layout-error {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 3;
+  box-sizing: border-box;
+  width: min(calc(100% - 16px), 680px);
+  margin: 0;
+  padding: 10px 12px;
+  transform: translateX(-50%);
+  border: 1px solid #a54a42;
+  border-radius: 10px;
+  background: #fff4f2;
+  color: #6f2620;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.45;
+  pointer-events: auto;
+}
 .graph-edge-label {
   position: absolute;
   box-sizing: border-box;
@@ -426,6 +459,19 @@ h2 {
   font-weight: 750;
   letter-spacing: 0.08em;
 }
+.scope-node-label {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 5px 8px;
+  border: 1px solid #b7c8af;
+  border-radius: 999px;
+  background: #f7f9f6;
+  color: #354b35;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+.scope-node-card { border-color: #b7c8af; background: #fbfcfa; }
 .candidate-plain-explanation { margin: 0 0 18px; color: #4b5948; font-size: 0.9rem; line-height: 1.65; }
 .candidate-evidence-count { margin: 0 0 16px; color: #526b49; font-size: 0.82rem; font-weight: 700; }
 
@@ -672,7 +718,7 @@ h2 {
   .top-level-grid [data-module-id="production-evidence"] { grid-area: evidence; }
   .top-level-grid [data-module-id="production-control"] { grid-area: control; }
   .top-level-grid [data-module-id="candidate-and-release"] { grid-area: release; }
-  .candidate-graph-grid:not(.production-candidate-grid):has(> .module-card:nth-child(3):last-child) {
+  .candidate-graph-grid:not(.production-candidate-grid):not(.decomposition-scope-grid):has(> .module-card:nth-child(3):last-child) {
     grid-template-columns: repeat(3, 259px);
     column-gap: clamp(180px, calc((100% - 777px) / 2), 220px);
   }
@@ -707,6 +753,20 @@ h2 {
     justify-content: center;
     column-gap: clamp(180px, 18vw, 220px);
   }
+  .candidate-graph-grid.decomposition-scope-grid {
+    grid-template-columns: repeat(2, minmax(259px, 283px));
+    column-gap: clamp(180px, 20vw, 220px);
+    row-gap: 112px;
+  }
+  .decomposition-scope-grid > .scope-node-card {
+    width: 283px;
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+  .decomposition-scope-grid > .module-card:not(.scope-node-card) {
+    width: auto;
+    grid-column: auto;
+  }
 }
 
 .production-candidate-grid [data-module-id="supervisor-orchestration"] { grid-area: supervisor; }
@@ -720,6 +780,23 @@ h2 {
   .hero { margin-bottom: 38px; }
   .snapshot { margin-bottom: 50px; padding: 24px; }
   .module-grid { grid-template-columns: 1fr; gap: 17px; }
+  .top-level-grid { row-gap: 96px; }
+  .module-grid.production-candidate-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "supervisor"
+      "adapter"
+      "wrapper"
+      "worker"
+      "state";
+    row-gap: 160px;
+  }
+  .candidate-graph-grid:not(.production-candidate-grid) { row-gap: 200px; }
+  .top-level-grid > .module-card,
+  .candidate-graph-grid > .module-card {
+    width: calc(100% - 56px);
+    justify-self: center;
+  }
   .module-card { min-height: 0; padding: 26px; }
   .candidate-node-type { top: 26px; right: 26px; }
   .relationship-line { grid-template-columns: 1fr auto 1fr; }

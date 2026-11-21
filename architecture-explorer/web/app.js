@@ -124,6 +124,7 @@
   const candidateCollaborationList = document.querySelector("#candidate-collaboration-list");
   const modulesHeading = document.querySelector("#modules-heading");
   const heroTitle = document.querySelector(".hero h1");
+  const heroStatus = document.querySelector("#view-status");
   const heroLede = document.querySelector(".hero .lede");
   const breadcrumb = document.querySelector("#breadcrumb");
   const bottomNavigation = document.querySelector("#bottom-navigation");
@@ -1037,6 +1038,217 @@
     };
   };
 
+  const segmentIntersectsCard = (start, end, cardRect, surfaceRect) => {
+    const inset = 2;
+    const bounds = {
+      left: cardRect.left - surfaceRect.left + inset,
+      right: cardRect.right - surfaceRect.left - inset,
+      top: cardRect.top - surfaceRect.top + inset,
+      bottom: cardRect.bottom - surfaceRect.top - inset,
+    };
+    const dx = end.x - start.x; const dy = end.y - start.y;
+    const p = [-dx, dx, -dy, dy];
+    const q = [start.x - bounds.left, bounds.right - start.x, start.y - bounds.top, bounds.bottom - start.y];
+    let entry = 0; let exit = 1;
+    for (let index = 0; index < p.length; index += 1) {
+      if (p[index] === 0) {
+        if (q[index] < 0) return false;
+        continue;
+      }
+      const ratio = q[index] / p[index];
+      if (p[index] < 0) entry = Math.max(entry, ratio);
+      else exit = Math.min(exit, ratio);
+      if (entry > exit) return false;
+    }
+    return true;
+  };
+
+  const edgePath = (sourceCard, targetCard, surfaceRect, width) => {
+    const sourceRect = sourceCard.getBoundingClientRect();
+    const targetRect = targetCard.getBoundingClientRect();
+    const direct = edgeEndpoints(sourceRect, targetRect, surfaceRect);
+    const cards = Array.from(grid.querySelectorAll(".module-card"));
+    const unrelatedCards = cards.filter((card) => card !== sourceCard && card !== targetCard);
+    const candidates = [[direct.start, direct.end]];
+    const sourceCenter = {
+      x: sourceRect.left + sourceRect.width / 2 - surfaceRect.left,
+      y: sourceRect.top + sourceRect.height / 2 - surfaceRect.top,
+    };
+    const targetCenter = {
+      x: targetRect.left + targetRect.width / 2 - surfaceRect.left,
+      y: targetRect.top + targetRect.height / 2 - surfaceRect.top,
+    };
+    const targetBelow = targetRect.top >= sourceRect.bottom;
+    const targetAbove = targetRect.bottom <= sourceRect.top;
+    if (targetBelow || targetAbove) {
+      const end = {
+        x: targetCenter.x,
+        y: (targetBelow ? targetRect.top : targetRect.bottom) - surfaceRect.top,
+      };
+      const beforeTarget = cards
+        .filter((card) => card !== targetCard)
+        .map((card) => card.getBoundingClientRect())
+        .filter((rect) => targetBelow ? rect.bottom <= targetRect.top : rect.top >= targetRect.bottom);
+      const adjacentBoundary = targetBelow
+        ? Math.max(...beforeTarget.map((rect) => rect.bottom), sourceRect.bottom)
+        : Math.min(...beforeTarget.map((rect) => rect.top), sourceRect.top);
+      const landingY = (
+        (targetBelow ? targetRect.top + adjacentBoundary : targetRect.bottom + adjacentBoundary) / 2
+      ) - surfaceRect.top;
+      const leftGap = Math.min(...cards.map((card) => card.getBoundingClientRect().left)) - surfaceRect.left;
+      const rightGap = surfaceRect.right - Math.max(...cards.map((card) => card.getBoundingClientRect().right));
+      for (const [side, gap] of [["left", leftGap], ["right", rightGap]]) {
+        if (gap < 12) continue;
+        const corridorX = side === "left" ? gap / 2 : width - gap / 2;
+        const start = {
+          x: (side === "left" ? sourceRect.left : sourceRect.right) - surfaceRect.left,
+          y: sourceCenter.y,
+        };
+        candidates.push([
+          start,
+          { x: corridorX, y: start.y },
+          { x: corridorX, y: landingY },
+          { x: end.x, y: landingY },
+          end,
+        ]);
+      }
+    } else {
+      const targetRight = targetRect.left >= sourceRect.right;
+      const targetLeft = targetRect.right <= sourceRect.left;
+      if (targetRight || targetLeft) {
+        const end = {
+          x: (targetRight ? targetRect.left : targetRect.right) - surfaceRect.left,
+          y: targetCenter.y,
+        };
+        const beforeTarget = cards
+          .filter((card) => card !== targetCard)
+          .map((card) => card.getBoundingClientRect())
+          .filter((rect) => targetRight ? rect.right <= targetRect.left : rect.left >= targetRect.right);
+        const adjacentBoundary = targetRight
+          ? Math.max(...beforeTarget.map((rect) => rect.right), sourceRect.right)
+          : Math.min(...beforeTarget.map((rect) => rect.left), sourceRect.left);
+        const landingX = (
+          (targetRight ? targetRect.left + adjacentBoundary : targetRect.right + adjacentBoundary) / 2
+        ) - surfaceRect.left;
+        const topGap = Math.min(...cards.map((card) => card.getBoundingClientRect().top)) - surfaceRect.top;
+        const bottomGap = surfaceRect.bottom - Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
+        for (const [side, gap] of [["top", topGap], ["bottom", bottomGap]]) {
+          if (gap < 12) continue;
+          const corridorY = side === "top" ? gap / 2 : surfaceRect.height - gap / 2;
+          const start = {
+            x: sourceCenter.x,
+            y: (side === "top" ? sourceRect.top : sourceRect.bottom) - surfaceRect.top,
+          };
+          candidates.push([
+            start,
+            { x: start.x, y: corridorY },
+            { x: landingX, y: corridorY },
+            { x: landingX, y: end.y },
+            end,
+          ]);
+        }
+      }
+    }
+
+    return candidates
+      .filter((points) => unrelatedCards.every((card) => (
+        !points.slice(1).some((end, index) => (
+          segmentIntersectsCard(points[index], end, card.getBoundingClientRect(), surfaceRect)
+        ))
+      )))
+      .sort((left, right) => {
+        const score = (points) => points.slice(1).reduce((total, end, index) => (
+          total + Math.hypot(end.x - points[index].x, end.y - points[index].y)
+        ), 0) + Math.max(0, points.length - 2) * 16;
+        return score(left) - score(right);
+      })[0] || null;
+  };
+
+  const rectanglesOverlap = (left, right, gap = 4) => !(
+    left.right + gap <= right.left
+      || left.left >= right.right + gap
+      || left.bottom + gap <= right.top
+      || left.top >= right.bottom + gap
+  );
+
+  const segmentIntersectsBounds = (start, end, bounds) => {
+    const dx = end.x - start.x; const dy = end.y - start.y;
+    const p = [-dx, dx, -dy, dy];
+    const q = [start.x - bounds.left, bounds.right - start.x, start.y - bounds.top, bounds.bottom - start.y];
+    let entry = 0; let exit = 1;
+    for (let index = 0; index < p.length; index += 1) {
+      if (p[index] === 0) {
+        if (q[index] < 0) return false;
+        continue;
+      }
+      const ratio = q[index] / p[index];
+      if (p[index] < 0) entry = Math.max(entry, ratio);
+      else exit = Math.min(exit, ratio);
+      if (entry > exit) return false;
+    }
+    return true;
+  };
+
+  const placeGraphLabel = (label, points, otherPaths, width, height, surfaceRect, occupied) => {
+    relationshipLabelLayer.append(label);
+    const labelWidth = label.offsetWidth; const labelHeight = label.offsetHeight;
+    const cardBounds = Array.from(grid.querySelectorAll(".module-card")).map((card) => {
+      const rect = card.getBoundingClientRect();
+      return {
+        left: rect.left - surfaceRect.left,
+        right: rect.right - surfaceRect.left,
+        top: rect.top - surfaceRect.top,
+        bottom: rect.bottom - surfaceRect.top,
+      };
+    });
+    const boundsFor = (point) => ({
+      left: point.x - labelWidth / 2,
+      right: point.x + labelWidth / 2,
+      top: point.y - labelHeight / 2,
+      bottom: point.y + labelHeight / 2,
+    });
+    const fractions = [0.5, 0.35, 0.65, 0.25, 0.75];
+    const segments = points.slice(1).map((end, index) => {
+      const start = points[index];
+      return { start, end, length: Math.hypot(end.x - start.x, end.y - start.y) };
+    }).sort((left, right) => right.length - left.length);
+    const candidates = segments.flatMap((segment) => fractions.map((fraction) => ({
+      segment,
+      point: {
+        x: segment.start.x + (segment.end.x - segment.start.x) * fraction,
+        y: segment.start.y + (segment.end.y - segment.start.y) * fraction,
+      },
+    })));
+    const selected = candidates.find(({ point, segment }) => {
+      const bounds = boundsFor(point);
+      const withinSurface = bounds.left >= 8 && bounds.right <= width - 8
+        && bounds.top >= 8 && bounds.bottom <= height - 8;
+      const lineContinuesThroughLabel = !(
+        segment.start.x >= bounds.left && segment.start.x <= bounds.right
+          && segment.start.y >= bounds.top && segment.start.y <= bounds.bottom
+      ) && !(
+        segment.end.x >= bounds.left && segment.end.x <= bounds.right
+          && segment.end.y >= bounds.top && segment.end.y <= bounds.bottom
+      );
+      const clearOfOtherPaths = otherPaths.every((path) => (
+        !path.slice(1).some((end, index) => segmentIntersectsBounds(path[index], end, bounds))
+      ));
+      return withinSurface
+        && lineContinuesThroughLabel
+        && clearOfOtherPaths
+        && cardBounds.every((card) => !rectanglesOverlap(bounds, card, 8))
+        && occupied.every((other) => !rectanglesOverlap(bounds, other, 6));
+    });
+    if (!selected) {
+      label.remove();
+      return false;
+    }
+    const point = selected.point;
+    label.style.left = `${point.x}px`; label.style.top = `${point.y}px`;
+    occupied.push(boundsFor(point));
+    return true;
+  };
+
   const activateRelationship = (relationshipId) => {
     dispatch({ type: "RELATIONSHIP_PRIMARY", relationshipId });
     showRelationship(relationshipById[state.relationshipId]);
@@ -1051,6 +1263,7 @@
     edgeFrame = 0;
     edgeTimer = 0;
     relationshipEdgeLayer.replaceChildren(); relationshipLabelLayer.replaceChildren();
+    delete graphSurface.dataset.layoutStatus;
     const visibleEdges = visibleGraphEdges();
     relationshipGraph.hidden = visibleEdges.length === 0;
     if (!visibleEdges.length) return;
@@ -1058,15 +1271,22 @@
     const width = Math.max(1, graphSurface.clientWidth); const height = Math.max(1, graphSurface.clientHeight);
     relationshipGraph.setAttribute("viewBox", `0 0 ${width} ${height}`);
     relationshipGraph.setAttribute("width", String(width)); relationshipGraph.setAttribute("height", String(height));
+    const layoutFailures = [];
     const positionedEdges = visibleEdges.map((edge) => {
       const sourceCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.sourceId)}"]`);
       const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.targetId)}"]`);
       if (!sourceCard || !targetCard) return null;
-      const { start, end } = edgeEndpoints(sourceCard.getBoundingClientRect(), targetCard.getBoundingClientRect(), surfaceRect);
-      return { edge, start, end };
+      const points = edgePath(sourceCard, targetCard, surfaceRect, width);
+      if (!points) {
+        layoutFailures.push({ edge, reason: "没有不穿过其他节点的安全路径" });
+        return null;
+      }
+      return { edge, points };
     }).filter(Boolean);
-    for (const { edge, start, end } of positionedEdges) {
-      const pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+    const occupiedLabels = [];
+    for (const { edge, points } of positionedEdges) {
+      const start = points[0]; const end = points[points.length - 1];
+      const pathData = points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
       group.dataset.sourceNodeId = edge.sourceId; group.dataset.targetNodeId = edge.targetId;
       if (edge.semanticFamily === "candidate-decomposition") group.dataset.decompositionId = edge.id;
@@ -1092,12 +1312,30 @@
       else if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;
       label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，${trustLabel}，打开关系证据`);
-      const labelX = (start.x + end.x) / 2; const labelY = (start.y + end.y) / 2;
-      relationshipLabelLayer.append(label);
-      const labelWidth = label.offsetWidth; const labelHeight = label.offsetHeight;
-      label.style.left = `${Math.max(labelWidth / 2 + 8, Math.min(width - labelWidth / 2 - 8, labelX))}px`;
-      label.style.top = `${Math.max(labelHeight / 2 + 8, Math.min(height - labelHeight / 2 - 8, labelY))}px`;
+      const otherPaths = positionedEdges
+        .filter((positioned) => positioned.edge.id !== edge.id)
+        .map((positioned) => positioned.points);
+      const labelPlaced = placeGraphLabel(
+        label, points, otherPaths, width, height, surfaceRect, occupiedLabels,
+      );
+      if (!labelPlaced) layoutFailures.push({ edge, reason: "没有不冲突的标签位置" });
       label.addEventListener("click", () => activateGraphEdge(edge));
+    }
+    if (layoutFailures.length) {
+      graphSurface.dataset.layoutStatus = "failed";
+      const descriptions = layoutFailures.map(({ edge, reason }) => {
+        const name = edge.kind === "candidate"
+          ? edge.record.name
+          : edge.record.presentation_zh.relationship_name;
+        return `${name}（${reason}）`;
+      });
+      const failure = text(
+        "p",
+        `关系布局失败：${descriptions.join("；")}。请调整窗口或页面布局后重试。`,
+        "graph-layout-error",
+      );
+      failure.setAttribute("role", "alert");
+      relationshipLabelLayer.append(failure);
     }
   };
 
@@ -1120,13 +1358,23 @@
     });
     bottomNavigation.hidden = atTop;
     heroTitle.textContent = atTop ? "顶层架构" : view.display_name;
+    const candidateView = view.relationship_ids.some(
+      (relationshipId) => projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-"),
+    );
+    heroStatus.hidden = !candidateView;
+    heroStatus.textContent = candidateView ? "Candidate · Pending Review" : "";
     heroLede.textContent = view.coverage_note;
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
 
-  const cardFor = (module, appearance, isChild) => {
+  const cardFor = (module, appearance, isChild, isScopeNode = false) => {
     const article = document.createElement("article"); article.className = "module-card interactive-module";
     article.dataset.moduleId = module.id; article.tabIndex = 0; article.setAttribute("role", "button");
+    if (isScopeNode) {
+      article.dataset.scopeNode = "true";
+      article.classList.add("scope-node-card");
+      article.append(text("span", "当前范围 · 父节点", "scope-node-label"));
+    }
     const primaryAction = appearance.primary_action;
     const opensView = primaryAction?.kind === "open-view";
     const expanded = state.expandedNodeIds.includes(module.id);
@@ -1175,11 +1423,31 @@
   const renderModules = () => {
     const view = currentView(); const atTop = view.id === projection.root_view_id;
     const visible = view.appearances.map((appearance) => ({ appearance, module: moduleById[appearance.node_id] }));
+    const includesScopeNode = visible.some(({ module }) => module.id === view.scope_node_id);
+    const nonScopeNodeIds = visible
+      .map(({ module }) => module.id)
+      .filter((nodeId) => nodeId !== view.scope_node_id);
+    const decomposedTargets = new Set(view.relationship_ids.flatMap((relationshipId) => {
+      const reference = projection.relationship_index[relationshipId];
+      const record = relationshipRecordById[relationshipId];
+      return reference?.semantic_family === "candidate-decomposition"
+          && record?.source_node_id === view.scope_node_id
+        ? [record.target_node_id]
+        : [];
+    }));
+    const decompositionScope = includesScopeNode
+      && nonScopeNodeIds.length > 0
+      && nonScopeNodeIds.every((nodeId) => decomposedTargets.has(nodeId));
     grid.classList.toggle("top-level-grid", atTop);
     grid.classList.toggle("candidate-graph-grid", !atTop);
     grid.classList.toggle("production-candidate-grid", view.scope_node_id === "production-control");
-    grid.replaceChildren(); visible.forEach(({ appearance, module }) => grid.append(cardFor(module, appearance, !atTop)));
-    moduleCount.textContent = `${visible.length} 个${atTop ? "模块" : "候选节点"}`;
+    grid.classList.toggle("decomposition-scope-grid", decompositionScope);
+    grid.replaceChildren(); visible.forEach(({ appearance, module }) => (
+      grid.append(cardFor(module, appearance, !atTop, module.id === view.scope_node_id))
+    ));
+    moduleCount.textContent = includesScopeNode
+      ? `1 个当前范围 · ${visible.length - 1} 个候选节点`
+      : `${visible.length} 个${atTop ? "模块" : "候选节点"}`;
     const collaborations = view.relationship_ids
       .filter((relationshipId) => projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-"))
       .map((relationshipId) => relationshipRecordById[relationshipId]);

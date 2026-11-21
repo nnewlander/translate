@@ -1,0 +1,66 @@
+{
+  "schema": "architecture-explorer.ticket-content-delta-contribution.v1",
+  "ticket": "#61",
+  "target_contract": "architecture-explorer/v3",
+  "base_revision": "66585816244dbd58570d1b9363ab8585abb89b09",
+  "final_manifest": false,
+  "note": "Ticket 03 的可组合 canonical object 贡献；Ticket 06 必须在候选 Head H 上重新计算完整内容摘要并生成最终 Content Delta Manifest。",
+  "changes": [
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:semantic-unit-route-decision-to-translation-provider-dispatch-and-raw-projection",
+      "before_sha256": null,
+      "after_sha256": "ab3246275267fb2924c7af68e3ce0c9b30300e8935f54f0d2101c09102477f13"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:translation-routing-and-acquisition-to-semantic-unit-route-decision",
+      "before_sha256": null,
+      "after_sha256": "0a6088da50765c8f3d5224aef0cfacf5380785208b2864bb5e558990925a5b95"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:translation-routing-and-acquisition-to-translation-provider-dispatch-and-raw-projection",
+      "before_sha256": null,
+      "after_sha256": "b2f1cd3668d2494cf846a10dd647bee76542cf041ee0ba79c4e9395a6fd3df0b"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "translation-routing-and-acquisition",
+      "before_sha256": null,
+      "after_sha256": "22dd28ec824f6b7fda1eb75a973f6141d90673294f03fede33022a074051768f"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "semantic-unit-route-decision",
+      "before_sha256": null,
+      "after_sha256": "c402e319e30b6504df66a3130ef4f575e61a7ef000207805bc7aca677a9dc1c1"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "translation-provider-dispatch-and-raw-projection",
+      "before_sha256": null,
+      "after_sha256": "4195e6a59cb0dfcc5e69e0c09c3c84b1097f605856c9071d4f21f21e2d153a19"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "translation-routing-and-acquisition-internal",
+      "before_sha256": null,
+      "after_sha256": "91dfd4d5efac912985ecf0bff18a1c7d06cd241d9f39d9f54495ff1cadf887f5"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "translation-execution::translation-routing-and-acquisition",
+      "before_sha256": null,
+      "after_sha256": "33ddf626040ca0e1f82cab53e6d91f6dbc1560a588f062285a9e1a5a6dd4fc6f"
+    }
+  ]
+}
