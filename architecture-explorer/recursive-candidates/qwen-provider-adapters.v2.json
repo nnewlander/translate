@@ -1,0 +1,68 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "translation-provider-adapters",
+  "name": "Qwen Provider 适配内部组件",
+  "coverage_note": "本 View 只解释两个 Provider 适配器各自有源码 Evidence 支持的职责。运行时 Provider 选择未知，receiver dispatch 未知；共享合同、import、文件共址和 View 共现都不构成 Provider 之间的协作证据。",
+  "nodes": [
+    {
+      "id": "qwen-mt-single-text-adapter",
+      "node_type": "component",
+      "name": "Qwen MT 单段文本适配器",
+      "professional_description": "候选组件：QwenMTProvider 把一个完整语义单元组装为单段文本请求，解析兼容接口的单条文本响应，并投影为携带请求绑定、来源哈希、时序、响应标识、用量与重试次数的 TranslationCandidate；provenance_record 再给出非密钥 provenance。",
+      "plain_explanation": "像只收一整段原文的模型柜台：它把原文和翻译选项装进一张请求单，从唯一回复中取出译文，并给候选译文附上不含密钥的来源小票。它不决定运行时该不该选这个柜台。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:68e3b87c5840c3d9a195191a26596f0d3ef1d4ed55df9ef983d5f703deef5504",
+        "evidence:sha256:f9e82e1319536376ff94ba3e751355519df8038bf8f5704116a272817b4ca73d",
+        "evidence:sha256:601034257756a5dacad2d2ef240ec8f81ea69df19e6b5aa48fe351a6cdab90c5",
+        "evidence:sha256:ea3534de04d762c72d980c779591be38d208763150bf79424fd0b2d9bc1f2e30"
+      ]
+    },
+    {
+      "id": "qwen-max-structured-translation-adapter",
+      "node_type": "component",
+      "name": "Qwen Max 结构化翻译适配器",
+      "professional_description": "候选组件：QwenMaxProvider 为完整语义单元构造结构化翻译输入与严格 response_format JSON schema，校验受约束 target_texts 输出，并确定性投影为现有 RAW/TranslationResult；本职责不包含 reviewer/repair。",
+      "plain_explanation": "像要求模型按固定表格逐格交卷的柜台：先给出原文片段和严格 schema，再核对数量、空值与受保护片段，最后装入既有 RAW/TranslationResult。这里不包含 reviewer/repair，也不表示运行时一定派单到这个柜台。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:eea9ce0866ba8e783deb872e9c62e9139dc9b41ec215d6515efc9db04c2f2bea",
+        "evidence:sha256:f19cd98a7bc6dcd892d7880bac15f7fbf0cbf3db70c5dfee64f9162a4e09cac7",
+        "evidence:sha256:984489f7ed1dc3bf6ffc258e92c39a1d3554ea499a9dfb6e6e75fc35305fbdc3",
+        "evidence:sha256:39cbf8872a181ebded36df6a3bbb5071fd5da00515163e941391d6d9fb57dcff",
+        "evidence:sha256:78430c7182e8c7c65313dfe899941dff1832a149402635845cfa8c4a9ed6db5d"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:translation-provider-adapters-to-qwen-mt-single-text-adapter",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "translation-provider-adapters",
+      "target_node_id": "qwen-mt-single-text-adapter",
+      "name": "Qwen Provider 适配分解为 Qwen MT 单段文本适配",
+      "professional_description": "候选分解：Qwen Provider 适配组件的一项内部职责由 Qwen MT 单段文本请求、响应解析、TranslationCandidate 与 provenance 投影组成。",
+      "plain_explanation": "把“Qwen 提供方适配”拆开看，其中一个柜台专门处理整段文本并附上候选来源小票；这是未审核分解，不代表运行时选择。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:68e3b87c5840c3d9a195191a26596f0d3ef1d4ed55df9ef983d5f703deef5504",
+        "evidence:sha256:f9e82e1319536376ff94ba3e751355519df8038bf8f5704116a272817b4ca73d"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:translation-provider-adapters-to-qwen-max-structured-translation-adapter",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "translation-provider-adapters",
+      "target_node_id": "qwen-max-structured-translation-adapter",
+      "name": "Qwen Provider 适配分解为 Qwen Max 结构化翻译适配",
+      "professional_description": "候选分解：Qwen Provider 适配组件的一项内部职责由结构化输入、严格 schema、受约束输出校验与 RAW/TranslationResult 投影组成。",
+      "plain_explanation": "另一个柜台要求模型按固定表格交卷，再把合格结果装入统一 RAW 回执；这项未审核分解不包含 reviewer/repair。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:eea9ce0866ba8e783deb872e9c62e9139dc9b41ec215d6515efc9db04c2f2bea",
+        "evidence:sha256:984489f7ed1dc3bf6ffc258e92c39a1d3554ea499a9dfb6e6e75fc35305fbdc3",
+        "evidence:sha256:78430c7182e8c7c65313dfe899941dff1832a149402635845cfa8c4a9ed6db5d"
+      ]
+    }
+  ]
+}

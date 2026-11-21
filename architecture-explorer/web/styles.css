@@ -129,6 +129,20 @@ h1 {
   line-height: 1.8;
 }
 
+.view-status {
+  display: inline-flex;
+  margin: 18px 0 0;
+  padding: 7px 11px;
+  border: 1px solid #d7c28f;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: #6f541f;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+.view-status[hidden] { display: none; }
+
 h2 {
   margin: 0;
   color: #333333;

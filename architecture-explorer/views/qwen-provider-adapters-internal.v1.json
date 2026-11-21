@@ -1,0 +1,33 @@
+{
+  "schema": "architecture-explorer.view-definitions.v1",
+  "entry_actions": [
+    {
+      "view_id": "translation-execution",
+      "node_id": "translation-provider-adapters",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "translation-provider-adapters-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看 Qwen Provider 适配内部组件"
+      }
+    }
+  ],
+  "views": [
+    {
+      "id": "translation-provider-adapters-internal",
+      "display_name": "Qwen 提供方适配",
+      "perspective": "component",
+      "scope_node_id": "translation-provider-adapters",
+      "coverage_note": "展示 Qwen MT 单段文本适配与 Qwen Max 结构化翻译适配；两者及分解关系均为 Pending Review，不声明 Provider 间协作、运行时选择或 receiver dispatch。",
+      "appearances": [
+        {"node_id": "translation-provider-adapters"},
+        {"node_id": "qwen-mt-single-text-adapter"},
+        {"node_id": "qwen-max-structured-translation-adapter"}
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:translation-provider-adapters-to-qwen-mt-single-text-adapter",
+        "candidate-decomposition:translation-provider-adapters-to-qwen-max-structured-translation-adapter"
+      ]
+    }
+  ]
+}
