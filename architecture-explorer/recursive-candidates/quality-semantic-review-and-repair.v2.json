@@ -1,0 +1,116 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "quality-semantic-review-and-repair",
+  "nodes": [
+    {
+      "id": "semantic-review-contract-boundary",
+      "node_type": "responsibility",
+      "name": "语义审核合同边界",
+      "professional_description": "候选职责：根据本地调度理由把任务绑定的候选结果送入审核合同边界，并验证审核返回类型、请求绑定和审核结果合同；具体 reviewer receiver dispatch 仍未知，静态事实不证明运行可达。",
+      "plain_explanation": "像先决定这份译文是否需要语义复核，再由合同门口核对复核结果确实属于这份任务；源码看得到门口和调用点，但看不出运行时究竟是哪位 reviewer 接单，也不能证明某次任务走到这里。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:2ad2ef43dd06310aac8f94beb75ced83a771a10e09787afbffa312c8df52b9ab",
+        "evidence:sha256:21bdd7d118512a9003b58a70c49bed4c10f42a27df0ef5a88614b4f5e363b8e5",
+        "evidence:sha256:b28fe7c13cfa10b3c65bd84e681bb5628f1589e15bd46b84923923632059c139",
+        "evidence:sha256:6b3eae8fe5fc3dfa81f7762da21b98e8579ca042c4a87f2fbc739983433790d1"
+      ]
+    },
+    {
+      "id": "repair-authorization-gate",
+      "node_type": "responsibility",
+      "name": "修复授权门禁",
+      "professional_description": "候选职责：只判断已有 QA 或审核请求是否满足精确的批准合同范围、保护段约束、修复指令和策略条件，并在不满足时失败关闭；它不作自动批准，也不证明后续修复会运行。",
+      "plain_explanation": "像返修窗口只检查返修单有没有写清允许改哪些段、按什么规则改；它不能自己批准一份新返修单，更不会因为 reviewer 建议修复就自动放行。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:cb24e0b86ebcd884747d463bafdd332faf46a4ec9bc6c8614cfdbac3278d9579",
+        "evidence:sha256:c4b4ffa893088a9463f196276d23df2e240683e0f2899783b2f248c5e6552dfd"
+      ]
+    },
+    {
+      "id": "constrained-repair-call-boundary",
+      "node_type": "responsibility",
+      "name": "受限修复调用边界",
+      "professional_description": "候选职责：仅在已批准范围内携带合同调用修复能力，并验证返回结果仍绑定当前任务、当前候选及获准修改的段范围；具体 repair receiver dispatch 仍未知，静态事实不证明运行可达。",
+      "plain_explanation": "像返修工位只能拿着已批准的返修单修改指定段，回来后还要检查有没有越界；源码看不到运行时究竟由哪个 repair 实现接单，也不能证明某次返修真的发生。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:e1a90c2d85a20605e101b13d2b236cbc0bcbd76522a1c402fdc0c76846aded77",
+        "evidence:sha256:60c20454d9012e1006dc2a6f10060f74e4a8113a506b0426d5f6bafedf2bfceb"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:quality-semantic-review-and-repair-to-semantic-review-contract-boundary",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-semantic-review-and-repair",
+      "target_node_id": "semantic-review-contract-boundary",
+      "name": "语义审核与受限修复分解为审核合同边界",
+      "professional_description": "候选分解把任务绑定的审核调用与返回合同验证解释为父职责的一项内部职责；静态定义与调用事实不证明实际运行顺序或运行可达，具体 reviewer receiver 保持未知。",
+      "plain_explanation": "这张候选图把“核对审核结果属于当前任务”单独画出来；它还没经过审核，也不能说明某次任务真的按图运行。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:21bdd7d118512a9003b58a70c49bed4c10f42a27df0ef5a88614b4f5e363b8e5",
+        "evidence:sha256:6b3eae8fe5fc3dfa81f7762da21b98e8579ca042c4a87f2fbc739983433790d1"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:quality-semantic-review-and-repair-to-repair-authorization-gate",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-semantic-review-and-repair",
+      "target_node_id": "repair-authorization-gate",
+      "name": "语义审核与受限修复分解为修复授权门禁",
+      "professional_description": "候选分解把批准合同范围判定与失败关闭解释为父职责的一项内部职责；静态定义与调用事实不证明实际运行顺序或运行可达，也不构成自动批准。",
+      "plain_explanation": "这张候选图把“返修单是否符合已有规则”单独画成一道门；这道门只检查，不会替人自动批准。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:cb24e0b86ebcd884747d463bafdd332faf46a4ec9bc6c8614cfdbac3278d9579",
+        "evidence:sha256:c4b4ffa893088a9463f196276d23df2e240683e0f2899783b2f248c5e6552dfd"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:quality-semantic-review-and-repair-to-constrained-repair-call-boundary",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-semantic-review-and-repair",
+      "target_node_id": "constrained-repair-call-boundary",
+      "name": "语义审核与受限修复分解为受限修复调用边界",
+      "professional_description": "候选分解把已批准范围内的修复调用与返回结果验证解释为父职责的一项内部职责；静态定义与调用事实不证明实际运行顺序或运行可达，具体 repair receiver 保持未知。",
+      "plain_explanation": "这张候选图把“按返修单调用并检查没有越界”单独画出来；它没有确认实际接单者或某次返修已经发生。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:e1a90c2d85a20605e101b13d2b236cbc0bcbd76522a1c402fdc0c76846aded77",
+        "evidence:sha256:60c20454d9012e1006dc2a6f10060f74e4a8113a506b0426d5f6bafedf2bfceb"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:semantic-review-contract-boundary-to-repair-authorization-gate",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "semantic-review-contract-boundary",
+      "target_node_id": "repair-authorization-gate",
+      "name": "审核合同信息衔接修复授权范围判断",
+      "professional_description": "候选职责衔接：任务绑定的审核结果可为修复授权门禁提供审核请求、问题范围与指令信息；共处于 process_unit 的静态调用事实不证明实际运行顺序或运行可达。",
+      "plain_explanation": "像审核结果可以成为返修窗口检查返修范围的材料；这条线只是有证据支持的候选衔接，不表示每次都先后经过两处。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:21bdd7d118512a9003b58a70c49bed4c10f42a27df0ef5a88614b4f5e363b8e5",
+        "evidence:sha256:cb24e0b86ebcd884747d463bafdd332faf46a4ec9bc6c8614cfdbac3278d9579"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:repair-authorization-gate-to-constrained-repair-call-boundary",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "repair-authorization-gate",
+      "target_node_id": "constrained-repair-call-boundary",
+      "name": "批准合同衔接受限修复调用",
+      "professional_description": "候选职责衔接：门禁形成的精确批准合同可作为受限修复调用边界的范围输入；共处于 process_unit 的静态调用事实不证明实际运行顺序或运行可达。",
+      "plain_explanation": "像检查合格的返修单可以交给受限返修工位作为边界；这条候选线不保证某次任务真的放行或调用。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:cb24e0b86ebcd884747d463bafdd332faf46a4ec9bc6c8614cfdbac3278d9579",
+        "evidence:sha256:e1a90c2d85a20605e101b13d2b236cbc0bcbd76522a1c402fdc0c76846aded77"
+      ]
+    }
+  ]
+}

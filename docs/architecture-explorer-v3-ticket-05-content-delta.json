@@ -1,0 +1,114 @@
+{
+  "schema": "architecture-explorer.ticket-content-delta-contribution.v1",
+  "ticket": 63,
+  "ticket_base_revision": "66585816244dbd58570d1b9363ab8585abb89b09",
+  "target_contract": "architecture-explorer/v3",
+  "status": "ticket-contribution-only",
+  "final_batch_manifest_produced": false,
+  "canonicalization": {
+    "encoding": "UTF-8",
+    "dictionary_keys": "recursive-lexicographic-sort",
+    "arrays": "preserve-source-order",
+    "whitespace": "none",
+    "unicode_normalization": "none",
+    "hash": "SHA-256",
+    "envelope_fields": [
+      "object_type",
+      "object_id",
+      "payload"
+    ]
+  },
+  "source_contribution": {
+    "candidate_fragment": "architecture-explorer/recursive-candidates/quality-semantic-review-and-repair.v2.json",
+    "view_definition_contribution": "architecture-explorer/views/quality-semantic-review-and-repair.ticket-63.v1.json",
+    "view_id": "quality-semantic-review-and-repair-internal",
+    "entry_action_id": "quality-and-repair::quality-semantic-review-and-repair"
+  },
+  "counts": {
+    "candidate-fragment": 1,
+    "candidate-node": 3,
+    "candidate-decomposition": 3,
+    "candidate-collaboration": 2,
+    "view": 1,
+    "view-entry-action": 1
+  },
+  "changes": [
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:repair-authorization-gate-to-constrained-repair-call-boundary",
+      "before_sha256": null,
+      "after_sha256": "7e151ea4bf985917d87a039f14effc22a7eeaa6e68666ccfb8b48aa849a2ac59"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:semantic-review-contract-boundary-to-repair-authorization-gate",
+      "before_sha256": null,
+      "after_sha256": "26569ec4345909a5d5d8464079ed4fd17b62d6e2d944c4a18f62c6538c8eea95"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-semantic-review-and-repair-to-constrained-repair-call-boundary",
+      "before_sha256": null,
+      "after_sha256": "e1b8debcecd12a7e52b1f88f9160716c17ad09a43bea83bab83acc44b1312549"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-semantic-review-and-repair-to-repair-authorization-gate",
+      "before_sha256": null,
+      "after_sha256": "6edd56398cd3cc94120695409c687238c70f8245fa3557e6d45605752e58da09"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-semantic-review-and-repair-to-semantic-review-contract-boundary",
+      "before_sha256": null,
+      "after_sha256": "5b7b4c14cd0c9f153093b5241cfeaac27df247ecf3dd1454bfc79e7b39984436"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "quality-semantic-review-and-repair",
+      "before_sha256": null,
+      "after_sha256": "bdd9427b70cac52e25e8de83478947c9deec02e0924dc575e2bfa60844e4260a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "constrained-repair-call-boundary",
+      "before_sha256": null,
+      "after_sha256": "42c68b4f72cf86393fe18d858cddcaba971cf2bf56b6bf134c1fe24c3d32ad2b"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "repair-authorization-gate",
+      "before_sha256": null,
+      "after_sha256": "3e039b59472077d0b0e1dc6e985a04eebfc3a8ac22d07b8476829466427c8df8"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "semantic-review-contract-boundary",
+      "before_sha256": null,
+      "after_sha256": "d28d4ea4bfa0e039ee35404dde96d9517fc657ade7b3ae1d57290ad25bf03fea"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "quality-semantic-review-and-repair-internal",
+      "before_sha256": null,
+      "after_sha256": "03697ddc70c541c3438ed61ad6dcaa117bb0c44b9f7f501eed44ca43880ead8d"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "quality-and-repair::quality-semantic-review-and-repair",
+      "before_sha256": null,
+      "after_sha256": "101ce2ca7107be6ec89d31bd41ec8e9bf2f7ca0d008a0c708f5e3a837a8b7aa9"
+    }
+  ]
+}

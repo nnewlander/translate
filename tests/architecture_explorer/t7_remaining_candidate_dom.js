@@ -35,7 +35,7 @@
   }));
   const coordinates = (path) => {
     const values = path.getAttribute("d").match(/-?\d+(?:\.\d+)?/g).map(Number);
-    return { start: { x: values[0], y: values[1] }, end: { x: values[2], y: values[3] } };
+    return { start: { x: values[0], y: values[1] }, end: { x: values.at(-2), y: values.at(-1) } };
   };
   const cardBoundsInSurface = (node) => {
     const surface = document.querySelector("#graph-surface").getBoundingClientRect();

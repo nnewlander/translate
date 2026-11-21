@@ -1299,14 +1299,17 @@
       const hit = document.createElementNS(relationshipGraph.namespaceURI, "path");
       hit.setAttribute("d", pathData); hit.setAttribute("class", "graph-edge-hit");
       const line = document.createElementNS(relationshipGraph.namespaceURI, "path");
-      line.setAttribute("d", pathData); line.setAttribute("class", `graph-edge ${edge.kind}`);
+      const relationshipKind = edge.semanticFamily === "candidate-decomposition"
+        ? "decomposition"
+        : edge.semanticFamily === "candidate-collaboration" ? "collaboration" : "";
+      line.setAttribute("d", pathData); line.setAttribute("class", `graph-edge ${edge.kind} ${relationshipKind}`.trim());
       line.setAttribute("marker-end", `url(#${edge.kind}-arrowhead)`);
       hit.addEventListener("click", () => activateGraphEdge(edge));
       group.append(title, hit, line); relationshipEdgeLayer.append(group);
 
       const labelText = edge.kind === "candidate" ? edge.record.name : edge.record.presentation_zh.relationship_name;
       const trustLabel = edge.kind === "candidate" ? `${candidateType}，未经审核` : "当前已审核关系";
-      const label = text("button", labelText, `graph-edge-label ${edge.kind}`);
+      const label = text("button", labelText, `graph-edge-label ${edge.kind} ${relationshipKind}`.trim());
       label.type = "button";
       if (edge.semanticFamily === "candidate-decomposition") label.dataset.decompositionId = edge.id;
       else if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
@@ -1357,12 +1360,14 @@
       breadcrumb.append(text("span", viewById[frame.viewId].display_name, index === state.navigationPath.length - 1 ? "crumb current" : "crumb"));
     });
     bottomNavigation.hidden = atTop;
-    heroTitle.textContent = atTop ? "顶层架构" : view.display_name;
-    const candidateView = view.relationship_ids.some(
-      (relationshipId) => projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-"),
-    );
-    heroStatus.hidden = !candidateView;
-    heroStatus.textContent = candidateView ? "Candidate · Pending Review" : "";
+    const scopeAppearsInView = view.appearances.some((appearance) => appearance.node_id === view.scope_node_id);
+    heroTitle.textContent = atTop ? "顶层架构" : (scopeAppearsInView ? moduleById[view.scope_node_id]?.name : null) || view.display_name;
+    heroTitle.classList.toggle("internal-view-title", !atTop);
+    const isCandidateView = !atTop && view.relationship_ids.some((relationshipId) => (
+      projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-")
+    ));
+    heroStatus.hidden = !isCandidateView;
+    heroStatus.textContent = isCandidateView ? "Candidate · Pending Review" : "";
     heroLede.textContent = view.coverage_note;
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
