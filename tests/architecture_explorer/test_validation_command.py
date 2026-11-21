@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 import pytest
 
+from booktrans.architecture_explorer import validation
 from booktrans.architecture_explorer.validation import (
     ValidationContext,
     ValidationStatus,
@@ -294,6 +295,76 @@ def _context(**changes: Path) -> ValidationContext:
     }
     values.update(changes)
     return ValidationContext(**values)
+
+
+class FailingTemporaryDirectory:
+    def __init__(self, errors: list[OSError]) -> None:
+        self.errors = list(errors)
+        self.cleanup_calls = 0
+
+    def cleanup(self) -> None:
+        self.cleanup_calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+
+
+def _windows_error(code: int, message: str) -> OSError:
+    error = OSError(code, message)
+    error.winerror = code
+    return error
+
+
+def test_windows_directory_not_empty_cleanup_is_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    temporary_directory = FailingTemporaryDirectory(
+        [
+            _windows_error(145, "directory is not empty"),
+            _windows_error(145, "directory is not empty"),
+        ]
+    )
+    delays: list[float] = []
+    monkeypatch.setattr(validation.time, "sleep", delays.append)
+
+    validation._cleanup_temporary_directory(temporary_directory)
+
+    assert temporary_directory.cleanup_calls == 3
+    assert delays == [0.1, 0.1]
+
+
+def test_cleanup_does_not_retry_an_unrelated_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = _windows_error(5, "access denied")
+    temporary_directory = FailingTemporaryDirectory([error])
+    delays: list[float] = []
+    monkeypatch.setattr(validation.time, "sleep", delays.append)
+
+    with pytest.raises(OSError) as caught:
+        validation._cleanup_temporary_directory(temporary_directory)
+
+    assert caught.value is error
+    assert temporary_directory.cleanup_calls == 1
+    assert delays == []
+
+
+def test_directory_not_empty_cleanup_fails_after_the_retry_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    errors = [
+        _windows_error(145, f"directory is not empty {index}")
+        for index in range(5)
+    ]
+    temporary_directory = FailingTemporaryDirectory(errors)
+    delays: list[float] = []
+    monkeypatch.setattr(validation.time, "sleep", delays.append)
+
+    with pytest.raises(OSError) as caught:
+        validation._cleanup_temporary_directory(temporary_directory)
+
+    assert caught.value is errors[-1]
+    assert temporary_directory.cleanup_calls == 5
+    assert delays == [0.1, 0.1, 0.1, 0.1]
 
 
 def test_wrong_python_prefix_blocks_later_stages() -> None:

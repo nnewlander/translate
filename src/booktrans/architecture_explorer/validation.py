@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Protocol
 from xml.etree import ElementTree
 
@@ -663,6 +664,23 @@ def _runtime_context(repository: Path) -> ValidationContext:
     )
 
 
+def _cleanup_temporary_directory(
+    temporary_directory: tempfile.TemporaryDirectory,
+) -> None:
+    attempts = 5
+    for attempt in range(attempts):
+        try:
+            temporary_directory.cleanup()
+            return
+        except OSError as error:
+            directory_not_empty = (
+                os.name == "nt" and getattr(error, "winerror", None) == 145
+            )
+            if not directory_not_empty or attempt == attempts - 1:
+                raise
+            time.sleep(0.1)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run the authoritative Architecture Explorer validation.",
@@ -681,14 +699,15 @@ def main(argv: list[str] | None = None) -> int:
             + ", ".join(str(path) for path in missing)
         )
     else:
-        with tempfile.TemporaryDirectory(
-            prefix="architecture-explorer-validation-"
-        ) as temporary_directory:
+        temporary_directory = tempfile.TemporaryDirectory(prefix="ae-v-")
+        try:
             report = validate(
                 _runtime_context(repository),
                 runner=SubprocessCommandRunner(),
-                scratch_root=Path(temporary_directory) / "run",
+                scratch_root=Path(temporary_directory.name) / "run",
             )
+        finally:
+            _cleanup_temporary_directory(temporary_directory)
     print(render_report(report))
     return report.exit_code
 

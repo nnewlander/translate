@@ -57,6 +57,8 @@ _SUPERVISOR_ENTRIES = (
 
 _POWERSHELL_SOURCE_FACTS_QUERY = r"""
 $ErrorActionPreference = 'Stop'
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8NoBom
 $encoded = [Console]::In.ReadToEnd().Trim()
 $source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded)).TrimStart([char]0xFEFF)
 $tokens = $null
