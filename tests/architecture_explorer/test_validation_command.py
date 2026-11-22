@@ -158,6 +158,29 @@ def _valid_viewport_evidence() -> dict:
     }
 
 
+def _valid_joint_view_evidence() -> dict:
+    evidence = _valid_viewport_evidence()
+    widths = ([480, 900], [960, 900], [1280, 900], [1440, 900])
+    evidence["graphs"] = [
+        {
+            "graph_id": f"view-{index}",
+            "observations": [
+                {
+                    "requested": viewport,
+                    "actual": viewport,
+                    "navigation_identity": evidence["page_identity"],
+                    "page_overflow": 0,
+                    "relationship_ids": [],
+                }
+                for viewport in widths
+            ],
+        }
+        for index in range(12)
+    ]
+    evidence.pop("source_trail")
+    return evidence
+
+
 class RecordingRunner:
     def __init__(
         self,
@@ -196,6 +219,7 @@ class JunitRunner(RecordingRunner):
         pytest_stdout: str = "",
         write_viewport_evidence: bool = True,
         viewport_evidence: dict | None = None,
+        write_joint_view_evidence: bool = True,
         include_ticket02_required: bool = True,
     ) -> None:
         super().__init__()
@@ -207,6 +231,7 @@ class JunitRunner(RecordingRunner):
         self.pytest_stdout = pytest_stdout
         self.write_viewport_evidence = write_viewport_evidence
         self.viewport_evidence = viewport_evidence or _valid_viewport_evidence()
+        self.write_joint_view_evidence = write_joint_view_evidence
 
     def run(
         self,
@@ -248,6 +273,14 @@ class JunitRunner(RecordingRunner):
                 )
                 evidence_path.write_text(
                     json.dumps(self.viewport_evidence),
+                    encoding="utf-8",
+                )
+            if self.write_joint_view_evidence and env is not None:
+                joint_evidence_path = Path(
+                    env["ARCHITECTURE_EXPLORER_JOINT_VIEW_EVIDENCE"]
+                )
+                joint_evidence_path.write_text(
+                    json.dumps(_valid_joint_view_evidence()),
                     encoding="utf-8",
                 )
             return subprocess.CompletedProcess(command, 0, self.pytest_stdout, "")
@@ -877,6 +910,43 @@ def test_preset_viewport_text_cannot_replace_browser_observation_evidence(
     assert "viewport evidence" in report.first_reason
 
 
+def test_missing_joint_view_evidence_cannot_produce_a_passing_validation(
+    tmp_path: Path,
+) -> None:
+    t7_class = "tests.architecture_explorer.test_t7_top_level_graph"
+    names = (
+        "test_real_browser_opens_candidate_evidence_from_every_node_context_menu",
+        "test_degraded_relationship_never_receives_reviewed_graph_treatment",
+        "test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids",
+        "test_real_browser_renders_production_candidates_in_the_shared_graph[960-900]",
+        "test_real_browser_renders_production_candidates_in_the_shared_graph[1280-900]",
+        "test_real_browser_renders_production_candidates_in_the_shared_graph[1440-900]",
+        "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip",
+        "test_real_chrome_preserves_every_projected_relationship_at_mobile_width",
+    )
+    junit_cases = "".join(
+        f'<testcase classname="{t7_class}" name="{name}" />'
+        for name in names
+    ) + (
+        '<testcase classname="tests.architecture_explorer.test_acceptance_contract" '
+        'name="test_contract_trust_semantics_match_the_published_explorer" />'
+    )
+    runner = JunitRunner(
+        f'<testsuites><testsuite tests="9">{junit_cases}</testsuite></testsuites>',
+        write_joint_view_evidence=False,
+    )
+
+    report = validate(
+        _context(),
+        runner=runner,
+        scratch_root=tmp_path / "validation-scratch",
+    )
+
+    assert report.status("architecture-explorer") is ValidationStatus.BLOCKED
+    assert report.exit_code == 2
+    assert "joint 12-View" in report.first_reason
+
+
 def test_contradictory_actual_viewport_evidence_cannot_pass(
     tmp_path: Path,
 ) -> None:
@@ -979,10 +1049,95 @@ def test_subprocess_runner_rejects_replacement_character_in_child_output() -> No
     assert "U+FFFD" in completed.stderr
 
 
+def test_subprocess_runner_preserves_chinese_failure_detail() -> None:
+    completed = validation.SubprocessCommandRunner().run(
+        (
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "sys.stderr.buffer.write('中文异常'.encode('utf-8')); "
+                "raise SystemExit(1)"
+            ),
+        ),
+        cwd=REPOSITORY,
+    )
+
+    assert completed.returncode == 1
+    assert completed.stderr == "中文异常"
+
+
+def test_replacement_output_from_dependency_check_is_an_explicit_fail() -> None:
+    runner = RecordingRunner(
+        [
+            subprocess.CompletedProcess(
+                (),
+                1,
+                "",
+                (
+                    "subprocess output integrity failure: output contained "
+                    "replacement character U+FFFD"
+                ),
+            )
+        ]
+    )
+
+    report = validate(_context(), runner=runner)
+
+    assert report.status("environment") is ValidationStatus.FAIL
+    assert report.exit_code == 1
+    assert "U+FFFD" in report.first_reason
+    assert "RESULT: FAIL (exit 1)" in render_report(report)
+
+
+def test_replacement_output_from_pytest_collection_is_an_explicit_fail(
+    tmp_path: Path,
+) -> None:
+    class ReplacementCollectionRunner(RecordingRunner):
+        def run(
+            self,
+            command: tuple[str, ...],
+            *,
+            cwd: Path,
+            env: dict[str, str] | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            if "--collect-only" in command:
+                self.commands.append(command)
+                self.environments.append(env)
+                return subprocess.CompletedProcess(
+                    command,
+                    1,
+                    "",
+                    (
+                        "subprocess output integrity failure: output contained "
+                        "replacement character U+FFFD"
+                    ),
+                )
+            return super().run(command, cwd=cwd, env=env)
+
+    report = validate(
+        _context(),
+        runner=ReplacementCollectionRunner(),
+        scratch_root=tmp_path / "validation-scratch",
+    )
+
+    assert report.status("architecture-explorer") is ValidationStatus.FAIL
+    assert report.exit_code == 1
+    assert "U+FFFD" in report.first_reason
+    assert "RESULT: FAIL (exit 1)" in render_report(report)
+
+
 def test_candidate_record_binds_one_head_and_exact_validation_statistics(
     tmp_path: Path,
 ) -> None:
-    head = "ca172e10fefb5c22b254b6e4ec48a0e8fe4ee1be"
+    head = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=REPOSITORY,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout.strip()
     joint_view_nodeid = (
         "tests/architecture_explorer/test_ticket_61_semantic_routing_view.py::"
         "test_real_chrome_preserves_every_projected_relationship_at_mobile_width"
@@ -1027,12 +1182,12 @@ def test_candidate_record_binds_one_head_and_exact_validation_statistics(
                 required_nodeids=(joint_view_nodeid,)
                 + tuple(f"tests/example.py::test_required_chrome_{index}" for index in range(68)),
                 joint_view_nodeid=joint_view_nodeid,
-                joint_view_count=12,
+                joint_view_ids=tuple(f"view-{index}" for index in range(12)),
                 joint_viewport_widths=(480, 960, 1280, 1440),
             ),
         ),
     )
-    record_path = tmp_path / "candidate-acceptance.json"
+    record_path = tmp_path / "candidate-acceptance" / "evidence.json"
 
     digest = write_candidate_acceptance_record(
         REPOSITORY,
@@ -1046,6 +1201,8 @@ def test_candidate_record_binds_one_head_and_exact_validation_statistics(
     record = json.loads(record_path.read_text(encoding="utf-8"))
     assert record["status"] == "CANDIDATE_ACCEPTANCE_PASS"
     assert record["head_revision"] == head
+    assert len(record["head_tree"]) == 40
+    assert record["head_tree"].isalnum()
     assert record["base_revision"] == "6a239f6919cbb791e69e56383b91dbb634aeaf0f"
     assert record["spec"] == {
         "issue": 58,
@@ -1069,6 +1226,7 @@ def test_candidate_record_binds_one_head_and_exact_validation_statistics(
     assert record["required_chrome"]["joint_view_validation"] == {
         "test_nodeid": joint_view_nodeid,
         "views": 12,
+        "view_ids": [f"view-{index}" for index in range(12)],
         "viewport_widths": [480, 960, 1280, 1440],
     }
     assert record["not_run"] == ["firefox", "edge", "non-explorer"]
@@ -1087,10 +1245,19 @@ def test_candidate_record_refuses_a_non_passing_validation(tmp_path: Path) -> No
         write_candidate_acceptance_record(
             REPOSITORY,
             report=report,
-            head_revision="ca172e10fefb5c22b254b6e4ec48a0e8fe4ee1be",
+            head_revision=(
+                subprocess.run(
+                    ("git", "rev-parse", "HEAD"),
+                    cwd=REPOSITORY,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                ).stdout.strip()
+            ),
             target_contract="architecture-explorer/v3",
             manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
-            output_path=tmp_path / "must-not-exist.json",
+            output_path=tmp_path / "must-not-exist" / "evidence.json",
         )
 
 

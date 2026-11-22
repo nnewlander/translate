@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -348,6 +349,11 @@ def test_real_chrome_preserves_every_projected_relationship_at_mobile_width(
         == [[480, 900], [960, 900], [1280, 900], [1440, 900]]
         for graph in evidence["graphs"]
     )
+    published_evidence = os.environ.get(
+        "ARCHITECTURE_EXPLORER_JOINT_VIEW_EVIDENCE"
+    )
+    if published_evidence:
+        shutil.copyfile(evidence_path, published_evidence)
 
 
 def test_real_chrome_exposes_an_unrenderable_relationship_as_a_layout_failure(

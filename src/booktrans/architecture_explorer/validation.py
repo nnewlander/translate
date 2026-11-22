@@ -21,6 +21,9 @@ from .acceptance import APPROVED_PROPOSED_V3_METADATA, validate_acceptance_targe
 from .content_delta import read_git
 
 
+_OUTPUT_INTEGRITY_FAILURE = "subprocess output integrity failure:"
+
+
 class ValidationStatus(str, Enum):
     PASS = "PASS"
     FAIL = "FAIL"
@@ -102,7 +105,7 @@ class ChromeValidationEvidence:
     user_agent: str
     required_nodeids: tuple[str, ...]
     joint_view_nodeid: str
-    joint_view_count: int
+    joint_view_ids: tuple[str, ...]
     joint_viewport_widths: tuple[int, ...]
 
 
@@ -152,14 +155,14 @@ class SubprocessCommandRunner:
                 command,
                 1,
                 "",
-                f"subprocess emitted non-UTF-8 output: {error}",
+                f"{_OUTPUT_INTEGRITY_FAILURE} non-UTF-8 bytes: {error}",
             )
         if "\ufffd" in stdout or "\ufffd" in stderr:
             return subprocess.CompletedProcess(
                 command,
                 1,
                 "",
-                "subprocess output contained replacement character U+FFFD",
+                f"{_OUTPUT_INTEGRITY_FAILURE} output contained replacement character U+FFFD",
             )
         return subprocess.CompletedProcess(
             command,
@@ -394,6 +397,43 @@ def _statistics(
     )
 
 
+def _validated_joint_view_evidence(
+    path: Path,
+    *,
+    chrome_product: str,
+    chrome_user_agent: str,
+) -> tuple[tuple[str, ...], tuple[int, ...]]:
+    evidence = json.loads(path.read_text(encoding="utf-8"))
+    if evidence.get("schema") != "architecture-explorer.chrome-viewport-evidence.v1":
+        raise ValueError("unexpected joint View evidence schema")
+    browser = evidence.get("browser")
+    if not isinstance(browser, dict) or (
+        browser.get("product") != chrome_product
+        or browser.get("user_agent") != chrome_user_agent
+    ):
+        raise ValueError("joint View evidence came from a different Chrome identity")
+    graphs = evidence.get("graphs")
+    if not isinstance(graphs, list):
+        raise ValueError("joint View evidence has no graph observations")
+    view_ids = tuple(
+        graph.get("graph_id") for graph in graphs if isinstance(graph, dict)
+    )
+    if len(view_ids) != 12 or len(set(view_ids)) != 12:
+        raise ValueError(f"joint View evidence did not contain 12 unique Views: {view_ids}")
+    expected = ([480, 900], [960, 900], [1280, 900], [1440, 900])
+    for graph in graphs:
+        observations = graph.get("observations")
+        if not isinstance(observations, list):
+            raise ValueError(f"joint View {graph['graph_id']} has no observations")
+        requested = tuple(observation.get("requested") for observation in observations)
+        actual = tuple(observation.get("actual") for observation in observations)
+        if requested != expected or actual != expected:
+            raise ValueError(
+                f"joint View {graph['graph_id']} did not complete all viewport widths"
+            )
+    return view_ids, tuple(viewport[0] for viewport in expected)
+
+
 def render_report(report: ValidationReport) -> str:
     """Render the stable console summary consumed locally and in CI logs."""
 
@@ -453,6 +493,22 @@ def _blocked_report(reason: str) -> ValidationReport:
     )
 
 
+def _environment_failure_report(reason: str) -> ValidationReport:
+    return _report(
+        StageResult("environment", ValidationStatus.FAIL, reason),
+        StageResult("static", ValidationStatus.NOT_RUN, "environment failed"),
+        StageResult(
+            "architecture-explorer",
+            ValidationStatus.NOT_RUN,
+            "environment failed",
+        ),
+    )
+
+
+def _has_output_integrity_failure(completed: subprocess.CompletedProcess[str]) -> bool:
+    return _OUTPUT_INTEGRITY_FAILURE in completed.stderr
+
+
 def validate(
     context: ValidationContext,
     *,
@@ -488,6 +544,10 @@ def validate(
     )
     if dependency_check.returncode != 0:
         detail = dependency_check.stderr.strip() or dependency_check.stdout.strip()
+        if _has_output_integrity_failure(dependency_check):
+            return _environment_failure_report(
+                f"pip check failed: {detail or f'exit {dependency_check.returncode}'}"
+            )
         return _blocked_report(
             f"pip check failed: {detail or f'exit {dependency_check.returncode}'}"
         )
@@ -557,11 +617,15 @@ def validate(
     pytest_xml = scratch_root / "pytest.xml"
     pytest_temp = scratch_root / "pytest"
     viewport_evidence = scratch_root / "chrome-viewport-evidence.json"
+    joint_view_evidence = scratch_root / "joint-view-evidence.json"
     test_environment = dict(os.environ)
     test_environment["PYTHONPATH"] = str((context.repository / "src").resolve())
     test_environment["ARCHITECTURE_EXPLORER_BROWSER"] = "chrome"
     test_environment["ARCHITECTURE_EXPLORER_VIEWPORT_EVIDENCE"] = str(
         viewport_evidence
+    )
+    test_environment["ARCHITECTURE_EXPLORER_JOINT_VIEW_EVIDENCE"] = str(
+        joint_view_evidence
     )
     collection_command = (
         str(context.python_executable),
@@ -578,13 +642,19 @@ def validate(
     )
     if collection.returncode != 0:
         detail = collection.stderr.strip() or collection.stdout.strip()
+        status = (
+            ValidationStatus.FAIL
+            if _has_output_integrity_failure(collection)
+            else ValidationStatus.BLOCKED
+        )
+        outcome = "failed" if status is ValidationStatus.FAIL else "blocked"
         return _report(
             environment_stage,
             StageResult("static", ValidationStatus.PASS, "all static checks passed"),
             StageResult(
                 "architecture-explorer",
-                ValidationStatus.BLOCKED,
-                f"pytest collection blocked: {detail or f'exit {collection.returncode}'}",
+                status,
+                f"pytest collection {outcome}: {detail or f'exit {collection.returncode}'}",
             ),
         )
     expected_nodeids = _collected_nodeids(collection.stdout)
@@ -767,6 +837,32 @@ def validate(
                 f"invalid Chrome viewport evidence: {error}",
             ),
         )
+    if not joint_view_evidence.is_file():
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.BLOCKED,
+                "joint 12-View Chrome evidence was not produced",
+            ),
+        )
+    try:
+        joint_view_ids, joint_viewport_widths = _validated_joint_view_evidence(
+            joint_view_evidence,
+            chrome_product=chrome_product,
+            chrome_user_agent=chrome_user_agent,
+        )
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+        return _report(
+            environment_stage,
+            StageResult("static", ValidationStatus.PASS, "all static checks passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.FAIL,
+                f"invalid joint 12-View Chrome evidence: {error}",
+            ),
+        )
 
     complete_statistics = _statistics(
         test_cases,
@@ -786,8 +882,8 @@ def validate(
                 sorted(_junit_nodeid(case) for case in required_browser_cases)
             ),
             joint_view_nodeid=_JOINT_VIEW_NODEID,
-            joint_view_count=12,
-            joint_viewport_widths=(480, 960, 1280, 1440),
+            joint_view_ids=joint_view_ids,
+            joint_viewport_widths=joint_viewport_widths,
         ),
     )
     return _report(
@@ -872,7 +968,9 @@ def write_candidate_acceptance_record(
         "schema": "architecture-explorer.candidate-acceptance.v1",
         "status": "CANDIDATE_ACCEPTANCE_PASS",
         "head_revision": head_revision,
-        "head_tree": str(read_git(repository, "rev-parse", f"{head_revision}^{{tree}}")),
+        "head_tree": str(
+            read_git(repository, "rev-parse", f"{head_revision}^{{tree}}")
+        ).strip(),
         "base_revision": manifest.base_revision,
         "spec": {
             "issue": spec_issue,
@@ -897,7 +995,8 @@ def write_candidate_acceptance_record(
             "test_nodeids": list(report.evidence.chrome.required_nodeids),
             "joint_view_validation": {
                 "test_nodeid": report.evidence.chrome.joint_view_nodeid,
-                "views": report.evidence.chrome.joint_view_count,
+                "views": len(report.evidence.chrome.joint_view_ids),
+                "view_ids": list(report.evidence.chrome.joint_view_ids),
                 "viewport_widths": list(
                     report.evidence.chrome.joint_viewport_widths
                 ),
@@ -914,14 +1013,24 @@ def write_candidate_acceptance_record(
     ).encode("utf-8")
     digest = hashlib.sha256(payload).hexdigest()
     output_path = output_path.resolve()
-    digest_path = output_path.with_suffix(output_path.suffix + ".sha256")
-    if output_path.exists() or digest_path.exists():
+    output_directory = output_path.parent
+    digest_name = output_path.name + ".sha256"
+    if output_directory.exists():
         raise FileExistsError("candidate acceptance record already exists")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("xb") as record_file:
+    output_directory.parent.mkdir(parents=True, exist_ok=True)
+    staging_directory = Path(
+        tempfile.mkdtemp(
+            prefix=f".{output_directory.name}.staging-",
+            dir=output_directory.parent,
+        )
+    )
+    with (staging_directory / output_path.name).open("xb") as record_file:
         record_file.write(payload)
-    with digest_path.open("x", encoding="ascii", newline="\n") as digest_file:
+    with (staging_directory / digest_name).open(
+        "x", encoding="ascii", newline="\n"
+    ) as digest_file:
         digest_file.write(f"{digest}  {output_path.name}\n")
+    staging_directory.replace(output_directory)
     return digest
 
 
@@ -1003,17 +1112,25 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif report.exit_code == 0:
             try:
-                status = str(
+                validation_source_status = str(
                     read_git(
                         repository,
                         "status",
                         "--porcelain=v1",
                         "--untracked-files=all",
+                        "--",
+                        "architecture-explorer",
+                        "docs/architecture-explorer-acceptance-v1.md",
+                        "docs/architecture-explorer-acceptance-v2.md",
+                        "docs/architecture-explorer-acceptance-v3.md",
+                        "scripts/architecture_explorer",
+                        "src/booktrans/architecture_explorer",
+                        "tests/architecture_explorer",
                     )
                 ).strip()
-                if status:
+                if validation_source_status:
                     raise ValueError(
-                        "candidate evidence requires a clean tracked and untracked Git worktree"
+                        "candidate evidence requires validation inputs to match candidate Head"
                     )
                 passing_report = _with_candidate_stage(
                     report,
