@@ -91,6 +91,64 @@ GRAPH_IDS = (
 )
 
 
+def _git(repository: Path, *arguments: str) -> str:
+    completed = subprocess.run(
+        ("git", "-C", str(repository), *arguments),
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return completed.stdout.strip()
+
+
+def _isolated_candidate_repository(tmp_path: Path) -> tuple[Path, str, Path]:
+    repository = tmp_path / "candidate-repository"
+    files = {
+        ".gitignore": "/output/\n",
+        "pyproject.toml": "[tool.pytest.ini_options]\npythonpath = ['src']\n",
+        "docs/architecture-explorer-acceptance-v1.md": "# fixture contract\n",
+        "tests/conftest.py": "# candidate pytest configuration\n",
+        "src/booktrans/__init__.py": "# candidate package\n",
+        "src/booktrans/production_worker/pipeline.py": "# scanned source fact\n",
+    }
+    for relative_path, content in files.items():
+        path = repository / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    _git(repository, "init")
+    _git(repository, "config", "user.email", "candidate@example.test")
+    _git(repository, "config", "user.name", "Candidate Test")
+    _git(repository, "add", "--all")
+    _git(repository, "commit", "-m", "candidate fixture")
+    return (
+        repository,
+        _git(repository, "rev-parse", "HEAD"),
+        repository / "src/booktrans/__init__.py",
+    )
+
+
+def _clean_candidate_checkout(tmp_path: Path, head: str) -> tuple[Path, Path]:
+    repository = tmp_path / "clean-candidate-checkout"
+    subprocess.run(
+        (
+            "git",
+            "clone",
+            "--shared",
+            "--no-checkout",
+            "--quiet",
+            str(REPOSITORY),
+            str(repository),
+        ),
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    _git(repository, "checkout", "--detach", head)
+    return repository, repository / "src/booktrans/__init__.py"
+
+
 def _include_ticket02_junit_cases(junit_xml: str) -> str:
     root = ElementTree.fromstring(junit_xml)
     existing = {
@@ -440,6 +498,102 @@ def test_source_imported_from_another_worktree_blocks_later_stages() -> None:
     assert report.exit_code == 2
     assert "booktrans.__file__" in report.first_reason
     assert runner.commands == []
+
+
+def test_clean_candidate_repository_inputs_match_the_full_head(tmp_path: Path) -> None:
+    repository, head, module_file = _isolated_candidate_repository(tmp_path)
+    ignored_output = repository / "output/validation/evidence.json"
+    ignored_output.parent.mkdir(parents=True)
+    ignored_output.write_text("{}\n", encoding="utf-8")
+
+    validation.validate_candidate_inputs(
+        repository,
+        head_revision=head,
+        module_file=module_file,
+    )
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "staged"),
+    (
+        ("tests/conftest.py", True),
+        ("pyproject.toml", False),
+        ("src/booktrans/production_worker/pipeline.py", False),
+        ("untracked-validation-input.py", False),
+    ),
+)
+def test_dirty_candidate_repository_inputs_are_rejected(
+    tmp_path: Path,
+    relative_path: str,
+    staged: bool,
+) -> None:
+    repository, head, module_file = _isolated_candidate_repository(tmp_path)
+    dirty_path = repository / relative_path
+    dirty_path.parent.mkdir(parents=True, exist_ok=True)
+    dirty_path.write_text("# dirty candidate validation input\n", encoding="utf-8")
+    if staged:
+        _git(repository, "add", "--", relative_path)
+
+    with pytest.raises(ValueError, match="working tree is not clean"):
+        validation.validate_candidate_inputs(
+            repository,
+            head_revision=head,
+            module_file=module_file,
+        )
+
+
+def test_candidate_input_binding_rejects_an_abbreviated_head(tmp_path: Path) -> None:
+    repository, head, module_file = _isolated_candidate_repository(tmp_path)
+
+    with pytest.raises(ValueError, match="full 40-character"):
+        validation.validate_candidate_inputs(
+            repository,
+            head_revision=head[:12],
+            module_file=module_file,
+        )
+
+
+def test_candidate_input_binding_rejects_source_imported_elsewhere(
+    tmp_path: Path,
+) -> None:
+    repository, head, _ = _isolated_candidate_repository(tmp_path)
+
+    with pytest.raises(ValueError, match="booktrans.__file__"):
+        validation.validate_candidate_inputs(
+            repository,
+            head_revision=head,
+            module_file=tmp_path / "other/src/booktrans/__init__.py",
+        )
+
+
+def test_candidate_cli_rejects_dirty_inputs_before_validation(
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    repository, head, _ = _isolated_candidate_repository(tmp_path)
+    conftest = repository / "tests/conftest.py"
+    conftest.write_text("# dirty candidate pytest configuration\n", encoding="utf-8")
+
+    exit_code = validation.main(
+        [
+            "--repository",
+            str(repository),
+            "--candidate-head",
+            head,
+            "--target-contract",
+            "architecture-explorer/v3",
+            "--manifest-path",
+            "architecture-explorer/manifests/v3-ticket-06.v1.json",
+            "--candidate-record",
+            str(repository / "output/candidate/evidence.json"),
+        ]
+    )
+
+    output = capfd.readouterr().out
+    assert exit_code == 1
+    assert "tests/conftest.py" in output
+    assert "candidate validation inputs rejected" in output
+    assert "RESULT: FAIL (exit 1)" in output
 
 
 def test_missing_chrome_blocks_instead_of_skipping(
@@ -986,6 +1140,48 @@ def test_non_object_in_joint_view_evidence_is_reported_as_fail(
     assert "non-object" in report.first_reason
 
 
+@pytest.mark.parametrize("location", ("graphs", "graph-observations", "source-trail"))
+@pytest.mark.parametrize("invalid_value", ("not-an-object", None, []))
+def test_non_object_in_primary_viewport_evidence_is_reported_as_fail(
+    tmp_path: Path,
+    location: str,
+    invalid_value: object,
+) -> None:
+    evidence = _valid_viewport_evidence()
+    if location == "graphs":
+        evidence["graphs"].append(invalid_value)
+    elif location == "graph-observations":
+        evidence["graphs"][0]["observations"].append(invalid_value)
+    else:
+        evidence["source_trail"]["observations"].append(invalid_value)
+    runner = JunitRunner(
+        """<testsuites><testsuite tests="9">
+        <testcase classname="tests.architecture_explorer.test_acceptance_contract"
+          name="test_contract_trust_semantics_match_the_published_explorer" />
+        <testcase name="test_real_browser_opens_candidate_evidence_from_every_node_context_menu" />
+        <testcase name="test_degraded_relationship_never_receives_reviewed_graph_treatment" />
+        <testcase name="test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids" />
+        <testcase name="test_real_browser_renders_production_candidates_in_the_shared_graph[960-900]" />
+        <testcase name="test_real_browser_renders_production_candidates_in_the_shared_graph[1280-900]" />
+        <testcase name="test_real_browser_renders_production_candidates_in_the_shared_graph[1440-900]" />
+        <testcase name="test_real_chrome_reconnects_edges_during_same_page_resize_round_trip" />
+        <testcase name="test_real_chrome_preserves_every_projected_relationship_at_mobile_width" />
+        </testsuite></testsuites>""",
+        viewport_evidence=evidence,
+    )
+
+    report = validate(
+        _context(),
+        runner=runner,
+        scratch_root=tmp_path / "validation-scratch",
+    )
+
+    assert report.status("architecture-explorer") is ValidationStatus.FAIL
+    assert report.exit_code == 1
+    assert "non-object" in report.first_reason
+    assert "RESULT: FAIL (exit 1)" in render_report(report)
+
+
 def test_contradictory_actual_viewport_evidence_cannot_pass(
     tmp_path: Path,
 ) -> None:
@@ -1166,17 +1362,7 @@ def test_replacement_output_from_pytest_collection_is_an_explicit_fail(
     assert "RESULT: FAIL (exit 1)" in render_report(report)
 
 
-def test_candidate_record_binds_one_head_and_exact_validation_statistics(
-    tmp_path: Path,
-) -> None:
-    head = subprocess.run(
-        ("git", "rev-parse", "HEAD"),
-        cwd=REPOSITORY,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    ).stdout.strip()
+def _passing_candidate_report() -> tuple[ValidationReport, str]:
     joint_view_nodeid = (
         "tests/architecture_explorer/test_ticket_61_semantic_routing_view.py::"
         "test_real_chrome_preserves_every_projected_relationship_at_mobile_width"
@@ -1226,12 +1412,22 @@ def test_candidate_record_binds_one_head_and_exact_validation_statistics(
             ),
         ),
     )
-    record_path = tmp_path / "candidate-acceptance" / "evidence.json"
+    return report, joint_view_nodeid
+
+
+def test_candidate_record_binds_one_head_and_exact_validation_statistics(
+    tmp_path: Path,
+) -> None:
+    head = _git(REPOSITORY, "rev-parse", "HEAD")
+    candidate_repository, module_file = _clean_candidate_checkout(tmp_path, head)
+    report, joint_view_nodeid = _passing_candidate_report()
+    record_path = candidate_repository / "output/candidate-acceptance/evidence.json"
 
     digest = write_candidate_acceptance_record(
-        REPOSITORY,
+        candidate_repository,
         report=report,
         head_revision=head,
+        module_file=module_file,
         target_contract="architecture-explorer/v3",
         manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
         output_path=record_path,
@@ -1275,6 +1471,30 @@ def test_candidate_record_binds_one_head_and_exact_validation_statistics(
     )
 
 
+def test_candidate_record_rechecks_the_complete_worktree_before_writing(
+    tmp_path: Path,
+) -> None:
+    head = _git(REPOSITORY, "rev-parse", "HEAD")
+    candidate_repository, module_file = _clean_candidate_checkout(tmp_path, head)
+    report, _ = _passing_candidate_report()
+    pipeline = candidate_repository / "src/booktrans/production_worker/pipeline.py"
+    pipeline.write_text("# changed after validation\n", encoding="utf-8")
+    record_path = candidate_repository / "output/candidate-acceptance/evidence.json"
+
+    with pytest.raises(ValueError, match="working tree is not clean"):
+        write_candidate_acceptance_record(
+            candidate_repository,
+            report=report,
+            head_revision=head,
+            module_file=module_file,
+            target_contract="architecture-explorer/v3",
+            manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
+            output_path=record_path,
+        )
+
+    assert not record_path.exists()
+
+
 def test_candidate_record_refuses_a_non_passing_validation(tmp_path: Path) -> None:
     report = ValidationReport(
         stages=(StageResult("architecture-explorer", ValidationStatus.FAIL, "失败 \ufffd"),)
@@ -1294,6 +1514,7 @@ def test_candidate_record_refuses_a_non_passing_validation(tmp_path: Path) -> No
                     encoding="utf-8",
                 ).stdout.strip()
             ),
+            module_file=REPOSITORY / "src/booktrans/__init__.py",
             target_contract="architecture-explorer/v3",
             manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
             output_path=tmp_path / "must-not-exist" / "evidence.json",

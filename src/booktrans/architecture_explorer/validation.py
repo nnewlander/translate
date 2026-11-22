@@ -298,7 +298,9 @@ def _validated_viewport_evidence(path: Path) -> tuple[str, str, str]:
     graphs = evidence.get("graphs")
     if not isinstance(graphs, list):
         raise ValueError("viewport evidence has no graph observations")
-    graph_ids = [graph.get("graph_id") for graph in graphs if isinstance(graph, dict)]
+    if any(not isinstance(graph, dict) for graph in graphs):
+        raise ValueError("viewport evidence contains a non-object graph")
+    graph_ids = [graph.get("graph_id") for graph in graphs]
     if len(graph_ids) != len(set(graph_ids)) or set(graph_ids) != _GRAPH_IDS:
         raise ValueError(f"viewport evidence graph set changed: {graph_ids}")
 
@@ -307,6 +309,10 @@ def _validated_viewport_evidence(path: Path) -> tuple[str, str, str]:
         observations = graph.get("observations")
         if not isinstance(observations, list):
             raise ValueError(f"{graph['graph_id']} has no viewport observations")
+        if any(not isinstance(observation, dict) for observation in observations):
+            raise ValueError(
+                f"{graph['graph_id']} contains a non-object viewport observation"
+            )
         requested = [observation.get("requested") for observation in observations]
         actual = [observation.get("actual") for observation in observations]
         if requested != expected_sequence:
@@ -339,15 +345,18 @@ def _validated_viewport_evidence(path: Path) -> tuple[str, str, str]:
     source_trail_observations = source_trail.get("observations")
     if not isinstance(source_trail_observations, list):
         raise ValueError("viewport evidence has no Source Trail observations")
+    if any(
+        not isinstance(observation, dict)
+        for observation in source_trail_observations
+    ):
+        raise ValueError("Source Trail evidence contains a non-object observation")
     requested = [
         observation.get("requested")
         for observation in source_trail_observations
-        if isinstance(observation, dict)
     ]
     actual = [
         observation.get("actual")
         for observation in source_trail_observations
-        if isinstance(observation, dict)
     ]
     if requested != expected_sequence or actual != requested:
         raise ValueError("Source Trail viewport sequence did not complete")
@@ -394,6 +403,63 @@ def _statistics(
         deselected=deselected,
         failures=failures,
         errors=errors,
+    )
+
+
+def validate_candidate_inputs(
+    repository: Path,
+    *,
+    head_revision: str,
+    module_file: Path,
+) -> None:
+    """Bind one candidate validation run to its complete checked-out Git state."""
+
+    repository = repository.resolve()
+    if re.fullmatch(r"[0-9a-f]{40}", head_revision) is None:
+        raise ValueError("candidate Head must be a full 40-character lowercase SHA")
+    repository_root = Path(
+        str(read_git(repository, "rev-parse", "--show-toplevel")).strip()
+    ).resolve()
+    if repository_root != repository:
+        raise ValueError(
+            f"candidate repository root {repository_root} does not match {repository}"
+        )
+    object_type = str(
+        read_git(repository, "cat-file", "-t", head_revision)
+    ).strip()
+    if object_type != "commit":
+        raise ValueError("candidate Head is not a Git commit object")
+    checked_out_head = str(read_git(repository, "rev-parse", "HEAD")).strip()
+    if checked_out_head != head_revision:
+        raise ValueError(
+            f"candidate Head {head_revision} does not match checked out HEAD "
+            f"{checked_out_head}"
+        )
+    worktree_status = str(
+        read_git(
+            repository,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+        )
+    ).strip()
+    if worktree_status:
+        raise ValueError(
+            "candidate working tree is not clean: "
+            + worktree_status.replace("\n", "; ")
+        )
+    expected_module = (repository / "src/booktrans/__init__.py").resolve()
+    actual_module = module_file.resolve()
+    if actual_module != expected_module:
+        raise ValueError(
+            f"booktrans.__file__ {actual_module} does not match {expected_module}"
+        )
+    read_git(
+        repository,
+        "ls-files",
+        "--error-unmatch",
+        "--",
+        "src/booktrans/__init__.py",
     )
 
 
@@ -912,6 +978,7 @@ def write_candidate_acceptance_record(
     *,
     report: ValidationReport,
     head_revision: str,
+    module_file: Path,
     target_contract: str,
     manifest_path: str,
     output_path: Path,
@@ -920,6 +987,11 @@ def write_candidate_acceptance_record(
 
     if report.exit_code != 0 or report.evidence is None:
         raise ValueError("candidate record requires one passing validation with evidence")
+    validate_candidate_inputs(
+        repository,
+        head_revision=head_revision,
+        module_file=module_file,
+    )
     complete = report.evidence.complete_suite
     chrome = report.evidence.required_chrome
     for label, statistics in (("complete suite", complete), ("required Chrome", chrome)):
@@ -947,11 +1019,6 @@ def write_candidate_acceptance_record(
     if len(report.evidence.chrome.required_nodeids) != chrome.collected:
         raise ValueError("required Chrome nodeids do not match the recorded statistics")
     repository = repository.resolve()
-    actual_head = str(read_git(repository, "rev-parse", "HEAD")).strip()
-    if actual_head != head_revision:
-        raise ValueError(
-            f"candidate Head {head_revision} does not match checked out HEAD {actual_head}"
-        )
     if _JOINT_VIEW_NODEID not in report.evidence.chrome.required_nodeids:
         raise ValueError("passing validation did not execute the joint 12-View Chrome matrix")
 
@@ -1080,6 +1147,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--candidate-record", type=Path)
     arguments = parser.parse_args(argv)
     repository = arguments.repository.resolve()
+    candidate_values = (
+        arguments.candidate_head,
+        arguments.target_contract,
+        arguments.manifest_path,
+        arguments.candidate_record,
+    )
     required_files = (
         repository / "pyproject.toml",
         repository / "docs/architecture-explorer-acceptance-v1.md",
@@ -1091,21 +1164,28 @@ def main(argv: list[str] | None = None) -> int:
             + ", ".join(str(path) for path in missing)
         )
     else:
-        temporary_directory = tempfile.TemporaryDirectory(prefix="ae-v-")
+        runtime_context = _runtime_context(repository)
         try:
-            report = validate(
-                _runtime_context(repository),
-                runner=SubprocessCommandRunner(),
-                scratch_root=Path(temporary_directory.name) / "run",
+            if all(value is not None for value in candidate_values):
+                validate_candidate_inputs(
+                    repository,
+                    head_revision=arguments.candidate_head,
+                    module_file=runtime_context.module_file,
+                )
+        except (OSError, ValueError) as error:
+            report = _environment_failure_report(
+                f"candidate validation inputs rejected: {error}"
             )
-        finally:
-            _cleanup_temporary_directory(temporary_directory)
-    candidate_values = (
-        arguments.candidate_head,
-        arguments.target_contract,
-        arguments.manifest_path,
-        arguments.candidate_record,
-    )
+        else:
+            temporary_directory = tempfile.TemporaryDirectory(prefix="ae-v-")
+            try:
+                report = validate(
+                    runtime_context,
+                    runner=SubprocessCommandRunner(),
+                    scratch_root=Path(temporary_directory.name) / "run",
+                )
+            finally:
+                _cleanup_temporary_directory(temporary_directory)
     if any(value is not None for value in candidate_values):
         if not all(value is not None for value in candidate_values):
             report = _with_candidate_stage(
@@ -1118,26 +1198,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif report.exit_code == 0:
             try:
-                validation_source_status = str(
-                    read_git(
-                        repository,
-                        "status",
-                        "--porcelain=v1",
-                        "--untracked-files=all",
-                        "--",
-                        "architecture-explorer",
-                        "docs/architecture-explorer-acceptance-v1.md",
-                        "docs/architecture-explorer-acceptance-v2.md",
-                        "docs/architecture-explorer-acceptance-v3.md",
-                        "scripts/architecture_explorer",
-                        "src/booktrans/architecture_explorer",
-                        "tests/architecture_explorer",
-                    )
-                ).strip()
-                if validation_source_status:
-                    raise ValueError(
-                        "candidate evidence requires validation inputs to match candidate Head"
-                    )
+                validate_candidate_inputs(
+                    repository,
+                    head_revision=arguments.candidate_head,
+                    module_file=runtime_context.module_file,
+                )
                 passing_report = _with_candidate_stage(
                     report,
                     StageResult(
@@ -1150,6 +1215,7 @@ def main(argv: list[str] | None = None) -> int:
                     repository,
                     report=passing_report,
                     head_revision=arguments.candidate_head,
+                    module_file=runtime_context.module_file,
                     target_contract=arguments.target_contract,
                     manifest_path=arguments.manifest_path,
                     output_path=arguments.candidate_record,
