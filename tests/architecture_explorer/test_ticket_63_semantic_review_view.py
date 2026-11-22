@@ -26,18 +26,20 @@ FRAGMENT_PATH = (
     REPOSITORY
     / "architecture-explorer/recursive-candidates/quality-semantic-review-and-repair.v2.json"
 )
-BASE_VIEW_DEFINITIONS_PATH = (
+VIEW_DEFINITIONS_PATH = (
     REPOSITORY / "architecture-explorer/views/recursive-views.v1.json"
-)
-TICKET_VIEW_DEFINITIONS_PATH = (
-    REPOSITORY
-    / "architecture-explorer/views/quality-semantic-review-and-repair.ticket-63.v1.json"
 )
 CONTENT_DELTA_PATH = (
     REPOSITORY / "docs/architecture-explorer-v3-ticket-05-content-delta.json"
 )
 WORKER_FRAGMENT_PATH = (
     REPOSITORY / "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"
+)
+SEMANTIC_ROUTING_FRAGMENT_PATH = (
+    REPOSITORY / "architecture-explorer/recursive-candidates/translation-routing-and-acquisition.v2.json"
+)
+QWEN_FRAGMENT_PATH = (
+    REPOSITORY / "architecture-explorer/recursive-candidates/qwen-provider-adapters.v2.json"
 )
 
 
@@ -46,16 +48,16 @@ def _json(path: Path) -> dict:
 
 
 def _ticket_view_definitions() -> dict:
-    baseline = _json(BASE_VIEW_DEFINITIONS_PATH)
-    contribution = _json(TICKET_VIEW_DEFINITIONS_PATH)
-    return {
-        "schema": "architecture-explorer.view-definitions.v1",
-        "entry_actions": [
-            *baseline["entry_actions"],
-            *contribution["entry_actions"],
-        ],
-        "views": [*baseline["views"], *contribution["views"]],
-    }
+    return _json(VIEW_DEFINITIONS_PATH)
+
+
+def _combined_fragments(fragment: dict) -> list[dict]:
+    return [
+        _json(WORKER_FRAGMENT_PATH),
+        _json(SEMANTIC_ROUTING_FRAGMENT_PATH),
+        _json(QWEN_FRAGMENT_PATH),
+        fragment,
+    ]
 
 
 def test_ticket_63_projects_three_distinct_candidate_responsibilities_with_evidence() -> None:
@@ -121,7 +123,7 @@ def test_ticket_63_projects_three_distinct_candidate_responsibilities_with_evide
 
 def test_ticket_63_projects_internal_view_entry_without_trust_propagation() -> None:
     explorer = apply_candidate_fragments(
-        _current_explorer(), [_json(WORKER_FRAGMENT_PATH), _json(FRAGMENT_PATH)]
+        _current_explorer(), _combined_fragments(_json(FRAGMENT_PATH))
     )
     quality_drilldown = next(
         item
@@ -217,7 +219,7 @@ def test_ticket_63_canonical_hash_contribution_matches_authoritative_objects() -
     fragment = _json(FRAGMENT_PATH)
     definitions = _ticket_view_definitions()
     explorer = apply_candidate_fragments(
-        _current_explorer(), [_json(WORKER_FRAGMENT_PATH), fragment]
+        _current_explorer(), _combined_fragments(fragment)
     )
     projection = apply_view_projection(
         apply_view_definitions(explorer, definitions)
@@ -282,7 +284,7 @@ def test_ticket_63_reuses_renderer_without_deterministic_qa_scope() -> None:
     fragment_text = FRAGMENT_PATH.read_text(encoding="utf-8")
     view = next(
         item
-        for item in _json(TICKET_VIEW_DEFINITIONS_PATH)["views"]
+        for item in _json(VIEW_DEFINITIONS_PATH)["views"]
         if item["id"] == "quality-semantic-review-and-repair-internal"
     )
 
@@ -303,7 +305,7 @@ def test_ticket_63_real_chrome_enters_inspects_and_returns_from_internal_view(
     browser_name, browser = _desktop_browser()
     assert browser_name == "chrome", "Ticket 63 acceptance requires real Chrome"
     explorer = apply_candidate_fragments(
-        _current_explorer(), [_json(WORKER_FRAGMENT_PATH), _json(FRAGMENT_PATH)]
+        _current_explorer(), _combined_fragments(_json(FRAGMENT_PATH))
     )
     explorer = apply_view_definitions(explorer, _ticket_view_definitions())
     site = tmp_path / "site"

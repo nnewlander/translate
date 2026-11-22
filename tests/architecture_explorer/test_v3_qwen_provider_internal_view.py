@@ -24,8 +24,9 @@ from tests.architecture_explorer.test_view_projection import _current_explorer
 REPOSITORY = Path(__file__).resolve().parents[2]
 FRAGMENT = REPOSITORY / "architecture-explorer/recursive-candidates/qwen-provider-adapters.v2.json"
 WORKER_FRAGMENT = REPOSITORY / "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"
-WORKER_VIEW_DEFINITIONS = REPOSITORY / "architecture-explorer/views/recursive-views.v1.json"
-VIEW_DEFINITIONS = REPOSITORY / "architecture-explorer/views/qwen-provider-adapters-internal.v1.json"
+SEMANTIC_ROUTING_FRAGMENT = REPOSITORY / "architecture-explorer/recursive-candidates/translation-routing-and-acquisition.v2.json"
+QUALITY_REVIEW_FRAGMENT = REPOSITORY / "architecture-explorer/recursive-candidates/quality-semantic-review-and-repair.v2.json"
+VIEW_DEFINITIONS = REPOSITORY / "architecture-explorer/views/recursive-views.v1.json"
 DELTA_CONTRIBUTION = REPOSITORY / "docs/architecture-explorer-v3-ticket-04-content-delta.json"
 
 
@@ -34,19 +35,22 @@ def _json(path: Path) -> dict:
 
 
 def _combined_view_definitions() -> dict:
-    worker = _json(WORKER_VIEW_DEFINITIONS)
-    qwen = _json(VIEW_DEFINITIONS)
-    return {
-        "schema": "architecture-explorer.view-definitions.v1",
-        "entry_actions": [*worker["entry_actions"], *qwen["entry_actions"]],
-        "views": [*worker["views"], *qwen["views"]],
-    }
+    return _json(VIEW_DEFINITIONS)
+
+
+def _combined_fragments(fragment: dict) -> list[dict]:
+    return [
+        _json(WORKER_FRAGMENT),
+        _json(SEMANTIC_ROUTING_FRAGMENT),
+        fragment,
+        _json(QUALITY_REVIEW_FRAGMENT),
+    ]
 
 
 def test_qwen_provider_fragment_projects_two_evidence_backed_adapters_without_collaboration() -> None:
     fragment = _json(FRAGMENT)
     explorer = apply_candidate_fragments(
-        _current_explorer(), [_json(WORKER_FRAGMENT), fragment]
+        _current_explorer(), _combined_fragments(fragment)
     )
     explorer = apply_view_definitions(explorer, _combined_view_definitions())
     projection = apply_view_projection(explorer)["view_projection"]
@@ -124,7 +128,7 @@ def test_real_chrome_navigates_qwen_provider_internal_view_without_geometry_coll
 ) -> None:
     fragment = _json(FRAGMENT)
     explorer = apply_candidate_fragments(
-        _current_explorer(), [_json(WORKER_FRAGMENT), fragment]
+        _current_explorer(), _combined_fragments(fragment)
     )
     explorer = apply_view_definitions(explorer, _combined_view_definitions())
     explorer = apply_view_projection(explorer)
@@ -167,7 +171,7 @@ def test_ticket_content_delta_contribution_records_exact_canonical_additions() -
     fragment = _json(FRAGMENT)
     definitions = _combined_view_definitions()
     explorer = apply_candidate_fragments(
-        _current_explorer(), [_json(WORKER_FRAGMENT), fragment]
+        _current_explorer(), _combined_fragments(fragment)
     )
     explorer = apply_view_definitions(explorer, definitions)
     projection = apply_view_projection(explorer)["view_projection"]

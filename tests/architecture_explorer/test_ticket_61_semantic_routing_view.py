@@ -37,6 +37,11 @@ def _ticket_61_projection() -> dict:
                 "architecture-explorer/recursive-candidates/"
                 "translation-routing-and-acquisition.v2.json"
             ),
+            _json("architecture-explorer/recursive-candidates/qwen-provider-adapters.v2.json"),
+            _json(
+                "architecture-explorer/recursive-candidates/"
+                "quality-semantic-review-and-repair.v2.json"
+            ),
         ],
     )
     explorer = apply_view_definitions(
@@ -50,16 +55,16 @@ def test_ticket_61_real_data_projects_only_the_approved_internal_objects() -> No
     projected = _ticket_61_projection()
     projection = projected["view_projection"]
 
-    assert len(projection["node_index"]) == 29
-    assert len(projection["view_index"]) == 10
+    assert len(projection["node_index"]) == 34
+    assert len(projection["view_index"]) == 12
     assert sum(
         reference["semantic_family"] == "candidate-collaboration"
         for reference in projection["relationship_index"].values()
-    ) == 10
+    ) == 12
     assert sum(
         reference["semantic_family"] == "candidate-decomposition"
         for reference in projection["relationship_index"].values()
-    ) == 4
+    ) == 9
 
     internal = projection["view_index"]["translation-routing-and-acquisition-internal"]
     assert internal["scope_node_id"] == "translation-routing-and-acquisition"

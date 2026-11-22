@@ -857,6 +857,14 @@ h2 {
     justify-self: center;
   }
   .module-grid.candidate-graph-grid { padding-right: 30px; padding-left: 30px; }
+  .graph-edge-label.candidate.decomposition.corridor,
+  .graph-edge-label.candidate.collaboration.corridor {
+    max-width: 40px;
+    padding-right: 5px;
+    padding-left: 5px;
+    border-radius: 12px;
+    overflow-wrap: anywhere;
+  }
   .module-card { min-height: 0; padding: 26px; }
   .candidate-node-type { top: 26px; right: 26px; }
   h1.internal-view-title { font-size: clamp(2rem, 11vw, 2.8rem); }

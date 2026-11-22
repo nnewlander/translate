@@ -496,6 +496,8 @@ async function main() {
         ["candidate-and-release", ["candidate-and-release"]],
         ["worker-launch-boundary-internal", ["production-control", "worker-launch-boundary"]],
         ["translation-routing-and-acquisition-internal", ["translation-execution", "translation-routing-and-acquisition"]],
+        ["translation-provider-adapters-internal", ["translation-execution", "translation-provider-adapters"]],
+        ["quality-semantic-review-and-repair-internal", ["quality-and-repair", "quality-semantic-review-and-repair"]],
       ].filter(([viewId]) => windowViewIds.includes(viewId));
       for (const [viewId, nodePath] of routes) {
         await evaluate("document.querySelector('#home-button').click()");

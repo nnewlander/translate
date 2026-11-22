@@ -1063,10 +1063,22 @@
     return true;
   };
 
-  const edgePath = (sourceCard, targetCard, surfaceRect, width) => {
+  const edgePath = (edge, sourceCard, targetCard, surfaceRect, width, routeIndex) => {
     const sourceRect = sourceCard.getBoundingClientRect();
     const targetRect = targetCard.getBoundingClientRect();
-    const direct = edgeEndpoints(sourceRect, targetRect, surfaceRect);
+    let direct = edgeEndpoints(sourceRect, targetRect, surfaceRect);
+    if (edge.semanticFamily === "candidate-decomposition" && targetRect.top >= sourceRect.bottom) {
+      direct = {
+        start: {
+          x: sourceRect.left + sourceRect.width / 2 - surfaceRect.left,
+          y: sourceRect.bottom - surfaceRect.top,
+        },
+        end: {
+          x: targetRect.left + targetRect.width / 2 - surfaceRect.left,
+          y: targetRect.top - surfaceRect.top,
+        },
+      };
+    }
     const cards = Array.from(grid.querySelectorAll(".module-card"));
     const unrelatedCards = cards.filter((card) => card !== sourceCard && card !== targetCard);
     const candidates = [[direct.start, direct.end]];
@@ -1097,20 +1109,35 @@
       ) - surfaceRect.top;
       const leftGap = Math.min(...cards.map((card) => card.getBoundingClientRect().left)) - surfaceRect.left;
       const rightGap = surfaceRect.right - Math.max(...cards.map((card) => card.getBoundingClientRect().right));
-      for (const [side, gap] of [["left", leftGap], ["right", rightGap]]) {
+      const sideOptions = routeIndex % 2
+        ? [["right", rightGap], ["left", leftGap]]
+        : [["left", leftGap], ["right", rightGap]];
+      for (const [side, gap] of sideOptions) {
         if (gap < 12) continue;
-        const corridorX = side === "left" ? gap / 2 : width - gap / 2;
+        const corridorInset = Math.max(gap / 2, Math.min(28, gap - 2));
+        const corridorX = side === "left" ? corridorInset : width - corridorInset;
         const start = {
           x: (side === "left" ? sourceRect.left : sourceRect.right) - surfaceRect.left,
           y: sourceCenter.y,
         };
-        candidates.push([
-          start,
-          { x: corridorX, y: start.y },
-          { x: corridorX, y: landingY },
-          { x: end.x, y: landingY },
-          end,
-        ]);
+        const sideEnd = {
+          x: (side === "left" ? targetRect.left : targetRect.right) - surfaceRect.left,
+          y: targetCenter.y,
+        };
+        candidates.push(edge.semanticFamily === "candidate-decomposition"
+          ? [
+            start,
+            { x: corridorX, y: start.y },
+            { x: corridorX, y: sideEnd.y },
+            sideEnd,
+          ]
+          : [
+            start,
+            { x: corridorX, y: start.y },
+            { x: corridorX, y: landingY },
+            { x: end.x, y: landingY },
+            end,
+          ]);
       }
     } else {
       const targetRight = targetRect.left >= sourceRect.right;
@@ -1272,11 +1299,11 @@
     relationshipGraph.setAttribute("viewBox", `0 0 ${width} ${height}`);
     relationshipGraph.setAttribute("width", String(width)); relationshipGraph.setAttribute("height", String(height));
     const layoutFailures = [];
-    const positionedEdges = visibleEdges.map((edge) => {
+    const positionedEdges = visibleEdges.map((edge, routeIndex) => {
       const sourceCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.sourceId)}"]`);
       const targetCard = grid.querySelector(`[data-module-id="${CSS.escape(edge.targetId)}"]`);
       if (!sourceCard || !targetCard) return null;
-      const points = edgePath(sourceCard, targetCard, surfaceRect, width);
+      const points = edgePath(edge, sourceCard, targetCard, surfaceRect, width, routeIndex);
       if (!points) {
         layoutFailures.push({ edge, reason: "没有不穿过其他节点的安全路径" });
         return null;
@@ -1311,6 +1338,7 @@
       const trustLabel = edge.kind === "candidate" ? `${candidateType}，未经审核` : "当前已审核关系";
       const label = text("button", labelText, `graph-edge-label ${edge.kind} ${relationshipKind}`.trim());
       label.type = "button";
+      label.classList.toggle("corridor", points.length > 2);
       if (edge.semanticFamily === "candidate-decomposition") label.dataset.decompositionId = edge.id;
       else if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;

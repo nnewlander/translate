@@ -20,6 +20,26 @@
         "transition_kind": "decomposition",
         "destination_label": "查看语义路由与候选获取内部职责"
       }
+    },
+    {
+      "view_id": "translation-execution",
+      "node_id": "translation-provider-adapters",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "translation-provider-adapters-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看 Qwen Provider 适配内部组件"
+      }
+    },
+    {
+      "view_id": "quality-and-repair",
+      "node_id": "quality-semantic-review-and-repair",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "quality-semantic-review-and-repair-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看语义审核与受限修复内部职责"
+      }
     }
   ],
   "views": [
@@ -57,6 +77,42 @@
         "candidate-decomposition:translation-routing-and-acquisition-to-semantic-unit-route-decision",
         "candidate-decomposition:translation-routing-and-acquisition-to-translation-provider-dispatch-and-raw-projection",
         "candidate-collaboration:semantic-unit-route-decision-to-translation-provider-dispatch-and-raw-projection"
+      ]
+    },
+    {
+      "id": "translation-provider-adapters-internal",
+      "display_name": "Qwen 提供方适配",
+      "perspective": "component",
+      "scope_node_id": "translation-provider-adapters",
+      "coverage_note": "展示 Qwen MT 单段文本适配与 Qwen Max 结构化翻译适配；两者及分解关系均为 Pending Review，不声明 Provider 间协作、运行时选择或 receiver dispatch。",
+      "appearances": [
+        {"node_id": "translation-provider-adapters"},
+        {"node_id": "qwen-mt-single-text-adapter"},
+        {"node_id": "qwen-max-structured-translation-adapter"}
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:translation-provider-adapters-to-qwen-mt-single-text-adapter",
+        "candidate-decomposition:translation-provider-adapters-to-qwen-max-structured-translation-adapter"
+      ]
+    },
+    {
+      "id": "quality-semantic-review-and-repair-internal",
+      "display_name": "语义审核与受限修复内部 Candidate View",
+      "perspective": "responsibility",
+      "scope_node_id": "quality-semantic-review-and-repair",
+      "coverage_note": "展示语义审核合同、修复授权门禁与受限修复调用三项候选职责；具体 reviewer/repair receiver dispatch、实际运行顺序与运行可达保持未知，父节点状态不向内传播。",
+      "appearances": [
+        {"node_id": "quality-semantic-review-and-repair"},
+        {"node_id": "semantic-review-contract-boundary"},
+        {"node_id": "repair-authorization-gate"},
+        {"node_id": "constrained-repair-call-boundary"}
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:quality-semantic-review-and-repair-to-semantic-review-contract-boundary",
+        "candidate-decomposition:quality-semantic-review-and-repair-to-repair-authorization-gate",
+        "candidate-decomposition:quality-semantic-review-and-repair-to-constrained-repair-call-boundary",
+        "candidate-collaboration:semantic-review-contract-boundary-to-repair-authorization-gate",
+        "candidate-collaboration:repair-authorization-gate-to-constrained-repair-call-boundary"
       ]
     }
   ]
