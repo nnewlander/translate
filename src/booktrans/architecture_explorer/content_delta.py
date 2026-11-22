@@ -606,11 +606,58 @@ def _extract_index(
         _add_object(objects, "formal-evidence", evidence_id, evidence_by_id[evidence_id])
 
     for path in _paths_at(repository, revision, "architecture-explorer/review-definitions"):
-        definition = _json_at(repository, revision, path)
-        if not isinstance(definition, dict):
+        document = _json_at(repository, revision, path)
+        if not isinstance(document, dict):
             raise ExplorerInputError(f"Node Review Definition must be an object: {path}")
+        if document.get("schema") == "architecture-explorer.node-review-definitions.v1":
+            from .node_review_definitions import validate_node_review_definitions
+
+            definitions = validate_node_review_definitions(document)
+            available_evidence = (
+                set(projection.get("source_evidence_index", {}))
+                | set(evidence_by_id)
+            )
+            for definition in definitions:
+                node_id = definition["object_key"]["node_id"]
+                if node_id not in candidate_node_ids:
+                    raise ExplorerInputError(
+                        f"Node Review Definition references unknown Candidate Node: {node_id}"
+                    )
+                unknown_evidence = [
+                    evidence_id
+                    for evidence_id in definition["candidate_evidence_ids"]
+                    if evidence_id not in available_evidence
+                ]
+                if unknown_evidence:
+                    raise ExplorerInputError(
+                        "Node Review Definition references unknown Evidence: "
+                        f"{unknown_evidence[0]}"
+                    )
+                for dependency in definition["dependencies_and_limits"]["dependencies"]:
+                    if ("formal-relationship", dependency["object_id"]) not in objects:
+                        raise ExplorerInputError(
+                            "Node Review Definition dependency has an unknown formal Relationship: "
+                            f"{dependency['object_id']}"
+                        )
+                    unknown_dependency_evidence = [
+                        evidence_id
+                        for evidence_id in dependency["evidence_ids"]
+                        if evidence_id not in available_evidence
+                    ]
+                    if unknown_dependency_evidence:
+                        raise ExplorerInputError(
+                            "Node Review Definition dependency references unknown Evidence: "
+                            f"{unknown_dependency_evidence[0]}"
+                        )
+                _add_object(
+                    objects,
+                    "node-review-definition",
+                    f"candidate-node::{node_id}",
+                    definition,
+                )
+            continue
         node_id = _validate_review_definition(
-            definition,
+            document,
             path=path,
             candidate_node_ids=candidate_node_ids,
             evidence_ids=set(projection.get("source_evidence_index", {})),
@@ -619,7 +666,7 @@ def _extract_index(
                 for object_type, object_id in objects
             },
         )
-        _add_object(objects, "node-review-definition", f"candidate-node::{node_id}", definition)
+        _add_object(objects, "node-review-definition", f"candidate-node::{node_id}", document)
 
     for content_object in objects.values():
         if content_object.object_type not in {"candidate-collaboration", "candidate-decomposition"}:

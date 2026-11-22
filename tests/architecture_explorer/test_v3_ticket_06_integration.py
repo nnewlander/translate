@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
+import subprocess
 
 from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
+from booktrans.architecture_explorer.content_delta import inspect_content_delta
 from booktrans.architecture_explorer.node_review_definitions import validate_node_review_definitions
 from booktrans.architecture_explorer.view_definitions import apply_view_definitions
 from booktrans.architecture_explorer.view_projection import apply_view_projection
@@ -91,3 +93,27 @@ def test_ticket_06_dynamic_inventory_and_review_boundaries_are_exact() -> None:
         node_id: "recursive_candidate_fragments.nodes"
         for node_id in first_batch_node_ids
     }
+
+
+def test_ticket_06_real_git_delta_indexes_both_v2_review_definitions() -> None:
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPOSITORY,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout.strip()
+    delta = inspect_content_delta(
+        REPOSITORY,
+        base_revision="6a239f6919cbb791e69e56383b91dbb634aeaf0f",
+        head_revision=head,
+    )
+    assert [
+        change.object_id
+        for change in delta.changes
+        if change.object_type == "node-review-definition"
+    ] == [
+        "candidate-node::translation-routing-and-acquisition",
+        "candidate-node::worker-launch-boundary",
+    ]
