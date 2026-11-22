@@ -219,6 +219,7 @@ class JunitRunner(RecordingRunner):
         pytest_stdout: str = "",
         write_viewport_evidence: bool = True,
         viewport_evidence: dict | None = None,
+        joint_view_evidence: dict | None = None,
         write_joint_view_evidence: bool = True,
         include_ticket02_required: bool = True,
     ) -> None:
@@ -231,6 +232,7 @@ class JunitRunner(RecordingRunner):
         self.pytest_stdout = pytest_stdout
         self.write_viewport_evidence = write_viewport_evidence
         self.viewport_evidence = viewport_evidence or _valid_viewport_evidence()
+        self.joint_view_evidence = joint_view_evidence or _valid_joint_view_evidence()
         self.write_joint_view_evidence = write_joint_view_evidence
 
     def run(
@@ -280,7 +282,7 @@ class JunitRunner(RecordingRunner):
                     env["ARCHITECTURE_EXPLORER_JOINT_VIEW_EVIDENCE"]
                 )
                 joint_evidence_path.write_text(
-                    json.dumps(_valid_joint_view_evidence()),
+                    json.dumps(self.joint_view_evidence),
                     encoding="utf-8",
                 )
             return subprocess.CompletedProcess(command, 0, self.pytest_stdout, "")
@@ -945,6 +947,38 @@ def test_missing_joint_view_evidence_cannot_produce_a_passing_validation(
     assert report.status("architecture-explorer") is ValidationStatus.BLOCKED
     assert report.exit_code == 2
     assert "joint 12-View" in report.first_reason
+
+
+def test_non_object_in_joint_view_evidence_is_reported_as_fail(
+    tmp_path: Path,
+) -> None:
+    joint_evidence = _valid_joint_view_evidence()
+    joint_evidence["graphs"].append("not-a-view")
+    runner = JunitRunner(
+        """<testsuites><testsuite tests="9">
+        <testcase classname="tests.architecture_explorer.test_acceptance_contract"
+          name="test_contract_trust_semantics_match_the_published_explorer" />
+        <testcase name="test_real_browser_opens_candidate_evidence_from_every_node_context_menu" />
+        <testcase name="test_degraded_relationship_never_receives_reviewed_graph_treatment" />
+        <testcase name="test_all_candidate_graphs_preserve_the_published_node_and_collaboration_ids" />
+        <testcase name="test_real_browser_renders_production_candidates_in_the_shared_graph[960-900]" />
+        <testcase name="test_real_browser_renders_production_candidates_in_the_shared_graph[1280-900]" />
+        <testcase name="test_real_browser_renders_production_candidates_in_the_shared_graph[1440-900]" />
+        <testcase name="test_real_chrome_reconnects_edges_during_same_page_resize_round_trip" />
+        <testcase name="test_real_chrome_preserves_every_projected_relationship_at_mobile_width" />
+        </testsuite></testsuites>""",
+        joint_view_evidence=joint_evidence,
+    )
+
+    report = validate(
+        _context(),
+        runner=runner,
+        scratch_root=tmp_path / "validation-scratch",
+    )
+
+    assert report.status("architecture-explorer") is ValidationStatus.FAIL
+    assert report.exit_code == 1
+    assert "non-object" in report.first_reason
 
 
 def test_contradictory_actual_viewport_evidence_cannot_pass(

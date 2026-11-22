@@ -415,9 +415,11 @@ def _validated_joint_view_evidence(
     graphs = evidence.get("graphs")
     if not isinstance(graphs, list):
         raise ValueError("joint View evidence has no graph observations")
-    view_ids = tuple(
-        graph.get("graph_id") for graph in graphs if isinstance(graph, dict)
-    )
+    if len(graphs) != 12 or any(not isinstance(graph, dict) for graph in graphs):
+        raise ValueError(
+            "joint View evidence must contain exactly 12 graphs and no non-object entries"
+        )
+    view_ids = tuple(graph.get("graph_id") for graph in graphs)
     if len(view_ids) != 12 or len(set(view_ids)) != 12:
         raise ValueError(f"joint View evidence did not contain 12 unique Views: {view_ids}")
     expected = ([480, 900], [960, 900], [1280, 900], [1440, 900])
