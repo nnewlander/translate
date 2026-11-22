@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 from xml.etree import ElementTree
 
 import pytest
 
 from booktrans.architecture_explorer import validation
 from booktrans.architecture_explorer.validation import (
+    ChromeValidationEvidence,
+    SuiteStatistics,
+    ValidationEvidence,
     ValidationContext,
+    ValidationReport,
     ValidationStatus,
+    StageResult,
     render_report,
     validate,
+    write_candidate_acceptance_record,
 )
 
 
@@ -586,6 +594,20 @@ def test_success_reports_executed_chrome_scope_and_explicit_exclusions(
     assert report.status("edge") is ValidationStatus.NOT_RUN
     assert report.status("non-explorer") is ValidationStatus.NOT_RUN
     assert report.exit_code == 0
+    assert report.evidence is not None
+    assert report.evidence.complete_suite.as_dict() == {
+        "collected": report.evidence.complete_suite.collected,
+        "selected": report.evidence.complete_suite.collected,
+        "executed": report.evidence.complete_suite.collected,
+        "passed": report.evidence.complete_suite.collected,
+        "skipped": 0,
+        "deselected": 0,
+        "failures": 0,
+        "errors": 0,
+    }
+    assert report.evidence.required_chrome.passed == len(
+        report.evidence.chrome.required_nodeids
+    )
     assert "browser=chrome" in report.stage("architecture-explorer").detail
     assert "actual viewport sequence" in report.stage("architecture-explorer").detail
 
@@ -912,12 +934,175 @@ def test_report_renders_each_status_and_first_reason() -> None:
     assert "RESULT: BLOCKED (exit 2)" in rendered
 
 
+def test_validation_cli_writes_utf8_result_under_gbk_with_chinese_and_replacement(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "中文-\ufffd"
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(REPOSITORY / "src")
+    environment["PYTHONIOENCODING"] = "cp936"
+    environment.pop("PYTHONUTF8", None)
+
+    completed = subprocess.run(
+        (
+            sys.executable,
+            "-m",
+            "booktrans.architecture_explorer.validation",
+            "--repository",
+            str(repository),
+        ),
+        cwd=REPOSITORY,
+        env=environment,
+        check=False,
+        capture_output=True,
+    )
+
+    output = completed.stdout.decode("utf-8")
+    assert completed.returncode == 2
+    assert str(repository) in output
+    assert "RESULT: BLOCKED (exit 2)" in output
+    assert b"UnicodeEncodeError" not in completed.stderr
+
+
+def test_subprocess_runner_rejects_replacement_character_in_child_output() -> None:
+    completed = validation.SubprocessCommandRunner().run(
+        (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write('child \\ufffd'.encode('utf-8'))",
+        ),
+        cwd=REPOSITORY,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+    assert "U+FFFD" in completed.stderr
+
+
+def test_candidate_record_binds_one_head_and_exact_validation_statistics(
+    tmp_path: Path,
+) -> None:
+    head = "ca172e10fefb5c22b254b6e4ec48a0e8fe4ee1be"
+    joint_view_nodeid = (
+        "tests/architecture_explorer/test_ticket_61_semantic_routing_view.py::"
+        "test_real_chrome_preserves_every_projected_relationship_at_mobile_width"
+    )
+    report = ValidationReport(
+        stages=(
+            StageResult("environment", ValidationStatus.PASS, "environment passed"),
+            StageResult("static", ValidationStatus.PASS, "static passed"),
+            StageResult(
+                "architecture-explorer",
+                ValidationStatus.PASS,
+                "583 tests executed; 69 required Chrome tests passed",
+            ),
+            StageResult("firefox", ValidationStatus.NOT_RUN, "manual only"),
+            StageResult("edge", ValidationStatus.NOT_RUN, "not requested"),
+            StageResult("non-explorer", ValidationStatus.NOT_RUN, "outside scope"),
+        ),
+        evidence=ValidationEvidence(
+            complete_suite=SuiteStatistics(
+                collected=583,
+                selected=583,
+                executed=583,
+                passed=583,
+                skipped=0,
+                deselected=0,
+                failures=0,
+                errors=0,
+            ),
+            required_chrome=SuiteStatistics(
+                collected=69,
+                selected=69,
+                executed=69,
+                passed=69,
+                skipped=0,
+                deselected=0,
+                failures=0,
+                errors=0,
+            ),
+            chrome=ChromeValidationEvidence(
+                product="Chrome/158.0.8127.36",
+                user_agent="HeadlessChrome/158.0.8127.36",
+                required_nodeids=(joint_view_nodeid,)
+                + tuple(f"tests/example.py::test_required_chrome_{index}" for index in range(68)),
+                joint_view_nodeid=joint_view_nodeid,
+                joint_view_count=12,
+                joint_viewport_widths=(480, 960, 1280, 1440),
+            ),
+        ),
+    )
+    record_path = tmp_path / "candidate-acceptance.json"
+
+    digest = write_candidate_acceptance_record(
+        REPOSITORY,
+        report=report,
+        head_revision=head,
+        target_contract="architecture-explorer/v3",
+        manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
+        output_path=record_path,
+    )
+
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert record["status"] == "CANDIDATE_ACCEPTANCE_PASS"
+    assert record["head_revision"] == head
+    assert record["base_revision"] == "6a239f6919cbb791e69e56383b91dbb634aeaf0f"
+    assert record["spec"] == {
+        "issue": 58,
+        "approved_sha256": (
+            "0eb5f5650897fc0ba15b129a2782c09eeceda551e087cb3ff7e51ca5afbf1283"
+        ),
+    }
+    assert record["manifest_sha256"] == (
+        "fb6146bfac310170330b1ccda4d0d1822fe13c40b1b82fa7e5fb090a38a83b08"
+    )
+    assert record["base_content_sha256"] == (
+        "af7fcc843f306765b0135390fc6b184a2d47af8d14322a11de4ad26bdfcd1be7"
+    )
+    assert record["head_content_sha256"] == (
+        "518c26a6115d9ce5243b0b071f33a551deb50114c32c9e5ff5935f41c7c9e2cb"
+    )
+    assert record["complete_suite"] == report.evidence.complete_suite.as_dict()
+    assert record["required_chrome"]["statistics"] == (
+        report.evidence.required_chrome.as_dict()
+    )
+    assert record["required_chrome"]["joint_view_validation"] == {
+        "test_nodeid": joint_view_nodeid,
+        "views": 12,
+        "viewport_widths": [480, 960, 1280, 1440],
+    }
+    assert record["not_run"] == ["firefox", "edge", "non-explorer"]
+    assert digest == validation.hashlib.sha256(record_path.read_bytes()).hexdigest()
+    assert record_path.with_suffix(".json.sha256").read_text(encoding="ascii") == (
+        f"{digest}  {record_path.name}\n"
+    )
+
+
+def test_candidate_record_refuses_a_non_passing_validation(tmp_path: Path) -> None:
+    report = ValidationReport(
+        stages=(StageResult("architecture-explorer", ValidationStatus.FAIL, "失败 \ufffd"),)
+    )
+
+    with pytest.raises(ValueError, match="passing validation"):
+        write_candidate_acceptance_record(
+            REPOSITORY,
+            report=report,
+            head_revision="ca172e10fefb5c22b254b6e4ec48a0e8fe4ee1be",
+            target_contract="architecture-explorer/v3",
+            manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
+            output_path=tmp_path / "must-not-exist.json",
+        )
+
+
 def test_powershell_entrypoint_delegates_the_single_validation_plan() -> None:
     script = ENTRYPOINT.read_text(encoding="utf-8")
 
     assert ".venv\\Scripts\\python.exe" in script
     assert "PYTHONPATH" in script
-    assert "-m booktrans.architecture_explorer.validation" in script
+    assert "PYTHONIOENCODING" in script
+    assert "PYTHONUTF8" in script
+    assert "'booktrans.architecture_explorer.validation'" in script
+    assert "'-m'" in script
     assert "pytest" not in script
     assert "ARCHITECTURE_EXPLORER_BROWSER" not in script
 
