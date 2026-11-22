@@ -427,6 +427,10 @@ def _validated_joint_view_evidence(
         observations = graph.get("observations")
         if not isinstance(observations, list):
             raise ValueError(f"joint View {graph['graph_id']} has no observations")
+        if any(not isinstance(observation, dict) for observation in observations):
+            raise ValueError(
+                f"joint View {graph['graph_id']} contains a non-object observation"
+            )
         requested = tuple(observation.get("requested") for observation in observations)
         actual = tuple(observation.get("actual") for observation in observations)
         if requested != expected or actual != expected:

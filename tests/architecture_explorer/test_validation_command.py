@@ -949,11 +949,16 @@ def test_missing_joint_view_evidence_cannot_produce_a_passing_validation(
     assert "joint 12-View" in report.first_reason
 
 
+@pytest.mark.parametrize("corruption", ("graph", "observation"))
 def test_non_object_in_joint_view_evidence_is_reported_as_fail(
     tmp_path: Path,
+    corruption: str,
 ) -> None:
     joint_evidence = _valid_joint_view_evidence()
-    joint_evidence["graphs"].append("not-a-view")
+    if corruption == "graph":
+        joint_evidence["graphs"].append("not-a-view")
+    else:
+        joint_evidence["graphs"][0]["observations"][0] = "not-an-observation"
     runner = JunitRunner(
         """<testsuites><testsuite tests="9">
         <testcase classname="tests.architecture_explorer.test_acceptance_contract"
