@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from xml.etree import ElementTree
@@ -10,6 +11,7 @@ from xml.etree import ElementTree
 import pytest
 
 from booktrans.architecture_explorer import validation
+from booktrans.architecture_explorer.acceptance import select_acceptance_contract
 from booktrans.architecture_explorer.validation import (
     ChromeValidationEvidence,
     SuiteStatistics,
@@ -100,6 +102,41 @@ def _git(repository: Path, *arguments: str) -> str:
         encoding="utf-8",
     )
     return completed.stdout.strip()
+
+
+def _candidate_head_from_committed_contract(repository: Path) -> str:
+    head = _git(repository, "rev-parse", "HEAD")
+    selection = select_acceptance_contract(
+        repository,
+        target_contract="architecture-explorer/v3",
+        revision=head,
+    )
+    if (
+        selection.current_contract == "architecture-explorer/v2"
+        and selection.target_status == "proposed"
+    ):
+        return head
+    if (
+        selection.current_contract != "architecture-explorer/v3"
+        or selection.target_status != "current"
+    ):
+        raise AssertionError("repository is neither a v3 candidate nor activation checkout")
+
+    candidate_head = selection.target_metadata.get("effective_baseline", "")
+    if re.fullmatch(r"[0-9a-f]{40}", candidate_head) is None:
+        raise AssertionError("activated v3 must name a full candidate effective baseline")
+    _git(repository, "merge-base", "--is-ancestor", candidate_head, head)
+    candidate_selection = select_acceptance_contract(
+        repository,
+        target_contract="architecture-explorer/v3",
+        revision=candidate_head,
+    )
+    if (
+        candidate_selection.current_contract != "architecture-explorer/v2"
+        or candidate_selection.target_status != "proposed"
+    ):
+        raise AssertionError("v3 effective baseline is not a candidate contract revision")
+    return candidate_head
 
 
 def _isolated_candidate_repository(tmp_path: Path) -> tuple[Path, str, Path]:
@@ -1500,7 +1537,7 @@ def _passing_candidate_report() -> tuple[ValidationReport, str]:
 def test_candidate_record_binds_one_head_and_exact_validation_statistics(
     tmp_path: Path,
 ) -> None:
-    head = _git(REPOSITORY, "rev-parse", "HEAD")
+    head = _candidate_head_from_committed_contract(REPOSITORY)
     candidate_repository, module_file = _clean_candidate_checkout(tmp_path, head)
     report, joint_view_nodeid = _passing_candidate_report()
     record_path = candidate_repository / "output/candidate-acceptance/evidence.json"
@@ -1556,7 +1593,7 @@ def test_candidate_record_binds_one_head_and_exact_validation_statistics(
 def test_candidate_record_rechecks_the_complete_worktree_before_writing(
     tmp_path: Path,
 ) -> None:
-    head = _git(REPOSITORY, "rev-parse", "HEAD")
+    head = _candidate_head_from_committed_contract(REPOSITORY)
     candidate_repository, module_file = _clean_candidate_checkout(tmp_path, head)
     report, _ = _passing_candidate_report()
     pipeline = candidate_repository / "src/booktrans/production_worker/pipeline.py"
