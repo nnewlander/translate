@@ -2,7 +2,8 @@
 contract_family: architecture-explorer-acceptance
 contract_version: 3
 contract_ref: architecture-explorer/v3
-status: proposed
+status: current
+effective_baseline: ac9054a65e55f387769ec6e49109b2460c7c21e3
 runtime_authority: false
 authority_issue: https://github.com/nnewlander/translate/issues/58
 implementation_issue: https://github.com/nnewlander/translate/issues/59
@@ -13,14 +14,14 @@ activation: candidate-head-acceptance-then-contract-status-only-switch
 content_delta_manifest_schema: architecture-explorer.content-delta-manifest.v1
 ---
 
-# Architecture Explorer v3 proposed acceptance contract
+# Architecture Explorer v3 current acceptance contract
 
 ## Contract status
 
-- current_contract: architecture-explorer/v2
+- current_contract: architecture-explorer/v3
 - target_contract: architecture-explorer/v3
-- target_status: proposed
-- effective_baseline: absent
+- target_status: current
+- effective_baseline: ac9054a65e55f387769ec6e49109b2460c7c21e3
 
 ## Inheritance and Delta
 

@@ -2,8 +2,9 @@
 contract_family: architecture-explorer-acceptance
 contract_version: 2
 contract_ref: architecture-explorer/v2
-status: current
+status: superseded-by-v3
 effective_baseline: ef2782873d23db77731aabbb3aaef7362f8f75b0
+superseded_by: architecture-explorer/v3
 runtime_authority: false
 authority_issue: https://github.com/nnewlander/translate/issues/51
 fixed_starting_baseline: 4c7f8be1f0be48189804a51ed42aaf8bdb64ab94
@@ -19,7 +20,7 @@ candidate_decompositions: 2
 views: 9
 ---
 
-# Architecture Explorer v2 current acceptance contract
+# Architecture Explorer v2 superseded acceptance contract
 
 This file records the Owner-approved successor contract from
 [GitHub Issue #51](https://github.com/nnewlander/translate/issues/51). It is a
@@ -27,10 +28,10 @@ repository preservation copy for implementation, review and current acceptance.
 It is not runtime architecture data, and activation does not make it runtime
 authority.
 
-v2 is the sole current contract (`architecture-explorer/v2`), and its
-`effective_baseline` is `ef2782873d23db77731aabbb3aaef7362f8f75b0`, the frozen
-candidate Head H accepted under Ticket #54. v1 is `superseded-by-v2`; its
-normative body remains preserved.
+v2 is `superseded-by-v3` in favor of `architecture-explorer/v3`. Its historical
+`effective_baseline` remains `ef2782873d23db77731aabbb3aaef7362f8f75b0`, the
+frozen candidate Head H accepted under Ticket #54. v1 remains
+`superseded-by-v2`; both superseded contracts preserve their normative bodies.
 
 ## Inheritance and Delta
 
