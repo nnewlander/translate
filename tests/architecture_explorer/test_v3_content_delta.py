@@ -42,6 +42,19 @@ def _commit(repository: Path, message: str) -> str:
     return _git(repository, "rev-parse", "HEAD")
 
 
+def _candidate_v3_contract_text() -> str:
+    from tests.architecture_explorer.test_acceptance_contract import (
+        _candidate_contract_revision,
+    )
+
+    revision = _candidate_contract_revision()
+    return _git(
+        REPOSITORY,
+        "show",
+        f"{revision}:docs/architecture-explorer-acceptance-v3.md",
+    ) + "\n"
+
+
 def _manifest_repository(tmp_path: Path) -> tuple[Path, str, str, Path]:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -82,7 +95,7 @@ def _candidate_acceptance_repository(tmp_path: Path) -> tuple[Path, str, Path]:
     _git(repository, "checkout", "--detach", "6a239f6919cbb791e69e56383b91dbb634aeaf0f")
     v3_path = repository / "docs/architecture-explorer-acceptance-v3.md"
     v3_path.write_text(
-        (REPOSITORY / "docs/architecture-explorer-acceptance-v3.md").read_text(encoding="utf-8"),
+        _candidate_v3_contract_text(),
         encoding="utf-8",
     )
     manifest_path = "architecture-explorer/manifests/v3-ticket-01.v1.json"
@@ -785,7 +798,7 @@ def test_candidate_acceptance_reads_contract_and_manifest_from_the_head_commit(
     alternates.write_bytes((object_directory.as_posix() + "\n").encode("utf-8"))
     _git(repository, "checkout", "--detach", "6a239f6919cbb791e69e56383b91dbb634aeaf0f")
     (repository / "docs/architecture-explorer-acceptance-v3.md").write_text(
-        (REPOSITORY / "docs/architecture-explorer-acceptance-v3.md").read_text(encoding="utf-8"),
+        _candidate_v3_contract_text(),
         encoding="utf-8",
     )
     manifest_path = "architecture-explorer/manifests/v3-ticket-01.v1.json"
@@ -976,7 +989,11 @@ def test_candidate_acceptance_reads_contract_and_manifest_from_the_head_commit(
         )
 
 
-def test_v2_contract_bytes_remain_unchanged_from_the_fixed_base() -> None:
+def test_candidate_v2_contract_bytes_remain_unchanged_from_the_fixed_base() -> None:
+    from tests.architecture_explorer.test_acceptance_contract import (
+        _candidate_contract_revision,
+    )
+
     diff = subprocess.run(
         [
             "git",
@@ -985,6 +1002,7 @@ def test_v2_contract_bytes_remain_unchanged_from_the_fixed_base() -> None:
             "diff",
             "--numstat",
             "6a239f6919cbb791e69e56383b91dbb634aeaf0f",
+            _candidate_contract_revision(),
             "--",
             "docs/architecture-explorer-acceptance-v2.md",
         ],
