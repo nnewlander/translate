@@ -140,27 +140,46 @@ def test_ticket_61_real_data_projects_only_the_approved_internal_objects() -> No
 
 
 def test_ticket_61_contribution_has_the_exact_canonical_add_set() -> None:
-    baseline = "66585816244dbd58570d1b9363ab8585abb89b09"
-    missing_fragment = subprocess.run(
+    published_baseline = "371b9dd010be7f10b5efe4143f80d689cd653c52"
+    historical_base_revision = "66585816244dbd58570d1b9363ab8585abb89b09"
+    fragment_path = (
+        "architecture-explorer/recursive-candidates/"
+        "translation-routing-and-acquisition.v2.json"
+    )
+    subprocess.run(
+        ["git", "cat-file", "-e", f"{published_baseline}^{{commit}}"],
+        cwd=REPOSITORY,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "merge-base", "--is-ancestor", published_baseline, "HEAD"],
+        cwd=REPOSITORY,
+        check=True,
+        capture_output=True,
+    )
+    baseline_fragment_entries = subprocess.run(
         [
             "git",
-            "show",
-            f"{baseline}:architecture-explorer/recursive-candidates/"
-            "translation-routing-and-acquisition.v2.json",
+            "ls-tree",
+            "--name-only",
+            published_baseline,
+            "--",
+            fragment_path,
         ],
         cwd=REPOSITORY,
-        check=False,
+        check=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
-    assert missing_fragment.returncode != 0
+    assert baseline_fragment_entries.stdout == ""
     baseline_views = json.loads(
         subprocess.run(
             [
                 "git",
                 "show",
-                f"{baseline}:architecture-explorer/views/recursive-views.v1.json",
+                f"{published_baseline}:architecture-explorer/views/recursive-views.v1.json",
             ],
             cwd=REPOSITORY,
             check=True,
@@ -230,7 +249,7 @@ def test_ticket_61_contribution_has_the_exact_canonical_add_set() -> None:
     }
 
     contribution = _json("docs/architecture-explorer-v3-ticket-03-content-delta.json")
-    assert contribution["base_revision"] == baseline
+    assert contribution["base_revision"] == historical_base_revision
     assert contribution["final_manifest"] is False
     assert all(
         change["operation"] == "add" and change["before_sha256"] is None
