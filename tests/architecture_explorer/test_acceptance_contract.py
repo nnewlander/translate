@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from pathlib import Path
-import shutil
 import subprocess
 
 import pytest
@@ -129,6 +128,16 @@ def _expected_repository_activation_baseline() -> str:
     return _git("rev-parse", "HEAD^")
 
 
+def _candidate_contract_revision() -> str:
+    committed_text = _git("show", "HEAD:docs/architecture-explorer-acceptance-v3.md")
+    committed_status = next(
+        line.partition(":")[2].strip()
+        for line in committed_text.splitlines()
+        if line.startswith("status:")
+    )
+    return _git("rev-parse", "HEAD" if committed_status == "proposed" else "HEAD^")
+
+
 def _v3_contract_status(path: Path) -> dict[str, str]:
     lines = path.read_text(encoding="utf-8").splitlines()
     frontmatter_end = lines.index("---", 1)
@@ -222,8 +231,13 @@ def _assert_contract_status_matrix(
 def _copy_contracts(tmp_path: Path) -> Path:
     docs = tmp_path / "docs"
     docs.mkdir()
+    revision = _candidate_contract_revision()
     for path in DOCS.glob("architecture-explorer-acceptance-v*.md"):
-        shutil.copyfile(path, docs / path.name)
+        destination = docs / path.name
+        destination.write_text(
+            _git("show", f"{revision}:docs/{path.name}") + "\n",
+            encoding="utf-8",
+        )
     return docs
 
 
