@@ -448,6 +448,27 @@ def validate_candidate_inputs(
             "candidate working tree is not clean: "
             + worktree_status.replace("\n", "; ")
         )
+    tracked_entries = str(read_git(repository, "ls-files", "-v", "-z")).split("\0")
+    assume_unchanged = [
+        entry[2:]
+        for entry in tracked_entries
+        if len(entry) > 2 and entry[0].islower()
+    ]
+    if assume_unchanged:
+        raise ValueError(
+            "candidate tracked files use assume-unchanged: "
+            + ", ".join(assume_unchanged)
+        )
+    skip_worktree = [
+        entry[2:]
+        for entry in tracked_entries
+        if len(entry) > 2 and entry[0].upper() == "S"
+    ]
+    if skip_worktree:
+        raise ValueError(
+            "candidate tracked files use skip-worktree: "
+            + ", ".join(skip_worktree)
+        )
     expected_module = (repository / "src/booktrans/__init__.py").resolve()
     actual_module = module_file.resolve()
     if actual_module != expected_module:

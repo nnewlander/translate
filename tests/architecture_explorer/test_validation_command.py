@@ -513,6 +513,42 @@ def test_clean_candidate_repository_inputs_match_the_full_head(tmp_path: Path) -
     )
 
 
+def test_assume_unchanged_candidate_input_is_rejected(tmp_path: Path) -> None:
+    repository, head, module_file = _isolated_candidate_repository(tmp_path)
+    relative_path = "tests/conftest.py"
+    _git(repository, "update-index", "--assume-unchanged", "--", relative_path)
+    (repository / relative_path).write_text(
+        "# hidden candidate pytest configuration\n",
+        encoding="utf-8",
+    )
+    assert _git(repository, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+    with pytest.raises(ValueError, match=r"assume-unchanged.*tests/conftest\.py"):
+        validation.validate_candidate_inputs(
+            repository,
+            head_revision=head,
+            module_file=module_file,
+        )
+
+
+def test_skip_worktree_candidate_input_is_rejected(tmp_path: Path) -> None:
+    repository, head, module_file = _isolated_candidate_repository(tmp_path)
+    relative_path = "tests/conftest.py"
+    _git(repository, "update-index", "--skip-worktree", "--", relative_path)
+    (repository / relative_path).write_text(
+        "# hidden candidate pytest configuration\n",
+        encoding="utf-8",
+    )
+    assert _git(repository, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+    with pytest.raises(ValueError, match=r"skip-worktree.*tests/conftest\.py"):
+        validation.validate_candidate_inputs(
+            repository,
+            head_revision=head,
+            module_file=module_file,
+        )
+
+
 @pytest.mark.parametrize(
     ("relative_path", "staged"),
     (
@@ -594,6 +630,52 @@ def test_candidate_cli_rejects_dirty_inputs_before_validation(
     assert "tests/conftest.py" in output
     assert "candidate validation inputs rejected" in output
     assert "RESULT: FAIL (exit 1)" in output
+
+
+@pytest.mark.parametrize(
+    ("index_flag", "reason"),
+    (
+        ("--assume-unchanged", "assume-unchanged"),
+        ("--skip-worktree", "skip-worktree"),
+    ),
+)
+def test_candidate_cli_rejects_hidden_index_flags_before_validation(
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+    index_flag: str,
+    reason: str,
+) -> None:
+    repository, head, _ = _isolated_candidate_repository(tmp_path)
+    relative_path = "tests/conftest.py"
+    _git(repository, "update-index", index_flag, "--", relative_path)
+    (repository / relative_path).write_text(
+        "# hidden candidate pytest configuration\n",
+        encoding="utf-8",
+    )
+    record_path = repository / "output/candidate/evidence.json"
+
+    exit_code = validation.main(
+        [
+            "--repository",
+            str(repository),
+            "--candidate-head",
+            head,
+            "--target-contract",
+            "architecture-explorer/v3",
+            "--manifest-path",
+            "architecture-explorer/manifests/v3-ticket-06.v1.json",
+            "--candidate-record",
+            str(record_path),
+        ]
+    )
+
+    output = capfd.readouterr().out
+    assert exit_code == 1
+    assert reason in output
+    assert relative_path in output
+    assert "candidate validation inputs rejected" in output
+    assert "RESULT: FAIL (exit 1)" in output
+    assert not record_path.exists()
 
 
 def test_missing_chrome_blocks_instead_of_skipping(
@@ -1484,6 +1566,42 @@ def test_candidate_record_rechecks_the_complete_worktree_before_writing(
     with pytest.raises(ValueError, match="working tree is not clean"):
         write_candidate_acceptance_record(
             candidate_repository,
+            report=report,
+            head_revision=head,
+            module_file=module_file,
+            target_contract="architecture-explorer/v3",
+            manifest_path="architecture-explorer/manifests/v3-ticket-06.v1.json",
+            output_path=record_path,
+        )
+
+    assert not record_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("index_flag", "reason"),
+    (
+        ("--assume-unchanged", "assume-unchanged"),
+        ("--skip-worktree", "skip-worktree"),
+    ),
+)
+def test_candidate_record_rechecks_hidden_index_flags_before_writing(
+    tmp_path: Path,
+    index_flag: str,
+    reason: str,
+) -> None:
+    repository, head, module_file = _isolated_candidate_repository(tmp_path)
+    relative_path = "tests/conftest.py"
+    _git(repository, "update-index", index_flag, "--", relative_path)
+    (repository / relative_path).write_text(
+        "# changed after validation\n",
+        encoding="utf-8",
+    )
+    report, _ = _passing_candidate_report()
+    record_path = repository / "output/candidate-acceptance/evidence.json"
+
+    with pytest.raises(ValueError, match=rf"{reason}.*tests/conftest\.py"):
+        write_candidate_acceptance_record(
+            repository,
             report=report,
             head_revision=head,
             module_file=module_file,
