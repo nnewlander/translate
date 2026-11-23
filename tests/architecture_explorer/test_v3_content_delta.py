@@ -95,18 +95,34 @@ def _candidate_acceptance_repository(tmp_path: Path) -> tuple[Path, str, Path]:
     return repository, manifest_path, v3_path
 
 
-def test_explicit_proposed_v3_target_preserves_v2_as_the_only_current_contract() -> None:
+def test_explicit_v3_target_matches_the_strict_repository_contract_stage() -> None:
     from booktrans.architecture_explorer.acceptance import select_acceptance_contract
+    from tests.architecture_explorer.test_acceptance_contract import (
+        _assert_contract_status_matrix,
+        _expected_repository_activation_baseline,
+    )
+
+    activation_baseline = _expected_repository_activation_baseline()
+    stage = _assert_contract_status_matrix(
+        REPOSITORY / "docs",
+        activation_baseline=activation_baseline,
+    )
 
     selection = select_acceptance_contract(
         REPOSITORY,
         target_contract="architecture-explorer/v3",
     )
 
-    assert selection.current_contract == "architecture-explorer/v2"
     assert selection.target_contract == "architecture-explorer/v3"
-    assert selection.target_status == "proposed"
-    assert "effective_baseline" not in selection.target_metadata
+    if stage == "candidate":
+        assert selection.current_contract == "architecture-explorer/v2"
+        assert selection.target_status == "proposed"
+        assert "effective_baseline" not in selection.target_metadata
+    else:
+        assert stage == "activated"
+        assert selection.current_contract == "architecture-explorer/v3"
+        assert selection.target_status == "current"
+        assert selection.target_metadata["effective_baseline"] == activation_baseline
     assert not {
         "candidate_nodes",
         "candidate_collaborations",
