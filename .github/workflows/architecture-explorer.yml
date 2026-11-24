@@ -34,5 +34,7 @@ jobs:
 
       - name: Run Architecture Explorer validation
         shell: pwsh
+        env:
+          ARCHITECTURE_EXPLORER_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           & .\scripts\architecture_explorer\verify.ps1

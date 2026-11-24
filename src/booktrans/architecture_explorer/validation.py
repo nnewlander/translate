@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 import json
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Protocol
+from typing import Iterator, Protocol
 from xml.etree import ElementTree
 
 from .acceptance import APPROVED_PROPOSED_V3_METADATA, validate_acceptance_target
@@ -114,6 +115,46 @@ class ValidationEvidence:
     complete_suite: SuiteStatistics
     required_chrome: SuiteStatistics
     chrome: ChromeValidationEvidence
+
+
+@dataclass(frozen=True)
+class TestDuration:
+    nodeid: str
+    seconds: float
+    chrome: bool
+
+
+@dataclass
+class ValidationObservability:
+    """Best-effort timing diagnostics that never affect validation status."""
+
+    stage_seconds: dict[str, float] = field(default_factory=dict)
+    test_durations: tuple[TestDuration, ...] = ()
+
+    def record_duration(self, name: str, seconds: float) -> None:
+        self.stage_seconds[name] = self.stage_seconds.get(name, 0.0) + seconds
+
+    @contextmanager
+    def measure(self, name: str) -> Iterator[None]:
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.record_duration(name, time.perf_counter() - started)
+
+    def capture_junit(self, path: Path) -> None:
+        try:
+            cases = tuple(ElementTree.parse(path).getroot().iter("testcase"))
+            self.test_durations = tuple(
+                TestDuration(
+                    nodeid=_junit_nodeid(case),
+                    seconds=float(case.attrib.get("time", "0")),
+                    chrome=_is_chrome_case(case),
+                )
+                for case in cases
+            )
+        except (OSError, ValueError, TypeError, ElementTree.ParseError):
+            self.test_durations = ()
 
 
 class CommandRunner(Protocol):
@@ -245,6 +286,14 @@ _JOINT_VIEW_NODEID = (
     "tests/architecture_explorer/test_ticket_61_semantic_routing_view.py::"
     "test_real_chrome_preserves_every_projected_relationship_at_mobile_width"
 )
+_HISTORY_PREFLIGHT_NODEIDS = (
+    "tests/architecture_explorer/test_acceptance_contract.py::"
+    "test_repository_contract_status_matrix_is_valid",
+    "tests/architecture_explorer/test_ticket_61_semantic_routing_view.py::"
+    "test_ticket_61_contribution_has_the_exact_canonical_add_set",
+    "tests/architecture_explorer/test_v3_ticket_06_integration.py::"
+    "test_ticket_06_real_git_delta_indexes_both_v2_review_definitions",
+)
 
 
 def _report(
@@ -268,6 +317,52 @@ def _collected_nodeids(output: str) -> frozenset[str]:
 def _junit_nodeid(case: ElementTree.Element) -> str:
     class_name = case.attrib.get("classname", "")
     return class_name.replace(".", "/") + ".py::" + case.attrib.get("name", "")
+
+
+def _is_chrome_case(case: ElementTree.Element) -> bool:
+    return case.attrib.get("name", "").startswith(
+        ("test_real_browser_", "test_real_chrome_")
+    )
+
+
+def render_observability(observer: ValidationObservability) -> str:
+    """Render best-effort timings without assigning acceptance meaning to them."""
+
+    lines = ["ARCHITECTURE_EXPLORER_OBSERVABILITY v1"]
+    for name in (
+        "environment/static",
+        "collection",
+        "full pytest",
+        "Chrome evidence validation",
+        "cleanup",
+    ):
+        if name in observer.stage_seconds:
+            lines.append(f"timing {name}: {observer.stage_seconds[name]:.3f}s")
+    durations = observer.test_durations
+    if durations:
+        chrome = tuple(item for item in durations if item.chrome)
+        non_chrome = tuple(item for item in durations if not item.chrome)
+        lines.append(
+            f"test-time Chrome tests: {sum(item.seconds for item in chrome):.3f}s "
+            f"across {len(chrome)}"
+        )
+        lines.append(
+            "test-time non-Chrome tests: "
+            f"{sum(item.seconds for item in non_chrome):.3f}s across {len(non_chrome)}"
+        )
+        lines.append(
+            "test-time note: Chrome/non-Chrome is JUnit classification only; "
+            "it does not prove a specific bottleneck"
+        )
+        lines.append("slowest tests (top 20):")
+        for index, item in enumerate(
+            sorted(durations, key=lambda value: value.seconds, reverse=True)[:20],
+            start=1,
+        ):
+            lines.append(f"{index:02d}. {item.seconds:.3f}s {item.nodeid}")
+    else:
+        lines.append("test-time summary: unavailable (no readable JUnit record)")
+    return "\n".join(lines)
 
 
 def _validated_viewport_evidence(path: Path) -> tuple[str, str, str]:
@@ -548,10 +643,16 @@ def render_report(report: ValidationReport) -> str:
     return "\n".join(lines)
 
 
-def _write_utf8_report(report: ValidationReport) -> None:
+def _write_utf8_report(
+    report: ValidationReport,
+    observer: ValidationObservability | None = None,
+) -> None:
     """Write the final report independently of the Windows console code page."""
 
-    payload = (render_report(report) + "\n").encode("utf-8")
+    rendered = render_report(report)
+    if observer is not None:
+        rendered += "\n" + render_observability(observer)
+    payload = (rendered + "\n").encode("utf-8")
     buffer = getattr(sys.stdout, "buffer", None)
     if buffer is None:
         sys.stdout.write(payload.decode("utf-8"))
@@ -602,34 +703,150 @@ def _has_output_integrity_failure(completed: subprocess.CompletedProcess[str]) -
     return _OUTPUT_INTEGRITY_FAILURE in completed.stderr
 
 
+def _repository_history_preflight(
+    context: ValidationContext,
+    *,
+    runner: CommandRunner,
+    expected_head: str,
+) -> StageResult | None:
+    if re.fullmatch(r"[0-9a-f]{40}", expected_head) is None:
+        return StageResult(
+            "static",
+            ValidationStatus.FAIL,
+            "expected PR Head must be a full 40-character lowercase SHA",
+        )
+
+    def run_git(*arguments: str) -> subprocess.CompletedProcess[str]:
+        return runner.run(("git", *arguments), cwd=context.repository)
+
+    actual = run_git("rev-parse", "HEAD")
+    if actual.returncode != 0:
+        detail = actual.stderr.strip() or actual.stdout.strip()
+        status = (
+            ValidationStatus.BLOCKED
+            if actual.returncode == 127
+            else ValidationStatus.FAIL
+        )
+        return StageResult(
+            "static",
+            status,
+            "repository history preflight could not read HEAD: "
+            + (detail or f"exit {actual.returncode}"),
+        )
+    actual_head = actual.stdout.strip()
+    if actual_head != expected_head:
+        return StageResult(
+            "static",
+            ValidationStatus.FAIL,
+            f"CI checkout HEAD {actual_head} does not equal expected PR Head {expected_head}",
+        )
+
+    shallow = run_git("rev-parse", "--is-shallow-repository")
+    if shallow.returncode != 0:
+        detail = shallow.stderr.strip() or shallow.stdout.strip()
+        status = (
+            ValidationStatus.BLOCKED
+            if shallow.returncode == 127
+            else ValidationStatus.FAIL
+        )
+        return StageResult(
+            "static",
+            status,
+            "repository history preflight could not determine shallow state: "
+            + (detail or f"exit {shallow.returncode}"),
+        )
+    if shallow.stdout.strip() != "false":
+        return StageResult(
+            "static",
+            ValidationStatus.FAIL,
+            "CI checkout is a shallow repository; complete trusted history is required",
+        )
+
+    parent = run_git("cat-file", "-e", "HEAD^^{commit}")
+    if parent.returncode != 0:
+        detail = parent.stderr.strip() or parent.stdout.strip()
+        status = (
+            ValidationStatus.BLOCKED
+            if parent.returncode == 127
+            else ValidationStatus.FAIL
+        )
+        return StageResult(
+            "static",
+            status,
+            "repository history preflight could not read HEAD^: "
+            + (detail or f"exit {parent.returncode}"),
+        )
+
+    history_tests = runner.run(
+        (
+            str(context.python_executable),
+            "-m",
+            "pytest",
+            *_HISTORY_PREFLIGHT_NODEIDS,
+            "-q",
+            "--tb=short",
+        ),
+        cwd=context.repository,
+    )
+    if history_tests.returncode != 0:
+        detail = history_tests.stderr.strip() or history_tests.stdout.strip()
+        status = (
+            ValidationStatus.FAIL
+            if history_tests.returncode == 1
+            else ValidationStatus.BLOCKED
+        )
+        return StageResult(
+            "static",
+            status,
+            "trusted Base and historical baseline preflight failed: "
+            + (detail or f"exit {history_tests.returncode}"),
+        )
+    return None
+
+
 def validate(
     context: ValidationContext,
     *,
     runner: CommandRunner,
     scratch_root: Path | None = None,
+    expected_head: str | None = None,
+    observer: ValidationObservability | None = None,
 ) -> ValidationReport:
     """Validate the environment, then run the Architecture Explorer checks."""
+
+    observer = observer or ValidationObservability()
+    environment_static_started = time.perf_counter()
+
+    def finish_environment_static(report: ValidationReport) -> ValidationReport:
+        if "environment/static" not in observer.stage_seconds:
+            observer.record_duration(
+                "environment/static",
+                time.perf_counter() - environment_static_started,
+            )
+        return report
 
     expected_prefix = (context.repository / ".venv").resolve()
     actual_prefix = context.python_prefix.resolve()
     if actual_prefix != expected_prefix:
         reason = f"sys.prefix {actual_prefix} does not match {expected_prefix}"
-        return _blocked_report(reason)
+        return finish_environment_static(_blocked_report(reason))
 
     if not context.python_executable.is_file():
-        return _blocked_report(
+        return finish_environment_static(_blocked_report(
             f"project Python is unavailable at {context.python_executable}"
-        )
+        ))
 
     source_root = (context.repository / "src").resolve()
     module_file = context.module_file.resolve()
     if not module_file.is_relative_to(source_root):
-        return _blocked_report(
+        return finish_environment_static(_blocked_report(
             f"booktrans.__file__ {module_file} is outside current Worktree {source_root}"
-        )
+        ))
 
     if not context.chrome_path.is_file():
-        return _blocked_report(f"Chrome is unavailable at {context.chrome_path}")
+        return finish_environment_static(
+            _blocked_report(f"Chrome is unavailable at {context.chrome_path}")
+        )
 
     dependency_check = runner.run(
         (str(context.python_executable), "-m", "pip", "check"),
@@ -638,18 +855,36 @@ def validate(
     if dependency_check.returncode != 0:
         detail = dependency_check.stderr.strip() or dependency_check.stdout.strip()
         if _has_output_integrity_failure(dependency_check):
-            return _environment_failure_report(
+            return finish_environment_static(_environment_failure_report(
                 f"pip check failed: {detail or f'exit {dependency_check.returncode}'}"
-            )
-        return _blocked_report(
+            ))
+        return finish_environment_static(_blocked_report(
             f"pip check failed: {detail or f'exit {dependency_check.returncode}'}"
-        )
+        ))
 
     environment_stage = StageResult(
         "environment",
         ValidationStatus.PASS,
         f"python={context.python_executable}; browser=chrome:{context.chrome_path}",
     )
+    if expected_head is not None:
+        preflight_failure = _repository_history_preflight(
+            context,
+            runner=runner,
+            expected_head=expected_head,
+        )
+        if preflight_failure is not None:
+            return finish_environment_static(
+                _report(
+                    environment_stage,
+                    preflight_failure,
+                    StageResult(
+                        "architecture-explorer",
+                        ValidationStatus.NOT_RUN,
+                        "repository history preflight failed",
+                    ),
+                )
+            )
     static_commands = (
         (
             "Python compile",
@@ -676,7 +911,7 @@ def validate(
                 if completed.returncode == 127
                 else ValidationStatus.FAIL
             )
-            return _report(
+            return finish_environment_static(_report(
                 environment_stage,
                 StageResult(
                     "static",
@@ -688,7 +923,12 @@ def validate(
                     ValidationStatus.NOT_RUN,
                     "static checks failed",
                 ),
-            )
+            ))
+
+    observer.record_duration(
+        "environment/static",
+        time.perf_counter() - environment_static_started,
+    )
 
     try:
         if scratch_root is None:
@@ -728,11 +968,12 @@ def validate(
         "-q",
         "tests/architecture_explorer",
     )
-    collection = runner.run(
-        collection_command,
-        cwd=context.repository,
-        env=test_environment,
-    )
+    with observer.measure("collection"):
+        collection = runner.run(
+            collection_command,
+            cwd=context.repository,
+            env=test_environment,
+        )
     if collection.returncode != 0:
         detail = collection.stderr.strip() or collection.stdout.strip()
         status = (
@@ -785,11 +1026,13 @@ def validate(
         f"--basetemp={pytest_temp}",
         f"--junitxml={pytest_xml}",
     )
-    completed = runner.run(
-        pytest_command,
-        cwd=context.repository,
-        env=test_environment,
-    )
+    with observer.measure("full pytest"):
+        completed = runner.run(
+            pytest_command,
+            cwd=context.repository,
+            env=test_environment,
+        )
+    observer.capture_junit(pytest_xml)
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
         status = (
@@ -869,9 +1112,7 @@ def validate(
     required_browser_cases = tuple(
         case
         for case in test_cases
-        if case.attrib.get("name", "").startswith(
-            ("test_real_browser_", "test_real_chrome_")
-        )
+        if _is_chrome_case(case)
     )
     continuous_resize = tuple(
         case
@@ -906,8 +1147,18 @@ def validate(
             ),
         )
 
+    chrome_evidence_started = time.perf_counter()
+
+    def finish_chrome_evidence(report: ValidationReport) -> ValidationReport:
+        if "Chrome evidence validation" not in observer.stage_seconds:
+            observer.record_duration(
+                "Chrome evidence validation",
+                time.perf_counter() - chrome_evidence_started,
+            )
+        return report
+
     if not viewport_evidence.is_file():
-        return _report(
+        return finish_chrome_evidence(_report(
             environment_stage,
             StageResult("static", ValidationStatus.PASS, "all static checks passed"),
             StageResult(
@@ -915,13 +1166,13 @@ def validate(
                 ValidationStatus.BLOCKED,
                 "real Chrome viewport evidence was not produced",
             ),
-        )
+        ))
     try:
         viewport_summary, chrome_product, chrome_user_agent = (
             _validated_viewport_evidence(viewport_evidence)
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
-        return _report(
+        return finish_chrome_evidence(_report(
             environment_stage,
             StageResult("static", ValidationStatus.PASS, "all static checks passed"),
             StageResult(
@@ -929,9 +1180,9 @@ def validate(
                 ValidationStatus.FAIL,
                 f"invalid Chrome viewport evidence: {error}",
             ),
-        )
+        ))
     if not joint_view_evidence.is_file():
-        return _report(
+        return finish_chrome_evidence(_report(
             environment_stage,
             StageResult("static", ValidationStatus.PASS, "all static checks passed"),
             StageResult(
@@ -939,7 +1190,7 @@ def validate(
                 ValidationStatus.BLOCKED,
                 "joint 12-View Chrome evidence was not produced",
             ),
-        )
+        ))
     try:
         joint_view_ids, joint_viewport_widths = _validated_joint_view_evidence(
             joint_view_evidence,
@@ -947,7 +1198,7 @@ def validate(
             chrome_user_agent=chrome_user_agent,
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
-        return _report(
+        return finish_chrome_evidence(_report(
             environment_stage,
             StageResult("static", ValidationStatus.PASS, "all static checks passed"),
             StageResult(
@@ -955,7 +1206,12 @@ def validate(
                 ValidationStatus.FAIL,
                 f"invalid joint 12-View Chrome evidence: {error}",
             ),
-        )
+        ))
+
+    observer.record_duration(
+        "Chrome evidence validation",
+        time.perf_counter() - chrome_evidence_started,
+    )
 
     complete_statistics = _statistics(
         test_cases,
@@ -1168,6 +1424,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--candidate-record", type=Path)
     arguments = parser.parse_args(argv)
     repository = arguments.repository.resolve()
+    observer = ValidationObservability()
     candidate_values = (
         arguments.candidate_head,
         arguments.target_contract,
@@ -1204,9 +1461,14 @@ def main(argv: list[str] | None = None) -> int:
                     runtime_context,
                     runner=SubprocessCommandRunner(),
                     scratch_root=Path(temporary_directory.name) / "run",
+                    expected_head=os.environ.get(
+                        "ARCHITECTURE_EXPLORER_EXPECTED_HEAD"
+                    ),
+                    observer=observer,
                 )
             finally:
-                _cleanup_temporary_directory(temporary_directory)
+                with observer.measure("cleanup"):
+                    _cleanup_temporary_directory(temporary_directory)
     if any(value is not None for value in candidate_values):
         if not all(value is not None for value in candidate_values):
             report = _with_candidate_stage(
@@ -1270,7 +1532,7 @@ def main(argv: list[str] | None = None) -> int:
                     "complete validation did not pass",
                 ),
             )
-    _write_utf8_report(report)
+    _write_utf8_report(report, observer)
     return report.exit_code
 
 

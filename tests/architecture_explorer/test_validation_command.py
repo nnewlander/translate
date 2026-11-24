@@ -14,6 +14,7 @@ from booktrans.architecture_explorer import validation
 from booktrans.architecture_explorer.acceptance import select_acceptance_contract
 from booktrans.architecture_explorer.validation import (
     ChromeValidationEvidence,
+    ValidationObservability,
     SuiteStatistics,
     ValidationEvidence,
     ValidationContext,
@@ -21,6 +22,7 @@ from booktrans.architecture_explorer.validation import (
     ValidationStatus,
     StageResult,
     render_report,
+    render_observability,
     validate,
     write_candidate_acceptance_record,
 )
@@ -306,6 +308,59 @@ class RecordingRunner:
         return subprocess.CompletedProcess(command, 0, "", "")
 
 
+class RepositoryPreflightRunner(RecordingRunner):
+    def __init__(
+        self,
+        *,
+        actual_head: str = "a" * 40,
+        shallow: bool = False,
+        unreadable_revision: str | None = None,
+        history_test_failure: str | None = None,
+    ) -> None:
+        super().__init__()
+        self.actual_head = actual_head
+        self.shallow = shallow
+        self.unreadable_revision = unreadable_revision
+        self.history_test_failure = history_test_failure
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        if command == ("git", "rev-parse", "HEAD"):
+            self.commands.append(command)
+            self.environments.append(env)
+            return subprocess.CompletedProcess(command, 0, self.actual_head + "\n", "")
+        if command == ("git", "rev-parse", "--is-shallow-repository"):
+            self.commands.append(command)
+            self.environments.append(env)
+            value = "true" if self.shallow else "false"
+            return subprocess.CompletedProcess(command, 0, value + "\n", "")
+        if command[:2] == ("git", "cat-file"):
+            self.commands.append(command)
+            self.environments.append(env)
+            if command[-1] == self.unreadable_revision:
+                return subprocess.CompletedProcess(command, 1, "", "missing object")
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[1:3] == ("-m", "pytest") and any(
+            nodeid in command for nodeid in validation._HISTORY_PREFLIGHT_NODEIDS
+        ):
+            self.commands.append(command)
+            self.environments.append(env)
+            if self.history_test_failure:
+                return subprocess.CompletedProcess(
+                    command,
+                    1,
+                    "",
+                    self.history_test_failure,
+                )
+            return subprocess.CompletedProcess(command, 0, "3 passed", "")
+        return super().run(command, cwd=cwd, env=env)
+
+
 class JunitRunner(RecordingRunner):
     def __init__(
         self,
@@ -382,6 +437,35 @@ class JunitRunner(RecordingRunner):
                 )
             return subprocess.CompletedProcess(command, 0, self.pytest_stdout, "")
         return completed
+
+
+class PassingPreflightJunitRunner(JunitRunner):
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        if command == ("git", "rev-parse", "HEAD"):
+            self.commands.append(command)
+            self.environments.append(env)
+            return subprocess.CompletedProcess(command, 0, "a" * 40 + "\n", "")
+        if command == ("git", "rev-parse", "--is-shallow-repository"):
+            self.commands.append(command)
+            self.environments.append(env)
+            return subprocess.CompletedProcess(command, 0, "false\n", "")
+        if command[:2] == ("git", "cat-file"):
+            self.commands.append(command)
+            self.environments.append(env)
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[1:3] == ("-m", "pytest") and any(
+            nodeid in command for nodeid in validation._HISTORY_PREFLIGHT_NODEIDS
+        ):
+            self.commands.append(command)
+            self.environments.append(env)
+            return subprocess.CompletedProcess(command, 0, "3 passed", "")
+        return super().run(command, cwd=cwd, env=env)
 
 
 class CollectedJunitRunner(JunitRunner):
@@ -745,6 +829,86 @@ def test_broken_project_dependencies_block_later_stages() -> None:
     assert report.status("architecture-explorer") is ValidationStatus.NOT_RUN
     assert report.exit_code == 2
     assert "broken dependency" in report.first_reason
+
+
+def test_wrong_ci_checkout_head_fails_before_complete_suite() -> None:
+    runner = RepositoryPreflightRunner(actual_head="a" * 40)
+
+    report = validate(_context(), runner=runner, expected_head="b" * 40)
+
+    assert report.status("static") is ValidationStatus.FAIL
+    assert "expected PR Head" in report.first_reason
+    assert "a" * 40 in report.first_reason
+    assert not any(
+        command[1:4] == ("-m", "pytest", "tests/architecture_explorer")
+        for command in runner.commands
+    )
+
+
+def test_shallow_ci_checkout_fails_before_complete_suite() -> None:
+    runner = RepositoryPreflightRunner(shallow=True)
+
+    report = validate(_context(), runner=runner, expected_head="a" * 40)
+
+    assert report.status("static") is ValidationStatus.FAIL
+    assert "shallow" in report.first_reason
+    assert not any("--collect-only" in command for command in runner.commands)
+
+
+def test_missing_head_parent_fails_before_complete_suite() -> None:
+    runner = RepositoryPreflightRunner(unreadable_revision="HEAD^^{commit}")
+
+    report = validate(_context(), runner=runner, expected_head="a" * 40)
+
+    assert report.status("static") is ValidationStatus.FAIL
+    assert "HEAD^" in report.first_reason
+    assert "missing object" in report.first_reason
+    assert not any("--collect-only" in command for command in runner.commands)
+
+
+def test_existing_history_contract_tests_fail_before_complete_suite() -> None:
+    runner = RepositoryPreflightRunner(
+        history_test_failure="published baseline object is missing",
+    )
+
+    report = validate(_context(), runner=runner, expected_head="a" * 40)
+
+    assert report.status("static") is ValidationStatus.FAIL
+    assert "published baseline object is missing" in report.first_reason
+    assert all(
+        nodeid in runner.commands[-1]
+        for nodeid in validation._HISTORY_PREFLIGHT_NODEIDS
+    )
+    assert not any("--collect-only" in command for command in runner.commands)
+
+
+def test_complete_history_preflight_allows_the_normal_suite_to_pass(
+    tmp_path: Path,
+) -> None:
+    nodeids = validation._CRITICAL_NODEIDS + (validation._JOINT_VIEW_NODEID,)
+    cases = []
+    for nodeid in nodeids:
+        path, _, name = nodeid.partition("::")
+        class_name = path.removesuffix(".py").replace("/", ".")
+        cases.append(f'<testcase classname="{class_name}" name="{name}" time="0.1" />')
+    runner = PassingPreflightJunitRunner(
+        "<testsuites><testsuite>" + "".join(cases) + "</testsuite></testsuites>",
+        include_ticket02_required=False,
+    )
+
+    report = validate(
+        _context(),
+        runner=runner,
+        scratch_root=tmp_path / "validation-scratch",
+        expected_head="a" * 40,
+    )
+
+    assert report.exit_code == 0
+    assert any("--collect-only" in command for command in runner.commands)
+    assert any(
+        command[1:4] == ("-m", "pytest", "tests/architecture_explorer")
+        for command in runner.commands
+    )
 
 
 def test_static_check_failure_fails_and_does_not_run_explorer() -> None:
@@ -1358,6 +1522,47 @@ def test_report_renders_each_status_and_first_reason() -> None:
     assert "RESULT: BLOCKED (exit 2)" in rendered
 
 
+def test_observability_renders_stage_times_and_junit_slowest_twenty(
+    tmp_path: Path,
+) -> None:
+    cases = []
+    for index in range(22):
+        name = (
+            f"test_real_chrome_case_{index}"
+            if index < 2
+            else f"test_non_chrome_case_{index}"
+        )
+        cases.append(
+            '<testcase classname="tests.architecture_explorer.test_perf" '
+            f'name="{name}" time="{index + 0.25}" />'
+        )
+    junit = tmp_path / "pytest.xml"
+    junit.write_text(
+        "<testsuites><testsuite>" + "".join(cases) + "</testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    observer = ValidationObservability()
+    observer.record_duration("environment/static", 1.25)
+    observer.record_duration("collection", 2.5)
+    observer.record_duration("full pytest", 50.0)
+    observer.record_duration("Chrome evidence validation", 0.75)
+    observer.record_duration("cleanup", 0.5)
+    observer.capture_junit(junit)
+
+    rendered = render_observability(observer)
+
+    assert "environment/static: 1.250s" in rendered
+    assert "collection: 2.500s" in rendered
+    assert "full pytest: 50.000s" in rendered
+    assert "Chrome evidence validation: 0.750s" in rendered
+    assert "cleanup: 0.500s" in rendered
+    assert "Chrome tests: 1.500s across 2" in rendered
+    assert "non-Chrome tests: 235.000s across 20" in rendered
+    assert "tests/architecture_explorer/test_perf.py::test_non_chrome_case_21" in rendered
+    assert "tests/architecture_explorer/test_perf.py::test_real_chrome_case_0" not in rendered
+    assert "classification only" in rendered
+
+
 def test_validation_cli_writes_utf8_result_under_gbk_with_chinese_and_replacement(
     tmp_path: Path,
 ) -> None:
@@ -1701,6 +1906,8 @@ def test_windows_pr_workflow_provisions_python_and_calls_only_the_entrypoint() -
     assert "python -m venv .venv" in workflow
     assert '.[dev]' in workflow
     assert workflow.count("scripts\\architecture_explorer\\verify.ps1") == 1
+    assert "ARCHITECTURE_EXPLORER_EXPECTED_HEAD" in workflow
+    assert "github.event.pull_request.head.sha" in workflow
     assert "pytest" not in workflow
     assert "ARCHITECTURE_EXPLORER_BROWSER" not in workflow
     assert "node --check" not in workflow
