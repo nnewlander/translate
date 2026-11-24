@@ -2,6 +2,11 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+$createdJunction = $false
+$worktreeEnvironment = $null
+$sharedEnvironment = $null
+$pythonPathWasSet = Test-Path Env:PYTHONPATH
+$originalPythonPath = $env:PYTHONPATH
 
 function Get-NormalizedPath {
     param([Parameter(Mandatory)][string]$Path)
@@ -26,6 +31,7 @@ function Invoke-GitText {
 }
 
 try {
+    $authorizedRepository = Get-NormalizedPath 'D:\translate'
     $worktree = Get-NormalizedPath (
         Resolve-Path (Join-Path $PSScriptRoot '..\..')
     )
@@ -49,8 +55,11 @@ try {
     $sharedRepository = Get-NormalizedPath (
         [System.IO.Directory]::GetParent($commonGitDirectory).FullName
     )
+    if ($sharedRepository -ine $authorizedRepository) {
+        throw "Git common directory is not the authorized repository: $commonGitDirectory"
+    }
     $allowedWorktreeRoot = Get-NormalizedPath (
-        Join-Path $sharedRepository 'worktrees'
+        Join-Path $authorizedRepository 'worktrees'
     )
     $relativeWorktree = [System.IO.Path]::GetRelativePath(
         $allowedWorktreeRoot,
@@ -67,7 +76,7 @@ try {
     }
 
     $sharedEnvironment = Get-NormalizedPath (
-        Join-Path $sharedRepository '.venv'
+        Join-Path $authorizedRepository '.venv'
     )
     $sharedPython = Join-Path $sharedEnvironment 'Scripts\python.exe'
     if (
@@ -96,6 +105,7 @@ try {
     $junctionAction = 'reused'
     if ($null -eq $environmentItem) {
         New-Item -ItemType Junction -Path $worktreeEnvironment -Target $sharedEnvironment | Out-Null
+        $createdJunction = $true
         $junctionAction = 'created'
         $environmentItem = Get-Item -LiteralPath $worktreeEnvironment -Force
     }
@@ -163,7 +173,50 @@ print(json.dumps({"prefix": str(actual_prefix), "booktrans": str(booktrans_file)
     exit 0
 }
 catch {
+    $originalFailure = $_.Exception.Message
+    $cleanupFailures = [System.Collections.Generic.List[string]]::new()
+    try {
+        if ($pythonPathWasSet) {
+            $env:PYTHONPATH = $originalPythonPath
+        }
+        else {
+            Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+        }
+    }
+    catch {
+        $cleanupFailures.Add("Could not restore PYTHONPATH: $($_.Exception.Message)")
+    }
+    if ($createdJunction) {
+        try {
+            $createdItem = Get-Item -LiteralPath $worktreeEnvironment -Force -ErrorAction SilentlyContinue
+            if ($null -ne $createdItem) {
+                if ($createdItem.LinkType -ne 'Junction') {
+                    throw "Refusing to remove a non-Junction path: $worktreeEnvironment"
+                }
+                $createdTarget = Get-NormalizedPath ([string]$createdItem.Target)
+                if ($createdTarget -ine $sharedEnvironment) {
+                    throw "Refusing to remove a Junction with an unexpected target: $createdTarget"
+                }
+                [System.IO.Directory]::Delete($worktreeEnvironment, $false)
+            }
+            if ($null -ne (Get-Item -LiteralPath $worktreeEnvironment -Force -ErrorAction SilentlyContinue)) {
+                throw "Created Junction remains after rollback: $worktreeEnvironment"
+            }
+            if (-not (Test-Path -LiteralPath $sharedEnvironment -PathType Container)) {
+                throw "Shared environment is unavailable after rollback: $sharedEnvironment"
+            }
+        }
+        catch {
+            $cleanupFailures.Add($_.Exception.Message)
+        }
+    }
     Write-Output 'PROJECT_VENV_UNAVAILABLE'
-    [Console]::Error.WriteLine($_.Exception.Message)
+    [Console]::Error.WriteLine($originalFailure)
+    if ($cleanupFailures.Count -gt 0) {
+        Write-Output 'PROJECT_VENV_ROLLBACK_INCOMPLETE'
+        foreach ($cleanupFailure in $cleanupFailures) {
+            [Console]::Error.WriteLine("rollback: $cleanupFailure")
+        }
+    }
     exit 2
 }
