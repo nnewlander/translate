@@ -125,7 +125,16 @@ def _expected_repository_activation_baseline() -> str:
     )
     if working_status == "current" and committed_status == "proposed":
         return _git("rev-parse", "HEAD")
-    return _git("rev-parse", "HEAD^")
+    activation_commit = _git(
+        "log",
+        "-1",
+        "--format=%H",
+        "--",
+        "docs/architecture-explorer-acceptance-v3.md",
+    )
+    _git("cat-file", "-e", f"{activation_commit}^{{commit}}")
+    _git("merge-base", "--is-ancestor", activation_commit, "HEAD")
+    return _git("rev-parse", f"{activation_commit}^")
 
 
 def _candidate_contract_revision() -> str:
@@ -135,7 +144,13 @@ def _candidate_contract_revision() -> str:
         for line in committed_text.splitlines()
         if line.startswith("status:")
     )
-    return _git("rev-parse", "HEAD" if committed_status == "proposed" else "HEAD^")
+    if committed_status == "proposed":
+        return _git("rev-parse", "HEAD")
+    return next(
+        line.partition(":")[2].strip()
+        for line in committed_text.splitlines()
+        if line.startswith("effective_baseline:")
+    )
 
 
 def _v3_contract_status(path: Path) -> dict[str, str]:
