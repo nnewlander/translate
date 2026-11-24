@@ -121,7 +121,7 @@ class ValidationEvidence:
 class TestDuration:
     nodeid: str
     seconds: float
-    chrome: bool
+    required_chrome: bool
 
 
 @dataclass
@@ -149,7 +149,7 @@ class ValidationObservability:
                 TestDuration(
                     nodeid=_junit_nodeid(case),
                     seconds=float(case.attrib.get("time", "0")),
-                    chrome=_is_chrome_case(case),
+                    required_chrome=_is_required_chrome_case(case),
                 )
                 for case in cases
             )
@@ -319,7 +319,7 @@ def _junit_nodeid(case: ElementTree.Element) -> str:
     return class_name.replace(".", "/") + ".py::" + case.attrib.get("name", "")
 
 
-def _is_chrome_case(case: ElementTree.Element) -> bool:
+def _is_required_chrome_case(case: ElementTree.Element) -> bool:
     return case.attrib.get("name", "").startswith(
         ("test_real_browser_", "test_real_chrome_")
     )
@@ -340,19 +340,24 @@ def render_observability(observer: ValidationObservability) -> str:
             lines.append(f"timing {name}: {observer.stage_seconds[name]:.3f}s")
     durations = observer.test_durations
     if durations:
-        chrome = tuple(item for item in durations if item.chrome)
-        non_chrome = tuple(item for item in durations if not item.chrome)
+        required_chrome = tuple(item for item in durations if item.required_chrome)
+        other = tuple(item for item in durations if not item.required_chrome)
         lines.append(
-            f"test-time Chrome tests: {sum(item.seconds for item in chrome):.3f}s "
-            f"across {len(chrome)}"
+            f"test-time all JUnit tests: "
+            f"{sum(item.seconds for item in durations):.3f}s across {len(durations)}"
         )
         lines.append(
-            "test-time non-Chrome tests: "
-            f"{sum(item.seconds for item in non_chrome):.3f}s across {len(non_chrome)}"
+            "test-time required Chrome tests: "
+            f"{sum(item.seconds for item in required_chrome):.3f}s "
+            f"across {len(required_chrome)}"
         )
         lines.append(
-            "test-time note: Chrome/non-Chrome is JUnit classification only; "
-            "it does not prove a specific bottleneck"
+            "test-time other tests (may include Chrome): "
+            f"{sum(item.seconds for item in other):.3f}s across {len(other)}"
+        )
+        lines.append(
+            "test-time note: groups use the required Chrome acceptance selection only; "
+            "other tests may still use Chrome, and neither group proves a bottleneck"
         )
         lines.append("slowest tests (top 20):")
         for index, item in enumerate(
@@ -1112,7 +1117,7 @@ def validate(
     required_browser_cases = tuple(
         case
         for case in test_cases
-        if _is_chrome_case(case)
+        if _is_required_chrome_case(case)
     )
     continuous_resize = tuple(
         case

@@ -803,10 +803,12 @@ def test_missing_chrome_blocks_instead_of_skipping(
     tmp_path: Path,
 ) -> None:
     runner = RecordingRunner()
+    observer = ValidationObservability()
 
     report = validate(
         _context(chrome_path=tmp_path / "missing-chrome.exe"),
         runner=runner,
+        observer=observer,
     )
 
     assert report.status("environment") is ValidationStatus.BLOCKED
@@ -814,6 +816,7 @@ def test_missing_chrome_blocks_instead_of_skipping(
     assert report.exit_code == 2
     assert "Chrome" in report.first_reason
     assert runner.commands == []
+    assert "test-time summary: unavailable" in render_observability(observer)
 
 
 def test_broken_project_dependencies_block_later_stages() -> None:
@@ -919,7 +922,8 @@ def test_static_check_failure_fails_and_does_not_run_explorer() -> None:
         ]
     )
 
-    report = validate(_context(), runner=runner)
+    observer = ValidationObservability()
+    report = validate(_context(), runner=runner, observer=observer)
 
     assert runner.commands[1][1:4] == ("-m", "compileall", "-q")
     assert report.status("environment") is ValidationStatus.PASS
@@ -927,6 +931,7 @@ def test_static_check_failure_fails_and_does_not_run_explorer() -> None:
     assert report.status("architecture-explorer") is ValidationStatus.NOT_RUN
     assert report.exit_code == 1
     assert "compile failed" in report.first_reason
+    assert "test-time summary: unavailable" in render_observability(observer)
 
 
 def test_missing_required_static_tool_is_blocked_not_failed() -> None:
@@ -1053,10 +1058,12 @@ def test_success_reports_executed_chrome_scope_and_explicit_exclusions(
         </testsuite></testsuites>"""
     )
 
+    observer = ValidationObservability()
     report = validate(
         _context(),
         runner=runner,
         scratch_root=tmp_path / "validation-scratch",
+        observer=observer,
     )
 
     assert report.status("environment") is ValidationStatus.PASS
@@ -1082,6 +1089,10 @@ def test_success_reports_executed_chrome_scope_and_explicit_exclusions(
     )
     assert "browser=chrome" in report.stage("architecture-explorer").detail
     assert "actual viewport sequence" in report.stage("architecture-explorer").detail
+    observability = render_observability(observer)
+    assert "required Chrome tests" in observability
+    assert "other tests (may include Chrome)" in observability
+    assert "non-Chrome tests" not in observability
 
 
 def test_no_tests_collected_is_blocked_not_failed(
@@ -1527,14 +1538,22 @@ def test_observability_renders_stage_times_and_junit_slowest_twenty(
 ) -> None:
     cases = []
     for index in range(22):
-        name = (
-            f"test_real_chrome_case_{index}"
-            if index < 2
-            else f"test_non_chrome_case_{index}"
-        )
+        if index < 2:
+            class_name = "tests.architecture_explorer.test_t7_top_level_graph"
+            name = (
+                "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip"
+                if index == 0
+                else "test_real_browser_opens_candidate_evidence_from_every_node_context_menu"
+            )
+        elif index == 2:
+            class_name = "tests.architecture_explorer.test_ticket_63"
+            name = "test_ticket_63_real_chrome_uses_browser_outside_required_scope"
+        else:
+            class_name = "tests.architecture_explorer.test_perf"
+            name = f"test_other_case_{index}"
         cases.append(
-            '<testcase classname="tests.architecture_explorer.test_perf" '
-            f'name="{name}" time="{index + 0.25}" />'
+            f'<testcase classname="{class_name}" name="{name}" '
+            f'time="{index + 0.25}" />'
         )
     junit = tmp_path / "pytest.xml"
     junit.write_text(
@@ -1556,11 +1575,26 @@ def test_observability_renders_stage_times_and_junit_slowest_twenty(
     assert "full pytest: 50.000s" in rendered
     assert "Chrome evidence validation: 0.750s" in rendered
     assert "cleanup: 0.500s" in rendered
-    assert "Chrome tests: 1.500s across 2" in rendered
-    assert "non-Chrome tests: 235.000s across 20" in rendered
-    assert "tests/architecture_explorer/test_perf.py::test_non_chrome_case_21" in rendered
-    assert "tests/architecture_explorer/test_perf.py::test_real_chrome_case_0" not in rendered
-    assert "classification only" in rendered
+    assert "all JUnit tests: 236.500s across 22" in rendered
+    assert "required Chrome tests: 1.500s across 2" in rendered
+    assert "other tests (may include Chrome): 235.000s across 20" in rendered
+    assert "non-Chrome tests" not in rendered
+    assert "test_ticket_63_real_chrome_uses_browser_outside_required_scope" in rendered
+    slowest_lines = rendered.split("slowest tests (top 20):\n", 1)[1].splitlines()
+    assert len(slowest_lines) == 20
+    assert slowest_lines[0].endswith(
+        "tests/architecture_explorer/test_perf.py::test_other_case_21"
+    )
+    assert slowest_lines[-1].endswith(
+        "tests/architecture_explorer/test_ticket_63.py::"
+        "test_ticket_63_real_chrome_uses_browser_outside_required_scope"
+    )
+    assert (
+        "tests/architecture_explorer/test_t7_top_level_graph.py::"
+        "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip"
+        not in rendered
+    )
+    assert "required Chrome acceptance selection only" in rendered
 
 
 def test_validation_cli_writes_utf8_result_under_gbk_with_chinese_and_replacement(
