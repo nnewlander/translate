@@ -1,0 +1,81 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "translation-routing-and-acquisition",
+  "nodes": [
+    {
+      "id": "semantic-unit-route-decision",
+      "node_type": "responsibility",
+      "name": "语义单元路由判定",
+      "professional_description": "根据语义单元是否满足单段、非保护且可一对一投影等静态可见条件，形成 Qwen MT Plus 或 Qwen Max Structured 的候选路由决定。",
+      "plain_explanation": "它像分诊台：先看这一单能否安全走单段翻译，否则转到结构化翻译；源码事实说明判定函数和调用位置，但不证明某次生产请求实际选择了哪条路线。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:e8aa77742b6c89e17eb224d888ab7c8feb2b8f69500edf9ee21d10c823bc01fd",
+        "evidence:sha256:4e2f5b8f4df9cd957c300be39038a518ec9320963488d80642d55076656d2bfa"
+      ]
+    },
+    {
+      "id": "translation-provider-dispatch-and-raw-projection",
+      "node_type": "responsibility",
+      "name": "翻译 Provider 分派与 RAW 投影",
+      "professional_description": "消费路由决定，将统一请求交给运行时 Provider receiver，并在单段文本路径上通过受约束的一对一投影形成 RAW TranslationResult。",
+      "plain_explanation": "它像按分诊结果把工单交给模型柜台，并把单段文本回执装进统一 RAW 格式。对 Provider receiver 的 runtime receiver dispatch 仍是静态未知项：这里只能确认分派表达式存在，不能确认运行时接收者实现或真实调用已经发生。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:326d7f9ec550c147e347710d216ccb36599f224427358602bc16b554b6b9117c",
+        "evidence:sha256:2bbed5580700f742f3334e8ad69970f5a74f0f568580ba2a046706ef96facc8c",
+        "evidence:sha256:991cf2dc83a87d39bd8950c9e6b62cb695517ce6aef5abd60ab0189436075c42",
+        "evidence:sha256:844102e6051ddf2ec6ff4dce2f53437030fc0e6532843ac114e61a9522983d96",
+        "evidence:sha256:f60811cca5914c260a41cc65dbb13ed8f69e3d992364f091bfe826d8afdd0680",
+        "evidence:sha256:e3bbe044e1ce1ca9a85b6454073be0d43369e2adf9eb33329dc2fef0efa0a74d"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:translation-routing-and-acquisition-to-semantic-unit-route-decision",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "translation-routing-and-acquisition",
+      "target_node_id": "semantic-unit-route-decision",
+      "name": "候选获取分解为语义单元路由判定",
+      "professional_description": "候选分解把 process_unit 发起并由 route_semantic_unit 定义的路线选择解释为语义路由与候选获取的一项内部职责。",
+      "plain_explanation": "语义路由与候选获取包含一项候选分诊职责；静态调用和函数定义支持这项解释，但它尚未经过 Owner 审核。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:e8aa77742b6c89e17eb224d888ab7c8feb2b8f69500edf9ee21d10c823bc01fd",
+        "evidence:sha256:4e2f5b8f4df9cd957c300be39038a518ec9320963488d80642d55076656d2bfa"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:translation-routing-and-acquisition-to-translation-provider-dispatch-and-raw-projection",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "translation-routing-and-acquisition",
+      "target_node_id": "translation-provider-dispatch-and-raw-projection",
+      "name": "候选获取分解为 Provider 分派与 RAW 投影",
+      "professional_description": "候选分解把 translate_unit 的 Provider 分派和单段路径的受约束 RAW 投影解释为语义路由与候选获取的一项内部职责。",
+      "plain_explanation": "语义路由与候选获取还包含把工单交给模型柜台并统一单段回执的候选职责；Provider 的运行时接收者仍未由静态证据确定。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:326d7f9ec550c147e347710d216ccb36599f224427358602bc16b554b6b9117c",
+        "evidence:sha256:2bbed5580700f742f3334e8ad69970f5a74f0f568580ba2a046706ef96facc8c",
+        "evidence:sha256:f60811cca5914c260a41cc65dbb13ed8f69e3d992364f091bfe826d8afdd0680",
+        "evidence:sha256:e3bbe044e1ce1ca9a85b6454073be0d43369e2adf9eb33329dc2fef0efa0a74d"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:semantic-unit-route-decision-to-translation-provider-dispatch-and-raw-projection",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "semantic-unit-route-decision",
+      "target_node_id": "translation-provider-dispatch-and-raw-projection",
+      "name": "路由决定交给 Provider 分派与 RAW 投影",
+      "professional_description": "process_unit 先取得 RouteDecision，再把同一 decision 传给 translate_unit；候选协作据此表达路由判定与后续分派/投影边界。",
+      "plain_explanation": "分诊台给出路线后，模型柜台分派步骤按这张路线单处理；这是静态源码支持的候选协作，不证明某个 Provider 实现已在运行时被调用。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1330bb40914dc1def7813d5192e5543a35f76d203a505ea8193c09b403976925",
+        "evidence:sha256:e8aa77742b6c89e17eb224d888ab7c8feb2b8f69500edf9ee21d10c823bc01fd",
+        "evidence:sha256:326d7f9ec550c147e347710d216ccb36599f224427358602bc16b554b6b9117c"
+      ]
+    }
+  ]
+}

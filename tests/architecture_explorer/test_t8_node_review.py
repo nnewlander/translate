@@ -17,7 +17,7 @@ from booktrans.architecture_explorer.node_review import (
     NODE_REVIEW_IMPORT_NOTE,
     _NodeReviewApprovalAnchor as NodeReviewApprovalAnchor,
     _NodeReviewTrustPolicy as NodeReviewTrustPolicy,
-    _project_node_review as _apply_node_review,
+    _project_legacy_node_review_v1 as _apply_node_review,
     _verify_node_review_materials as verify_node_review_materials,
 )
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
@@ -478,6 +478,12 @@ def apply_node_review(
     )
 
 
+def _projected_node_review(explorer: dict) -> dict:
+    projection = explorer["node_review_projection"]
+    assert projection["schema"] == "architecture-explorer.node-review-projection.v1"
+    return projection["objects"]["candidate-node::worker-launch-boundary"]
+
+
 def test_no_node_decision_projects_only_the_exact_target_as_pending() -> None:
     explorer = _published_explorer()
     before = deepcopy(explorer)
@@ -487,10 +493,9 @@ def test_no_node_decision_projects_only_the_exact_target_as_pending() -> None:
     assert explorer == before
     targets = [node for node in _candidate_nodes(result) if "node_review" in node]
     assert len(_candidate_nodes(result)) == 18
-    assert len(targets) == 1
-    assert targets[0]["id"] == "worker-launch-boundary"
-    assert targets[0]["review_status"] == "candidate"
-    assert targets[0]["node_review"] == {
+    assert targets == []
+    assert _target(result)["review_status"] == "candidate"
+    assert _projected_node_review(result) == {
         "object_key": {
             "kind": "candidate-node",
             "parent_module_id": "production-control",
@@ -522,7 +527,7 @@ def test_trusted_approved_decision_requires_current_exact_state_before_projectio
         trust_policy=_fixture_policy(),
     )
 
-    review = _target(result)["node_review"]
+    review = _projected_node_review(result)
     assert review["decision"]["result"] == "APPROVED"
     assert review["state"] == {
         "status": "current",
@@ -657,7 +662,7 @@ def test_trusted_rejected_decision_is_current_but_never_pending_or_approved() ->
         trust_policy=_fixture_policy(),
     )
 
-    review = _target(result)["node_review"]
+    review = _projected_node_review(result)
     assert review["decision"]["result"] == "REJECTED"
     assert review["state"]["status"] == "current"
     assert review["state"]["continuity"] == "exact-match"
@@ -727,7 +732,7 @@ def test_candidate_and_formal_evidence_stay_exact_and_separate_without_mutation(
     )
 
     assert explorer == before
-    target_review = _target(result)["node_review"]
+    target_review = _projected_node_review(result)
     candidate_claim = next(
         claim
         for claim in target_review["decision"]["claims"]
@@ -744,9 +749,8 @@ def test_candidate_and_formal_evidence_stay_exact_and_separate_without_mutation(
     assert len(formal_ids) == 13
     assert set(candidate_ids).isdisjoint(formal_ids)
     assert result["architecture"] == before["architecture"]
-    assert sum(
-        "node_review" in node for node in _candidate_nodes(result)
-    ) == 1
+    assert all("node_review" not in node for node in _candidate_nodes(result))
+    assert len(result["node_review_projection"]["objects"]) == 1
     assert all(
         "node_review" not in collaboration
         for drilldown in result["navigation"]["drilldowns"]
@@ -825,7 +829,7 @@ def test_candidate_evidence_locator_and_unrelated_changes_preserve_binding() -> 
         trust_policy=_fixture_policy(),
     )
 
-    assert _target(result)["node_review"]["projection"] == "Current · Approved"
+    assert _projected_node_review(result)["projection"] == "Current · Approved"
 
 
 @pytest.mark.parametrize(

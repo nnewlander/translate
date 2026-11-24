@@ -15,11 +15,12 @@ from booktrans.architecture_explorer.node_review_continuity import (
     _evaluate_node_review_state,
     _update_node_review_state,
 )
-from booktrans.architecture_explorer.node_review import _project_node_review
+from booktrans.architecture_explorer.node_review import _project_legacy_node_review_v1
 from booktrans.architecture_explorer.source_scanner import scan_python_source_facts
 from test_t8_node_review import (
     _fixture_materials,
     _fixture_policy,
+    _projected_node_review,
     _published_explorer,
     _target,
 )
@@ -212,15 +213,15 @@ def test_invalidated_decisions_project_as_distinct_history(
     )
 
     state = _evaluate_node_review_state(decision, state_path)
-    projected = _project_node_review(
+    projected = _project_legacy_node_review_v1(
         explorer,
         decision=decision,
         review_source=source,
         node_review_state=state,
     )
 
-    assert _target(projected)["node_review"]["projection"] == projection
-    assert _target(projected)["node_review"]["state"]["status"] == "needs-review"
+    assert _projected_node_review(projected)["projection"] == projection
+    assert _projected_node_review(projected)["state"]["status"] == "needs-review"
 
 
 @pytest.mark.parametrize("change", ("line-relocation", "unrelated-edit"))
@@ -271,14 +272,14 @@ def test_unusable_state_projects_unknown_not_pending(
         state_path.write_text(json.dumps({"schema": "nearby"}), encoding="utf-8")
 
     state = _evaluate_node_review_state(decision, state_path)
-    projected = _project_node_review(
+    projected = _project_legacy_node_review_v1(
         explorer,
         decision=decision,
         review_source=source,
         node_review_state=state,
     )
 
-    assert _target(projected)["node_review"]["projection"] == "Unknown"
+    assert _projected_node_review(projected)["projection"] == "Unknown"
     assert state["reasons"] == [f"node-review-state:{state_kind}"]
 
 
@@ -423,7 +424,7 @@ def test_real_browser_renders_historical_and_unknown_node_review_states(
         assessed_at="2026-11-13T08:09:00Z",
         trust_policy=_fixture_policy(),
     )
-    projected = _project_node_review(
+    projected = _project_legacy_node_review_v1(
         explorer,
         decision=decision,
         review_source=source,
@@ -489,7 +490,7 @@ def test_real_chrome_preserves_historical_node_review_during_resize_round_trip(
         assessed_at="2026-11-13T08:10:00Z",
         trust_policy=_fixture_policy(),
     )
-    projected = _project_node_review(
+    projected = _project_legacy_node_review_v1(
         explorer,
         decision=decision,
         review_source=source,
@@ -530,7 +531,7 @@ def test_real_chrome_preserves_historical_node_review_during_resize_round_trip(
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
     assert "1440x900 -> 1280x900 -> 960x900 -> 1440x900" in completed.stdout
-    assert _target(projected)["node_review"]["projection"] == "Historical · Approved"
+    assert _projected_node_review(projected)["projection"] == "Historical · Approved"
 
 
 def test_real_chrome_toggles_progressive_node_detail_with_keyboard(
@@ -541,7 +542,7 @@ def test_real_chrome_toggles_progressive_node_detail_with_keyboard(
         pytest.skip("node-detail keyboard disclosure is a required Chrome acceptance test")
     explorer = _published_explorer()
     source, decision = _fixture_materials(explorer)
-    projected = _project_node_review(
+    projected = _project_legacy_node_review_v1(
         explorer,
         decision=decision,
         review_source=source,

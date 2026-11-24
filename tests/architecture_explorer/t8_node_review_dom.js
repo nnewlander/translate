@@ -36,7 +36,8 @@
     const targetData = window.ARCHITECTURE_EXPLORER_DATA.navigation.drilldowns
       .flatMap((item) => item.children)
       .find((item) => item.id === "worker-launch-boundary");
-    const reviewData = targetData.node_review;
+    const reviewObjects = window.ARCHITECTURE_EXPLORER_DATA.node_review_projection.objects;
+    const reviewData = reviewObjects["candidate-node::worker-launch-boundary"];
     const originalProjection = reviewData.projection;
     const presentationCases = [
       ["Pending Review", "待审核"],
@@ -111,7 +112,7 @@
       assert(detail.textContent.includes("源码归属：部分确认"), "partial source assignment is not clearly separated");
       assert(detail.textContent.includes("候选协作：未审核"), "candidate collaboration review status is not clearly separated");
       assert(detail.textContent.includes("受控发车闸门"), "approved everyday analogy is missing");
-      assert(detail.textContent.includes("不证明 Worker 实际启动"), "static-evidence runtime limitation is missing");
+      assert(detail.textContent.includes("不证明该职责在真实运行中被到达"), "generic static-evidence runtime limitation is missing");
     } else assert(!detail.textContent.includes("节点职责审核通过（当前有效）"), "non-approved projection received current approval wording");
     assert(detail.textContent.includes(expectedDetailDecision), "full Decision disappeared from detail");
     assert(detail.textContent.includes(expectedState), "independent Node Review State disappeared from detail");
@@ -151,10 +152,8 @@
 
     dialog.querySelector(".dialog-close").click();
     await nextPaint();
-    const legacyData = window.ARCHITECTURE_EXPLORER_DATA.navigation.drilldowns
-      .flatMap((item) => item.children)
-      .find((item) => item.id === "state-and-control-decisions");
-    legacyData.node_review = structuredClone(reviewData);
+    reviewObjects["candidate-node::state-and-control-decisions"] = structuredClone(reviewData);
+    reviewObjects["candidate-node::state-and-control-decisions"].object_key.node_id = "state-and-control-decisions";
     const legacyCard = card("state-and-control-decisions");
     legacyCard.dispatchEvent(new MouseEvent("contextmenu", {
       bubbles: true, cancelable: true, clientX: 48, clientY: 48,
@@ -162,15 +161,15 @@
     document.querySelector("#context-evidence").click();
     await nextPaint();
     const legacyDetail = document.querySelector("#detail-content");
-    assert(!legacyDetail.querySelector(".node-review-technical"), "progressive disclosure leaked to a non-target node");
-    assert(!legacyDetail.querySelector(".node-review-json"), "new raw review JSON leaked to a non-target node");
-    assert(!legacyDetail.textContent.includes("审核源码快照"), "new reviewed snapshot row leaked to a non-target node");
+    assert(legacyDetail.querySelector(".node-review-technical"), "generic reviewed-node disclosure is missing");
+    assert(legacyDetail.querySelector(".node-review-json"), "generic reviewed-node raw JSON is missing");
     if (reviewData.decision) {
-      assert(Array.from(legacyDetail.querySelectorAll("h3")).some((heading) => heading.textContent === "Review Claims"), "legacy Review Claims heading changed for a non-target node");
+      assert(legacyDetail.textContent.includes("审核源码快照"), "generic reviewed snapshot row is missing");
+      assert(Array.from(legacyDetail.querySelectorAll("h3")).some((heading) => heading.textContent === "Review Claims（原始 JSON）"), "generic Review Claims heading is missing");
     } else {
       assert(!Array.from(legacyDetail.querySelectorAll("h3")).some((heading) => heading.textContent.includes("Review Claims")), "pending non-target node fabricated Review Claims");
     }
-    delete legacyData.node_review;
+    delete reviewObjects["candidate-node::state-and-control-decisions"];
 
     document.documentElement.dataset.t8NodeReview = "pass";
   } catch (error) {

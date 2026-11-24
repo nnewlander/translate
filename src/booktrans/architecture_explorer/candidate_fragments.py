@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+from pathlib import PurePosixPath
 from typing import Any
 
 from .generator import ExplorerInputError
@@ -11,6 +12,32 @@ from .source_evidence import build_source_evidence_index
 
 CANDIDATE_FRAGMENT_SCHEMA = "architecture-explorer.candidate-fragment.v1"
 RECURSIVE_CANDIDATE_FRAGMENT_SCHEMA = "architecture-explorer.candidate-fragment.v2"
+CANDIDATE_FRAGMENT_DIRECTORIES = (
+    PurePosixPath("architecture-explorer/candidates"),
+    PurePosixPath("architecture-explorer/recursive-candidates"),
+)
+
+
+def authoritative_candidate_fragment_paths(paths: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    """Apply the one repository discovery rule shared by runtime and acceptance."""
+
+    discovered: list[str] = []
+    for raw_path in paths:
+        path = PurePosixPath(raw_path)
+        if path.suffix != ".json":
+            continue
+        matching_root = next(
+            (root for root in CANDIDATE_FRAGMENT_DIRECTORIES if path.is_relative_to(root)),
+            None,
+        )
+        if matching_root is None:
+            continue
+        if path.parent != matching_root:
+            raise ExplorerInputError(
+                f"Authoritative inputs cannot contain a nested Candidate Fragment: {raw_path}"
+            )
+        discovered.append(path.as_posix())
+    return tuple(sorted(discovered))
 
 
 def _text(value: object, field: str) -> str:
@@ -428,6 +455,8 @@ def apply_candidate_fragments(
 
 __all__ = [
     "CANDIDATE_FRAGMENT_SCHEMA",
+    "CANDIDATE_FRAGMENT_DIRECTORIES",
     "RECURSIVE_CANDIDATE_FRAGMENT_SCHEMA",
     "apply_candidate_fragments",
+    "authoritative_candidate_fragment_paths",
 ]

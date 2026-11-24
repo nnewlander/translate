@@ -180,16 +180,26 @@ async function main() {
     };
 
     const resize = async (width, height) => {
+      await cdp.send("Emulation.clearDeviceMetricsOverride");
       const current = await evaluate("({ width: window.innerWidth, height: window.innerHeight })");
       const { bounds } = await cdp.send("Browser.getWindowBounds", { windowId });
+      const physicalWidth = Math.max(width, 500);
       await cdp.send("Browser.setWindowBounds", {
         windowId,
         bounds: {
-          width: bounds.width + width - current.width,
+          width: bounds.width + physicalWidth - current.width,
           height: bounds.height + height - current.height,
           windowState: "normal",
         },
       });
+      if (width < physicalWidth) {
+        await cdp.send("Emulation.setDeviceMetricsOverride", {
+          width,
+          height,
+          deviceScaleFactor: 1,
+          mobile: false,
+        });
+      }
       for (let attempt = 0; attempt < 100; attempt += 1) {
         const viewport = await evaluate("({ width: window.innerWidth, height: window.innerHeight })");
         if (viewport.width === width && viewport.height === height) break;
@@ -200,10 +210,18 @@ async function main() {
         const epsilon = 1.5;
         const surface = document.querySelector('#graph-surface').getBoundingClientRect();
         const cards = Array.from(document.querySelectorAll('#module-grid .module-card'));
+        const overlaps = (left, right, inset = 1) => !(
+          left.right <= right.left + inset || left.left >= right.right - inset
+            || left.bottom <= right.top + inset || left.top >= right.bottom - inset
+        );
         const cardBounds = (id) => {
           const rect = document.querySelector('[data-module-id="' + CSS.escape(id) + '"]').getBoundingClientRect();
           return { left: rect.left - surface.left, right: rect.right - surface.left, top: rect.top - surface.top, bottom: rect.bottom - surface.top };
         };
+        const localBounds = (rect) => ({
+          left: rect.left - surface.left, right: rect.right - surface.left,
+          top: rect.top - surface.top, bottom: rect.bottom - surface.top,
+        });
         const onBoundary = (point, rect) => {
           const withinX = point.x >= rect.left - epsilon && point.x <= rect.right + epsilon;
           const withinY = point.y >= rect.top - epsilon && point.y <= rect.bottom + epsilon;
@@ -211,22 +229,74 @@ async function main() {
           const touchesY = Math.abs(point.y - rect.top) <= epsilon || Math.abs(point.y - rect.bottom) <= epsilon;
           return withinX && withinY && (touchesX || touchesY);
         };
-        const edges = Array.from(document.querySelectorAll('#relationship-edge-layer > g')).map((edge) => {
+        const segmentIntersectsRect = (start, end, rect, inset = 2) => {
+          const bounds = { left: rect.left + inset, right: rect.right - inset, top: rect.top + inset, bottom: rect.bottom - inset };
+          const dx = end.x - start.x; const dy = end.y - start.y;
+          const p = [-dx, dx, -dy, dy];
+          const q = [start.x - bounds.left, bounds.right - start.x, start.y - bounds.top, bounds.bottom - start.y];
+          let entry = 0; let exit = 1;
+          for (let index = 0; index < p.length; index += 1) {
+            if (p[index] === 0) { if (q[index] < 0) return false; continue; }
+            const ratio = q[index] / p[index];
+            if (p[index] < 0) entry = Math.max(entry, ratio); else exit = Math.min(exit, ratio);
+            if (entry > exit) return false;
+          }
+          return true;
+        };
+        const pointToSegmentDistance = (point, start, end) => {
+          const dx = end.x - start.x; const dy = end.y - start.y;
+          const lengthSquared = dx * dx + dy * dy;
+          const ratio = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+          return Math.hypot(point.x - (start.x + ratio * dx), point.y - (start.y + ratio * dy));
+        };
+        const edgeModels = Array.from(document.querySelectorAll('#relationship-edge-layer > g')).map((edge) => {
           const values = edge.querySelector('.graph-edge').getAttribute('d').match(/-?\\d+(?:\\.\\d+)?/g).map(Number);
+          const points = [];
+          for (let index = 0; index < values.length; index += 2) points.push({ x: values[index], y: values[index + 1] });
           const id = edge.dataset.relationshipId || edge.dataset.collaborationId || edge.dataset.decompositionId;
           const label = document.querySelector('.graph-edge-label[data-relationship-id="' + CSS.escape(id) + '"], .graph-edge-label[data-collaboration-id="' + CSS.escape(id) + '"], .graph-edge-label[data-decomposition-id="' + CSS.escape(id) + '"]');
-          const labelBounds = label.getBoundingClientRect();
+          return { edge, id, label, points };
+        });
+        const labels = edgeModels.map(({ label }) => label).filter(Boolean);
+        const edges = edgeModels.map(({ edge, id, label, points }) => {
+          const labelClientBounds = label?.getBoundingClientRect() || {
+            left: 0, right: 0, top: 0, bottom: 0,
+          };
+          const labelBounds = localBounds(labelClientBounds);
           const labelClearsCards = cards.every((node) => {
             const bounds = node.getBoundingClientRect();
-            return labelBounds.right <= bounds.left || labelBounds.left >= bounds.right
-              || labelBounds.bottom <= bounds.top || labelBounds.top >= bounds.bottom;
+            return labelClientBounds.right <= bounds.left || labelClientBounds.left >= bounds.right
+              || labelClientBounds.bottom <= bounds.top || labelClientBounds.top >= bounds.bottom;
           });
+          const labelCenter = { x: (labelBounds.left + labelBounds.right) / 2, y: (labelBounds.top + labelBounds.bottom) / 2 };
+          const labelAttached = Boolean(label) && points.slice(1).some((end, index) => pointToSegmentDistance(labelCenter, points[index], end) <= epsilon);
+          const labelClearsOtherLabels = labels.filter((other) => other !== label).every((other) => !overlaps(labelClientBounds, other.getBoundingClientRect()));
+          const labelClearsOtherPaths = edgeModels.filter((other) => other.edge !== edge).every((other) => (
+            !other.points.slice(1).some((end, index) => segmentIntersectsRect(other.points[index], end, labelBounds, 0))
+          ));
+          const unrelatedNodesClear = cards.filter((node) => (
+            node.dataset.moduleId !== edge.dataset.sourceNodeId && node.dataset.moduleId !== edge.dataset.targetNodeId
+          )).every((node) => {
+            const bounds = localBounds(node.getBoundingClientRect());
+            return !points.slice(1).some((end, index) => segmentIntersectsRect(points[index], end, bounds));
+          });
+          const pathLength = points.slice(1).reduce((total, end, index) => total + Math.hypot(end.x - points[index].x, end.y - points[index].y), 0);
+          const directDistance = Math.hypot(points.at(-1).x - points[0].x, points.at(-1).y - points[0].y);
           return {
             id,
-            sourceAttached: onBoundary({ x: values[0], y: values[1] }, cardBounds(edge.dataset.sourceNodeId)),
-            targetAttached: onBoundary({ x: values[2], y: values[3] }, cardBounds(edge.dataset.targetNodeId)),
+            points,
+            labelPresent: Boolean(label),
+            sourceBounds: cardBounds(edge.dataset.sourceNodeId),
+            targetBounds: cardBounds(edge.dataset.targetNodeId),
+            sourceAttached: onBoundary(points[0], cardBounds(edge.dataset.sourceNodeId)),
+            targetAttached: onBoundary(points.at(-1), cardBounds(edge.dataset.targetNodeId)),
             marker: edge.querySelector('.graph-edge').getAttribute('marker-end'),
             labelClearsCards,
+            labelAttached,
+            labelClearsOtherLabels,
+            labelClearsOtherPaths,
+            unrelatedNodesClear,
+            routeIsCompact: pathLength <= directDistance * 2.25 + 40,
           };
         });
         return {
@@ -247,28 +317,95 @@ async function main() {
       })()`);
     };
 
-    const sequence = [[1440, 900], [1280, 900], [960, 900], [1440, 900]];
-    const assertResizeSequence = async (graphId, expectedEdgeCount, expectedMarker) => {
+    const sequence = scenario === "recursive-resize"
+      ? [[1440, 900], [1280, 900], [960, 900], [480, 900], [1440, 900]]
+      : scenario === "all-views-matrix"
+        ? [[480, 900], [960, 900], [1280, 900], [1440, 900]]
+        : [[1440, 900], [1280, 900], [960, 900], [1440, 900]];
+    const assertResizeSequence = async (
+      graphId,
+      expectedEdgeCount,
+      expectedMarker,
+      expectedRelationshipIds = null,
+      expectedMarkers = null,
+      failures = null,
+    ) => {
       const initialOrder = await evaluate("JSON.stringify(Array.from(document.querySelectorAll('#module-grid .module-card'), node => node.dataset.moduleId))");
       const graphEvidence = { graph_id: graphId, observations: [] };
       for (const [width, height] of sequence) {
         const observation = await resize(width, height);
-        assert(observation.viewport[0] === width && observation.viewport[1] === height, `${graphId} actual viewport was ${observation.viewport.join("x")}, expected ${width}x${height}`);
-        assert(observation.identity === initialIdentity, `${graphId} reloaded while resizing to ${width}x${height}`);
-        assert(observation.order === initialOrder, `${graphId} node order changed while resizing to ${width}x${height}`);
-        assert(observation.overflow <= 1, `${graphId} overflowed by ${observation.overflow}px at ${width}x${height}`);
-        assert(observation.edges.length === expectedEdgeCount, `${graphId} expected ${expectedEdgeCount} edges at ${width}x${height}`);
-        assert(observation.edges.every((edge) => edge.sourceAttached && edge.targetAttached), `${graphId} detached an edge at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
-        assert(observation.edges.every((edge) => edge.marker === expectedMarker), `${graphId} lost target arrow direction at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
-        assert(observation.edges.every((edge) => edge.labelClearsCards), `${graphId} placed a relationship label over a node at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+        try {
+          assert(observation.viewport[0] === width && observation.viewport[1] === height, `${graphId} actual viewport was ${observation.viewport.join("x")}, expected ${width}x${height}`);
+          assert(observation.identity === initialIdentity, `${graphId} reloaded while resizing to ${width}x${height}`);
+          assert(observation.order === initialOrder, `${graphId} node order changed while resizing to ${width}x${height}`);
+          assert(observation.overflow <= 1, `${graphId} overflowed by ${observation.overflow}px at ${width}x${height}`);
+          assert(observation.edges.length === expectedEdgeCount, `${graphId} expected ${expectedEdgeCount} edges at ${width}x${height}`);
+          if (expectedRelationshipIds) {
+            const actualRelationshipIds = observation.edges.map((edge) => edge.id).sort();
+            assert(
+              JSON.stringify(actualRelationshipIds) === JSON.stringify([...expectedRelationshipIds].sort()),
+              `${graphId} rendered ${JSON.stringify(actualRelationshipIds)} instead of ${JSON.stringify([...expectedRelationshipIds].sort())} at ${width}x${height}`,
+            );
+          }
+          assert(observation.edges.every((edge) => edge.sourceAttached && edge.targetAttached), `${graphId} detached an edge at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+          assert(
+            observation.edges.every((edge) => edge.marker === (expectedMarkers?.[edge.id] || expectedMarker)),
+            `${graphId} lost target arrow direction at ${width}x${height}: ${JSON.stringify(observation.edges)}`,
+          );
+          assert(observation.edges.every((edge) => edge.labelClearsCards), `${graphId} placed a relationship label over a node at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+          assert(observation.edges.every((edge) => edge.unrelatedNodesClear), `${graphId} crossed an unrelated node at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+          assert(observation.edges.every((edge) => edge.labelAttached && edge.labelClearsOtherLabels && edge.labelClearsOtherPaths), `${graphId} produced unsafe relationship labels at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+          assert(observation.edges.every((edge) => edge.routeIsCompact), `${graphId} produced an unnecessarily long route at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
+        } catch (error) {
+          if (!failures) throw error;
+          failures.push(error.message);
+        }
         graphEvidence.observations.push({
           requested: [width, height],
           actual: observation.viewport,
           navigation_identity: JSON.parse(observation.identity),
+          page_overflow: observation.overflow,
+          relationship_ids: observation.edges.map((edge) => edge.id),
         });
       }
       evidence.graphs.push(graphEvidence);
     };
+
+    if (scenario === "layout-failure-disclosure") {
+      await evaluate(`(() => {
+        const style = document.createElement('style');
+        style.textContent = '@media (max-width: 760px) { .top-level-grid { row-gap: 17px !important; } .top-level-grid > .module-card { width: 100% !important; } }';
+        document.head.append(style);
+      })()`);
+      await resize(480, 900);
+      await waitForPaint();
+      assert(
+        await evaluate("document.querySelectorAll('#relationship-edge-layer > g').length === 0"),
+        "the forced no-channel layout unexpectedly retained a safe relationship path",
+      );
+      assert(
+        await evaluate("document.querySelector('#graph-surface').dataset.layoutStatus === 'failed'"),
+        "an unrenderable relationship was omitted without exposing failed layout status",
+      );
+      assert(
+        await evaluate(`(() => {
+          const relationship = window.ARCHITECTURE_EXPLORER_DATA.architecture.relationships[0];
+          return document.querySelector('#graph-surface [role="alert"]')?.textContent.includes(
+            relationship.presentation_zh.relationship_name,
+          );
+        })()`),
+        "the visible layout failure did not identify the omitted relationship",
+      );
+      fs.writeFileSync(evidencePath, JSON.stringify({
+        schema: "architecture-explorer.layout-failure-evidence.v1",
+        viewport: [480, 900],
+        status: "failed",
+        visible_alert: true,
+      }, null, 2), "utf8");
+      console.log("unrenderable relationship exposes visible layout failure");
+      cdp.close();
+      return;
+    }
 
     const openCandidateEvidenceByKeyboard = async () => {
       await evaluate("document.querySelector('[data-module-id=\"translation-routing-and-acquisition\"]').focus()");
@@ -338,7 +475,59 @@ async function main() {
       await waitForPaint();
       await assertResizeSequence("worker-launch-boundary-internal", 4, "url(#candidate-arrowhead)");
       fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), "utf8");
-      console.log("recursive 1440x900 -> 1280x900 -> 960x900 -> 1440x900");
+      console.log("recursive 1440x900 -> 1280x900 -> 960x900 -> 480x900 -> 1440x900");
+      cdp.close();
+      return;
+    }
+
+    if (scenario === "all-views-matrix") {
+      const failures = [];
+      const windowViewIds = await evaluate(
+        "Object.keys(window.ARCHITECTURE_EXPLORER_DATA.view_projection.view_index)",
+      );
+      const routes = [
+        ["top-level", []],
+        ["document-understanding", ["document-understanding"]],
+        ["scope-and-request", ["scope-and-request"]],
+        ["translation-execution", ["translation-execution"]],
+        ["quality-and-repair", ["quality-and-repair"]],
+        ["production-evidence", ["production-evidence"]],
+        ["production-control", ["production-control"]],
+        ["candidate-and-release", ["candidate-and-release"]],
+        ["worker-launch-boundary-internal", ["production-control", "worker-launch-boundary"]],
+        ["translation-routing-and-acquisition-internal", ["translation-execution", "translation-routing-and-acquisition"]],
+        ["translation-provider-adapters-internal", ["translation-execution", "translation-provider-adapters"]],
+        ["quality-semantic-review-and-repair-internal", ["quality-and-repair", "quality-semantic-review-and-repair"]],
+      ].filter(([viewId]) => windowViewIds.includes(viewId));
+      for (const [viewId, nodePath] of routes) {
+        await evaluate("document.querySelector('#home-button').click()");
+        await waitFor("document.querySelectorAll('#module-grid .module-card').length === 7", "HOME did not restore the top-level View");
+        for (const nodeId of nodePath) {
+          await evaluate(`document.querySelector('[data-module-id="${nodeId}"]').click()`);
+          await waitForPaint();
+        }
+        await waitFor(
+          `document.querySelector('#breadcrumb').textContent.includes(window.ARCHITECTURE_EXPLORER_DATA.view_projection.view_index['${viewId}'].display_name)`,
+          `could not navigate to ${viewId}`,
+        );
+        const expected = await evaluate(`(() => {
+          const projection = window.ARCHITECTURE_EXPLORER_DATA.view_projection;
+          const ids = projection.view_index['${viewId}'].relationship_ids;
+          return {
+            ids,
+            markers: Object.fromEntries(ids.map((id) => [
+              id,
+              projection.relationship_index[id].semantic_family.startsWith('candidate-')
+                ? 'url(#candidate-arrowhead)'
+                : 'url(#reviewed-arrowhead)',
+            ])),
+          };
+        })()`);
+        await assertResizeSequence(viewId, expected.ids.length, null, expected.ids, expected.markers, failures);
+      }
+      fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), "utf8");
+      assert(failures.length === 0, `all-View matrix failures:\n${failures.join("\n")}`);
+      console.log(`${routes.length} real views at 480x900, 960x900, 1280x900, and 1440x900`);
       cdp.close();
       return;
     }

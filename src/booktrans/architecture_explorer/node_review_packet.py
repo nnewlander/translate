@@ -1,3 +1,5 @@
+"""Exact packet compatibility for the historical worker Decision v1."""
+
 from __future__ import annotations
 
 from copy import deepcopy

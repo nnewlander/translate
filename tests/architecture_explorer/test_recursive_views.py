@@ -33,9 +33,25 @@ def _recursive_fragment() -> dict:
     return _json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")
 
 
+def _semantic_routing_fragment() -> dict:
+    return _json(
+        "architecture-explorer/recursive-candidates/"
+        "translation-routing-and-acquisition.v2.json"
+    )
+
+
+def _real_recursive_fragments() -> list[dict]:
+    return [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(
+            (REPOSITORY / "architecture-explorer/recursive-candidates").glob("*.json")
+        )
+    ]
+
+
 def _recursive_explorer(fragment: dict | None = None) -> dict:
     return apply_candidate_fragments(
-        _current_explorer(), [fragment or _recursive_fragment()]
+        _current_explorer(), [fragment] if fragment is not None else _real_recursive_fragments()
     )
 
 
@@ -47,10 +63,7 @@ def _real_call_fact() -> dict:
 
 
 def test_real_recursive_candidate_input_projects_the_approved_internal_view() -> None:
-    explorer = apply_candidate_fragments(
-        _current_explorer(),
-        [_json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")],
-    )
+    explorer = _recursive_explorer()
     explorer = apply_view_definitions(
         explorer,
         _json("architecture-explorer/views/recursive-views.v1.json"),
@@ -58,15 +71,15 @@ def test_real_recursive_candidate_input_projects_the_approved_internal_view() ->
 
     projection = apply_view_projection(explorer)["view_projection"]
 
-    assert len(projection["view_index"]) == 9
-    assert len(projection["node_index"]) == 27  # seven modules plus twenty candidates
+    assert len(projection["view_index"]) == 12
+    assert len(projection["node_index"]) == 34  # seven modules plus twenty-seven candidates
     semantic_families = [
         reference["semantic_family"]
         for reference in projection["relationship_index"].values()
     ]
     assert semantic_families.count("formal-relationship") == 1
-    assert semantic_families.count("candidate-collaboration") == 9
-    assert semantic_families.count("candidate-decomposition") == 2
+    assert semantic_families.count("candidate-collaboration") == 12
+    assert semantic_families.count("candidate-decomposition") == 9
 
     internal = projection["view_index"]["worker-launch-boundary-internal"]
     assert internal["scope_node_id"] == "worker-launch-boundary"
@@ -96,7 +109,11 @@ def test_real_recursive_candidate_input_projects_the_approved_internal_view() ->
     }
     assert "primary_action" not in internal["appearances"][0]
 
-    fragment = explorer["recursive_candidate_fragments"][0]
+    fragment = next(
+        item
+        for item in explorer["recursive_candidate_fragments"]
+        if item["scope_node_id"] == "worker-launch-boundary"
+    )
     nodes = {node["id"]: node for node in fragment["nodes"]}
     assert nodes["supervisor-process-launch-construction"]["source_assignment"][
         "evidence_ids"
@@ -394,10 +411,7 @@ def test_renderer_has_no_recursive_depth_or_new_view_special_case() -> None:
 
 @pytest.fixture(scope="module")
 def recursive_explorer_data() -> dict:
-    explorer = apply_candidate_fragments(
-        _current_explorer(),
-        [_json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")],
-    )
+    explorer = _recursive_explorer()
     explorer = apply_view_definitions(
         explorer,
         _json("architecture-explorer/views/recursive-views.v1.json"),
@@ -425,12 +439,15 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     ]
     for candidate in sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json")):
         build_args.extend(("--candidate-fragment", str(candidate)))
+    for candidate in sorted(
+        (REPOSITORY / "architecture-explorer/recursive-candidates").glob("*.json")
+    ):
+        build_args.extend(("--candidate-fragment", str(candidate)))
     build_args.extend(
         (
-            "--candidate-fragment",
-            str(REPOSITORY / "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"),
             "--view-definition",
             str(REPOSITORY / "architecture-explorer/views/recursive-views.v1.json"),
+            "--legacy-node-review-v1",
             "--web-assets",
             str(REPOSITORY / "architecture-explorer/web"),
             "--output-directory",
@@ -439,7 +456,7 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     )
     assert review_main(build_args) == 0
     generated = _json(str(site.relative_to(REPOSITORY) / "explorer-data.json"))
-    assert len(generated["view_projection"]["view_index"]) == 9
+    assert len(generated["view_projection"]["view_index"]) == 12
     assert generated["view_projection"]["view_index"]["worker-launch-boundary-internal"]
     legacy = _current_explorer()
     assert generated["architecture"]["relationships"] == legacy["architecture"]["relationships"]
@@ -450,15 +467,10 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     assert sum(
         len(view["collaborations"]) for view in generated["navigation"]["drilldowns"]
     ) == 8
-    production = next(
-        view
-        for view in generated["navigation"]["drilldowns"]
-        if view["parent_module_id"] == "production-control"
-    )
-    parent = next(
-        node for node in production["children"] if node["id"] == "worker-launch-boundary"
-    )
-    assert parent["node_review"]["projection"] == "Pending Review"
+    legacy_review = generated["node_review_projection"]["objects"][
+        "candidate-node::worker-launch-boundary"
+    ]
+    assert legacy_review["projection"] == "Pending Review"
     recursive_nodes = generated["recursive_candidate_fragments"][0]["nodes"]
     assert all("node_review" not in node for node in recursive_nodes)
     assert all(node["source_assignment"]["status"] == "unverified" for node in recursive_nodes)
@@ -523,7 +535,8 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
         ],
     }
     explorer = apply_candidate_fragments(
-        _current_explorer(), [production_fragment, test_fragment]
+        _current_explorer(),
+        [*_real_recursive_fragments(), test_fragment],
     )
     definitions = _json("architecture-explorer/views/recursive-views.v1.json")
     definitions["entry_actions"].append(
@@ -554,7 +567,7 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
     )
     explorer = apply_view_definitions(explorer, definitions)
     projection = apply_view_projection(explorer)["view_projection"]
-    assert len(projection["view_index"]) == 10
+    assert len(projection["view_index"]) == 13
 
     browser_name, browser = _desktop_browser()
     site = tmp_path / "site"
@@ -619,7 +632,7 @@ def test_real_chrome_reconnects_recursive_view_edges_during_same_page_resize(
     )
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
-    assert "recursive 1440x900 -> 1280x900 -> 960x900 -> 1440x900" in completed.stdout
+    assert "recursive 1440x900 -> 1280x900 -> 960x900 -> 480x900 -> 1440x900" in completed.stdout
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert [graph["graph_id"] for graph in evidence["graphs"]] == [
         "worker-launch-boundary-internal"
@@ -628,6 +641,7 @@ def test_real_chrome_reconnects_recursive_view_edges_during_same_page_resize(
         [1440, 900],
         [1280, 900],
         [960, 900],
+        [480, 900],
         [1440, 900],
     ]
 
@@ -639,7 +653,18 @@ def test_real_browser_displays_call_evidence_and_opens_its_source_trail(
     call_id = call["evidence"]["evidence_id"]
     fragment = _recursive_fragment()
     fragment["nodes"][0]["evidence_ids"].append(call_id)
-    explorer = _recursive_explorer(fragment)
+    explorer = apply_candidate_fragments(
+        _current_explorer(),
+        [
+            fragment,
+            _semantic_routing_fragment(),
+            _json("architecture-explorer/recursive-candidates/qwen-provider-adapters.v2.json"),
+            _json(
+                "architecture-explorer/recursive-candidates/"
+                "quality-semantic-review-and-repair.v2.json"
+            ),
+        ],
+    )
     definitions = _json("architecture-explorer/views/recursive-views.v1.json")
     definitions["views"][0]["appearances"][3]["primary_action"] = {
         "kind": "open-source-trail",

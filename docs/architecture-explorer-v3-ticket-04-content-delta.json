@@ -1,0 +1,59 @@
+{
+  "schema": "architecture-explorer.ticket-content-delta-contribution.v1",
+  "ticket": "#62",
+  "target_contract": "architecture-explorer/v3",
+  "base_revision": "66585816244dbd58570d1b9363ab8585abb89b09",
+  "final_manifest": false,
+  "note": "Ticket 04 的可组合 canonical object 贡献；Ticket 06 必须在候选 Head H 上重新计算完整内容摘要并生成最终 Content Delta Manifest。",
+  "changes": [
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:translation-provider-adapters-to-qwen-max-structured-translation-adapter",
+      "before_sha256": null,
+      "after_sha256": "be50773f93ab46f625803340f2946e622adf0558b14da2342c01cead7ac086de"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:translation-provider-adapters-to-qwen-mt-single-text-adapter",
+      "before_sha256": null,
+      "after_sha256": "e52c67e42380496817fdae17d98c97f1f84af4bd0ef2e65409af874ffb49abf3"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "translation-provider-adapters",
+      "before_sha256": null,
+      "after_sha256": "b528c59c32b59476ee4771d27a608524bb64175bec0be92545ed50f35c62dbde"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "qwen-max-structured-translation-adapter",
+      "before_sha256": null,
+      "after_sha256": "58a33f74fbe7c5a8d0c353df1b6a8f29318e5d6176ab3e7cee4387a31f4dc3df"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "qwen-mt-single-text-adapter",
+      "before_sha256": null,
+      "after_sha256": "f1a1d485a8b35fc1ce193c6501a36633ca479c2898e1d5d399b7d1bb3851362b"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "translation-provider-adapters-internal",
+      "before_sha256": null,
+      "after_sha256": "c7f6b46c45977816e8a8520883c65c7ef20527a822849efae68678e4cd56b693"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "translation-execution::translation-provider-adapters",
+      "before_sha256": null,
+      "after_sha256": "91c35e5921974589f823c341afd4bf018a458b6cd5de2759c6c657d702894727"
+    }
+  ]
+}

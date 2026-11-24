@@ -1,7 +1,18 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$CandidateHead,
+    [string]$CandidateRecordPath,
+    [string]$TargetContract = 'architecture-explorer/v3',
+    [string]$ManifestPath = 'architecture-explorer/manifests/v3-ticket-06.v1.json'
+)
 
 $ErrorActionPreference = 'Stop'
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+$env:PYTHONIOENCODING = 'utf-8'
+$env:PYTHONUTF8 = '1'
 $repository = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $python = Join-Path $repository '.venv\Scripts\python.exe'
 
@@ -21,7 +32,34 @@ if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
 $env:PYTHONPATH = (Resolve-Path (Join-Path $repository 'src')).Path
 Push-Location $repository
 try {
-    & $python -m booktrans.architecture_explorer.validation --repository $repository
+    $validationArguments = @(
+        '-m',
+        'booktrans.architecture_explorer.validation',
+        '--repository',
+        $repository
+    )
+    if ($CandidateHead -or $CandidateRecordPath) {
+        if (-not $CandidateHead -or -not $CandidateRecordPath) {
+            throw 'CandidateHead and CandidateRecordPath must be provided together.'
+        }
+        $recordPath = if ([System.IO.Path]::IsPathRooted($CandidateRecordPath)) {
+            $CandidateRecordPath
+        }
+        else {
+            Join-Path $repository $CandidateRecordPath
+        }
+        $validationArguments += @(
+            '--candidate-head',
+            $CandidateHead,
+            '--target-contract',
+            $TargetContract,
+            '--manifest-path',
+            $ManifestPath,
+            '--candidate-record',
+            $recordPath
+        )
+    }
+    & $python @validationArguments
     exit $LASTEXITCODE
 }
 finally {

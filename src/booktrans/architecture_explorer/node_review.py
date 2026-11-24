@@ -1,3 +1,9 @@
+"""Exact Decision v1 compatibility adapter for the historical worker review.
+
+New multi-object review flows live in ``node_review_definitions`` and must enter
+through a versioned Review Definition rather than this fixed legacy contract.
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -13,6 +19,7 @@ from .review_source import (
     _verify_owner_admin_review_source_against_anchor,
 )
 from .source_primitives import build_static_evidence
+from .node_review_projection import attach_node_review_projection
 
 
 NODE_REVIEW_OBJECT_KEY = {
@@ -789,19 +796,21 @@ def verify_node_review_materials(
     )
 
 
-def _project_node_review(
+def _project_legacy_node_review_v1(
     explorer: dict[str, Any],
     *,
     decision: dict[str, Any] | None = None,
     review_source: dict[str, Any] | None = None,
     node_review_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Pure internal projection; callers must validate non-empty materials first."""
+    """Project the exact historical Decision v1 through the explicit adapter."""
 
-    result = deepcopy(explorer)
-    target = _target_node(result)
+    _target_node(explorer)
+    stable_key = (
+        f"{NODE_REVIEW_OBJECT_KEY['kind']}::{NODE_REVIEW_OBJECT_KEY['node_id']}"
+    )
     if decision is None and review_source is None:
-        target["node_review"] = {
+        review = {
             "object_key": dict(NODE_REVIEW_OBJECT_KEY),
             "decision": None,
             "state": {
@@ -811,7 +820,7 @@ def _project_node_review(
             },
             "projection": "Pending Review",
         }
-        return result
+        return attach_node_review_projection(explorer, {stable_key: review})
     if decision is None or review_source is None:
         raise ExplorerInputError(
             "Node Review Decision and source receipt must be supplied together"
@@ -841,7 +850,7 @@ def _project_node_review(
         )
     else:
         projection = "Unknown"
-    target["node_review"] = {
+    review = {
         "object_key": dict(NODE_REVIEW_OBJECT_KEY),
         "decision": deepcopy(decision),
         "source": {
@@ -856,7 +865,7 @@ def _project_node_review(
         "state": deepcopy(state),
         "projection": projection,
     }
-    return result
+    return attach_node_review_projection(explorer, {stable_key: review})
 
 
 __all__ = [
