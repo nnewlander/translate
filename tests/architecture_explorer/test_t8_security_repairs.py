@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import importlib
 import inspect
 import json
 from pathlib import Path
@@ -46,6 +47,9 @@ from test_t8_node_review import (
 from t5_lite_fixture import commit, create_source_repository
 
 
+review_cli_module = importlib.import_module("booktrans.architecture_explorer.review_cli")
+
+
 def test_supported_python_api_has_no_projection_or_trust_root_injection() -> None:
     assert not hasattr(explorer_api, "apply_node_review")
     assert not hasattr(explorer_api, "project_node_reviews")
@@ -78,6 +82,93 @@ def test_public_cli_exposes_node_review_import_before_offline_build() -> None:
     assert "import-node-review" in commands
 
 
+@pytest.mark.parametrize(
+    ("node_review_args", "expected_error"),
+    (
+        (
+            ("--legacy-node-review-v1", "--node-review-decision", "decision.json"),
+            "supplied together",
+        ),
+        (
+            ("--legacy-node-review-v1", "--node-review-source", "source.json"),
+            "supplied together",
+        ),
+        (
+            (
+                "--node-review-decision", "decision.json",
+                "--node-review-source", "source.json",
+            ),
+            "explicit --legacy-node-review-v1",
+        ),
+        (
+            (
+                "--legacy-node-review-v1",
+                "--node-review-definitions", "definitions.json",
+            ),
+            "mutually exclusive",
+        ),
+        (
+            ("--node-review-material-directory", "materials"),
+            "require Review Definitions",
+        ),
+        (
+            ("--legacy-node-review-v1", "--node-review-state", "state.json"),
+            "State requires a Decision and source receipt",
+        ),
+    ),
+)
+def test_invalid_node_review_build_shape_fails_before_source_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    node_review_args: tuple[str, ...],
+    expected_error: str,
+) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    output = repository / "output/site"
+    candidate = tmp_path / "candidate.json"
+    review_mapping = tmp_path / "review-mapping.json"
+    candidate.write_text("{}", encoding="utf-8")
+    review_mapping.write_text("{}", encoding="utf-8")
+    base_args = [
+        "build",
+        "--repository", str(repository),
+        "--snapshot", str(tmp_path / "snapshot.json"),
+        "--mapping", str(tmp_path / "mapping.json"),
+        "--candidate", str(candidate),
+        "--review-mapping", str(review_mapping),
+        "--web-assets", str(tmp_path / "web"),
+        "--output-directory", "output/site",
+        *node_review_args,
+    ]
+    scan_calls = 0
+
+    def unexpected_scan(_repository: Path) -> dict[str, object]:
+        nonlocal scan_calls
+        scan_calls += 1
+        raise AssertionError("source scan must not run for an invalid build shape")
+
+    monkeypatch.setattr(
+        review_cli_module,
+        "publish_reviewed_explorer",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        review_cli_module,
+        "scan_python_source_facts",
+        unexpected_scan,
+    )
+
+    with pytest.raises(ExplorerInputError, match=expected_error):
+        _review_main_with_test_policy(
+            base_args,
+            node_review_trust_policy=_fixture_policy(),
+        )
+
+    assert scan_calls == 0
+    assert not output.exists()
+
+
 def test_relationship_and_claims_cannot_self_prove_formal_dependency() -> None:
     explorer = _published_explorer()
     source, decision = _fixture_materials(explorer)
@@ -104,9 +195,23 @@ def test_relationship_and_claims_cannot_self_prove_formal_dependency() -> None:
 )
 def test_github_import_flows_through_offline_build_to_generated_site(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     decision_result: str,
     expected_projection: str,
 ) -> None:
+    scan_calls = 0
+    real_scan = review_cli_module.scan_python_source_facts
+
+    def counted_scan(repository: Path) -> dict[str, object]:
+        nonlocal scan_calls
+        scan_calls += 1
+        return real_scan(repository)
+
+    monkeypatch.setattr(
+        review_cli_module,
+        "scan_python_source_facts",
+        counted_scan,
+    )
     repository = create_source_repository(tmp_path)
     for relative in (
         "scripts/production/production_campaign_supervisor.ps1",
@@ -575,3 +680,5 @@ def test_github_import_flows_through_offline_build_to_generated_site(
             historical_build_args,
             node_review_trust_policy=policy,
         )
+
+    assert scan_calls == (10 if decision_result == "APPROVED" else 8)
