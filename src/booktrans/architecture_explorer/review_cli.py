@@ -476,6 +476,45 @@ def _main(
         ),
         output_files=("explorer-data.json", "explorer-data.js", "index.html", "t4-state.js", "app.js", "styles.css"),
     )
+    if args.node_review_definitions is not None and args.legacy_node_review_v1:
+        raise ExplorerInputError(
+            "Review Definitions and the Decision v1 compatibility adapter are mutually exclusive"
+        )
+    if args.node_review_definitions is None:
+        if args.node_review_material_directory:
+            raise ExplorerInputError(
+                "Node Review material directories require Review Definitions"
+            )
+        legacy_material_requested = any(
+            value is not None
+            for value in (
+                args.node_review_decision,
+                args.node_review_source,
+                args.node_review_state,
+            )
+        )
+        if legacy_material_requested and not args.legacy_node_review_v1:
+            raise ExplorerInputError(
+                "Decision v1 materials require the explicit --legacy-node-review-v1 adapter"
+            )
+    if args.node_review_definitions is not None:
+        if (args.node_review_decision is None) != (args.node_review_source is None):
+            raise ExplorerInputError(
+                "Node Review Decision and source receipt must be supplied together"
+            )
+        if args.node_review_state is not None and args.node_review_decision is None:
+            raise ExplorerInputError(
+                "Node Review State requires a Decision and source receipt"
+            )
+    elif args.legacy_node_review_v1:
+        if (args.node_review_decision is None) != (args.node_review_source is None):
+            raise ExplorerInputError(
+                "Node Review Decision and source receipt must be supplied together"
+            )
+        if args.node_review_state is not None and args.node_review_decision is None:
+            raise ExplorerInputError(
+                "Node Review State requires a Decision and source receipt"
+            )
     data = publish_reviewed_explorer(
         args.repository,
         args.snapshot,
@@ -519,40 +558,11 @@ def _main(
             "path": args.view_definition.name,
             "sha256": hashlib.sha256(args.view_definition.read_bytes()).hexdigest(),
         }
-    if args.node_review_definitions is not None and args.legacy_node_review_v1:
-        raise ExplorerInputError(
-            "Review Definitions and the Decision v1 compatibility adapter are mutually exclusive"
-        )
-    if args.node_review_definitions is None:
-        if args.node_review_material_directory:
-            raise ExplorerInputError(
-                "Node Review material directories require Review Definitions"
-            )
-        legacy_material_requested = any(
-            value is not None
-            for value in (
-                args.node_review_decision,
-                args.node_review_source,
-                args.node_review_state,
-            )
-        )
-        if legacy_material_requested and not args.legacy_node_review_v1:
-            raise ExplorerInputError(
-                "Decision v1 materials require the explicit --legacy-node-review-v1 adapter"
-            )
     if args.node_review_definitions is not None:
         definitions = validate_node_review_definitions(
             _object(args.node_review_definitions)
         )
         materials_by_key: dict[str, dict[str, Any]] = {}
-        if (args.node_review_decision is None) != (args.node_review_source is None):
-            raise ExplorerInputError(
-                "Node Review Decision and source receipt must be supplied together"
-            )
-        if args.node_review_state is not None and args.node_review_decision is None:
-            raise ExplorerInputError(
-                "Node Review State requires a Decision and source receipt"
-            )
         material_inputs: list[tuple[Path, Path, Path | None]] = []
         if args.node_review_decision is not None and args.node_review_source is not None:
             material_inputs.append(
@@ -621,14 +631,6 @@ def _main(
         if material_generation_inputs:
             data["generation_inputs"]["node_reviews"] = material_generation_inputs
     elif args.legacy_node_review_v1:
-        if (args.node_review_decision is None) != (args.node_review_source is None):
-            raise ExplorerInputError(
-                "Node Review Decision and source receipt must be supplied together"
-            )
-        if args.node_review_state is not None and args.node_review_decision is None:
-            raise ExplorerInputError(
-                "Node Review State requires a Decision and source receipt"
-            )
         decision = None
         review_source = None
         node_review_state = None
