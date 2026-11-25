@@ -22,7 +22,11 @@ from .candidate_fragments import (
 from .navigation import apply_navigation
 from .review_mapping import publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
-from .view_definitions import apply_view_definitions
+from .view_definitions import (
+    apply_view_definition_documents,
+    authoritative_view_definition_paths,
+    discover_view_definition_paths,
+)
 from .view_projection import apply_view_projection
 
 
@@ -460,16 +464,12 @@ def project_authoritative_commit(repository: Path, revision: str) -> dict[str, A
         )
         fragments = [_load_json(checkout / Path(path)) for path in candidate_paths]
         with_candidates = apply_candidate_fragments(navigable, fragments)
-        definitions = {"schema": "architecture-explorer.view-definitions.v1", "views": [], "entry_actions": []}
-        for path in sorted((checkout / "architecture-explorer/views").glob("*.json")):
-            value = _load_json(path)
-            if value.get("schema") != definitions["schema"]:
-                raise ExplorerInputError(f"Unsupported View Definition schema: {path}")
-            definitions["views"].extend(_require_list(value.get("views"), f"{path} views"))
-            definitions["entry_actions"].extend(
-                _require_list(value.get("entry_actions"), f"{path} entry_actions")
+        definition_paths = discover_view_definition_paths(checkout)
+        projection = apply_view_projection(
+            apply_view_definition_documents(
+                with_candidates, [_load_json(path) for path in definition_paths]
             )
-        projection = apply_view_projection(apply_view_definitions(with_candidates, definitions))
+        )
         _PROJECTION_CACHE[revision] = projection
         return projection
 
@@ -539,7 +539,10 @@ def _extract_index(
 
     view_records: list[dict[str, Any]] = []
     action_records: list[dict[str, Any]] = []
-    for path in _paths_at(repository, revision, "architecture-explorer/views"):
+    view_definition_paths = authoritative_view_definition_paths(
+        _paths_at(repository, revision, "architecture-explorer/views")
+    )
+    for path in view_definition_paths:
         definitions = _json_at(repository, revision, path)
         if not isinstance(definitions, dict) or definitions.get("schema") != "architecture-explorer.view-definitions.v1":
             raise ExplorerInputError(f"Unsupported View Definition schema at {path}")

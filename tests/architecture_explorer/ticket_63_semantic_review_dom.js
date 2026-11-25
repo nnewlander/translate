@@ -135,6 +135,35 @@
     { id: "candidate-collaboration:repair-authorization-gate-to-constrained-repair-call-boundary", family: "candidate-collaboration", source: "repair-authorization-gate", target: "constrained-repair-call-boundary", name: "批准合同衔接受限修复调用" },
   ];
 
+  const projectedRelationships = window.ARCHITECTURE_EXPLORER_DATA.view_projection.relationship_index;
+  const approvalScope = (relationship, decisionId, evidenceCount) => [{
+    object_key: { ...relationship.object_key },
+    reviewed_source_snapshot: {
+      revision: "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+      worktree_state: "test-fixture",
+    },
+    claims_sha256: "1".repeat(64),
+    evidence_ids: relationship.evidence_ids.slice(0, evidenceCount),
+    decision_id: decisionId,
+  }];
+  const relationshipReviews = [
+    { result: "APPROVED", state: "current", scope: ["github-comment:current", 2], expectedScope: "2 条 Evidence · github-comment:current", expectedStatus: "已批准 · 当前有效", current: true },
+    { result: "APPROVED", state: "needs-review", scope: ["github-comment:historical", 1], expectedScope: "1 条 Evidence · github-comment:historical", expectedStatus: "APPROVED · 需要复核", current: false },
+    { result: "APPROVED", state: "unknown", scope: ["github-comment:unknown", 1], expectedScope: "1 条 Evidence · github-comment:unknown", expectedStatus: "APPROVED · unknown", current: false },
+    { result: "REJECTED", state: "current", scope: null, expectedScope: "无", expectedStatus: "已拒绝 · 当前有效", current: false },
+    { result: "Pending", state: "not-reviewed", scope: null, expectedScope: "无", expectedStatus: "未审核", current: false },
+  ];
+  ticketRelationships.forEach((relationship, index) => {
+    const projected = projectedRelationships[relationship.id];
+    const fixture = relationshipReviews[index];
+    projected.review = {
+      result: fixture.result,
+      state: fixture.state,
+      approved_scope: fixture.scope ? approvalScope(projected, ...fixture.scope) : [],
+      reasons: fixture.state === "current" ? [] : [`test-fixture:${fixture.state}`],
+    };
+  });
+
   card("quality-and-repair").click();
   card("quality-semantic-review-and-repair").dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
   await waitForLayout();
@@ -142,7 +171,7 @@
   assert(document.querySelector(".hero h1").textContent === "语义审核与受限修复", "main title did not use the clicked node name");
   const titleStyle = getComputedStyle(document.querySelector(".hero h1"));
   assert(parseFloat(titleStyle.fontSize) <= parseFloat(getComputedStyle(document.documentElement).fontSize) * 3.5, "internal View title is oversized");
-  assert(document.querySelector("#view-status")?.textContent.trim() === "Candidate · Pending Review", "View status is not independently visible");
+  assert(document.querySelector("#view-status")?.textContent.includes("对象可信状态："), "View trust projection is not independently visible");
   assert(card("quality-semantic-review-and-repair").dataset.scopeNode === "true", "parent Scope identity is missing");
   assert(card("quality-semantic-review-and-repair").textContent.includes("当前范围 · 父节点"), "parent Scope label is missing");
   assert(card("semantic-review-contract-boundary") && card("repair-authorization-gate") && card("constrained-repair-call-boundary"), "Ticket 63 child nodes are missing");
@@ -150,10 +179,29 @@
   assert(["semantic-review-contract-boundary", "repair-authorization-gate", "constrained-repair-call-boundary"].every((id) => card(id).textContent.includes("职责状态：未审核")), "a Ticket 63 child inherited parent trust");
   const relationships = document.querySelector("#candidate-collaboration-list");
   assert(relationships.querySelectorAll(".candidate-collaboration").length === 5, "Ticket 63 View did not expose exactly five relationships");
-  assert(relationships.textContent.includes("分解状态：未审核") && relationships.textContent.includes("协作状态：未审核"), "Ticket 63 relationships are not visibly Candidate/Pending Review");
+  assert(relationships.textContent.includes("分解审核：已批准 · 当前有效"), "Ticket 63 approved/current Decomposition is not explicit");
+  assert(relationships.textContent.includes("分解审核：APPROVED · 需要复核"), "Ticket 63 needs-review Decomposition is not explicit");
+  assert(relationships.textContent.includes("分解审核：APPROVED · unknown"), "Ticket 63 unknown Decomposition is not explicit");
+  assert(relationships.textContent.includes("协作审核：已拒绝 · 当前有效"), "Ticket 63 rejected Collaboration is not explicit");
+  assert(relationships.textContent.includes("协作状态：未审核"), "Ticket 63 pending Collaboration is not explicit");
   assert(relationships.textContent.includes("不证明实际运行顺序或运行可达"), "Candidate collaborations lost runtime uncertainty");
   assert(document.documentElement.scrollWidth <= window.innerWidth, "Ticket 63 internal View has horizontal overflow");
   assertGraphGeometry(ticketRelationships, "Ticket 63");
+
+  const relationshipButtons = Array.from(relationships.querySelectorAll(".candidate-collaboration"));
+  ticketRelationships.forEach((relationship, index) => {
+    const button = relationshipButtons.find((candidate) => candidate.querySelector("h4")?.textContent === relationship.name);
+    const fixture = relationshipReviews[index];
+    assert(button, `Ticket 63 relationship button is missing: ${relationship.id}`);
+    button.click();
+    const detail = document.querySelector("#detail-content");
+    assert(detail.dataset.collaborationId === relationship.id, `Ticket 63 opened the wrong Relationship detail: ${relationship.id}`);
+    assert(detail.textContent.includes(fixture.expectedStatus), `Ticket 63 detail omitted ${fixture.expectedStatus}: ${relationship.id}`);
+    assert(detail.textContent.includes(`批准范围：${fixture.expectedScope}`), `Ticket 63 detail omitted its projected approved_scope: ${relationship.id}`);
+    assert(detail.textContent.includes(relationship.family === "candidate-decomposition" ? "关系类型：候选分解" : "关系类型：候选协作"), `Ticket 63 detail changed Relationship semantics: ${relationship.id}`);
+    if (!fixture.current) assert(!detail.textContent.includes("当前已审核"), `Ticket 63 promoted non-current approval scope: ${relationship.id}`);
+    document.querySelector("#relationship-detail").close();
+  });
 
   const architecturePath = breadcrumb();
   card("semantic-review-contract-boundary").click();

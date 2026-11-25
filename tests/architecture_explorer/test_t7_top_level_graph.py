@@ -315,6 +315,51 @@ def test_real_browser_renders_the_normalized_current_view(
     view = projected["view_projection"]["view_index"]["production-control"]
     view["display_name"] = "规范化投影视图"
     view["appearances"] = list(reversed(view["appearances"]))
+    node_reviews = [
+        ("supervisor-orchestration", "Pending", "not-reviewed"),
+        ("worker-launch-boundary", "APPROVED", "current"),
+        ("state-and-control-decisions", "REJECTED", "current"),
+        ("production-control-adapters", "APPROVED", "needs-review"),
+        ("deterministic-worker-wrapper", "APPROVED", "unknown"),
+    ]
+    for node_id, result, state in node_reviews:
+        node = projected["view_projection"]["node_index"][node_id]
+        node.pop("review_detail", None)
+        node["review"] = {
+            "result": result,
+            "state": state,
+            "approved_scope": [],
+            "reasons": [] if state == "current" else [f"fixture:{state}"],
+        }
+    candidate_relationship_ids = [
+        relationship_id
+        for relationship_id in view["relationship_ids"]
+        if projected["view_projection"]["relationship_index"][relationship_id].get(
+            "object_key"
+        )
+    ]
+    projected["view_projection"]["relationship_index"][candidate_relationship_ids[0]][
+        "review"
+    ] = {
+        "result": "APPROVED",
+        "state": "current",
+        "approved_scope": [{"fixture": "approved relationship"}],
+        "reasons": [],
+    }
+    projected["view_projection"]["relationship_index"][candidate_relationship_ids[1]][
+        "review"
+    ] = {
+        "result": "REJECTED",
+        "state": "needs-review",
+        "approved_scope": [],
+        "reasons": ["fixture:material-change"],
+    }
+    projected["architecture"]["modules"] = []
+    projected["architecture"]["relationships"] = []
+    for drilldown in projected["navigation"]["drilldowns"]:
+        drilldown["children"] = []
+        drilldown["collaborations"] = []
+    projected["recursive_candidate_fragments"] = []
 
     site = tmp_path / "site"
     write_site(explorer_data, site, WEB_ASSETS)

@@ -61,15 +61,15 @@ def test_ticket_06_dynamic_inventory_and_review_boundaries_are_exact() -> None:
     candidate_nodes = [
         reference
         for reference in projection["node_index"].values()
-        if reference["record_source"] != "architecture.modules"
+        if reference.get("object_key", {}).get("kind") == "candidate-node"
     ]
     families = Counter(
-        item["semantic_family"] for item in projection["relationship_index"].values()
+        item["semantic"] for item in projection["relationship_index"].values()
     )
 
     assert len(candidate_nodes) == 27
-    assert families["candidate-collaboration"] == 12
-    assert families["candidate-decomposition"] == 9
+    assert families["collaboration"] == 12
+    assert families["decomposition"] == 9
     assert len(projection["view_index"]) == 12
 
     definitions = validate_node_review_definitions(_json(REVIEW_DEFINITIONS))
@@ -86,11 +86,11 @@ def test_ticket_06_dynamic_inventory_and_review_boundaries_are_exact() -> None:
         item["object_key"]["node_id"] for item in definitions
     )
     assert {
-        node_id: reference["record_source"]
+        node_id: reference["object_key"]["kind"]
         for node_id, reference in projection["node_index"].items()
         if node_id in first_batch_node_ids
     } == {
-        node_id: "recursive_candidate_fragments.nodes"
+        node_id: "candidate-node"
         for node_id in first_batch_node_ids
     }
 

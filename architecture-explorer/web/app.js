@@ -4,14 +4,13 @@
   const data = window.ARCHITECTURE_EXPLORER_DATA;
   const stateApi = window.ARCHITECTURE_EXPLORER_STATE;
   const error = document.querySelector("#load-error");
-  if (!data || !data.architecture || !Array.isArray(data.architecture.modules) || !data.view_projection || !stateApi) {
+  if (!data || !data.view_projection || !stateApi) {
     error.hidden = false;
     error.textContent = "Explorer 数据缺失或格式无效。请重新生成离线站点。";
     return;
   }
 
   const coverageLabels = { unverified: "源码覆盖：未核验", partial: "源码覆盖：部分核验", verified: "源码覆盖：已核验" };
-  const reviewLabels = { candidate: "候选", "historical-reviewed": "历史审核", "current-reviewed": "当前已审核", "needs-review": "需要复核", unknown: "未知" };
   const assignmentLabels = { unverified: "源码归属：未核验", partial: "源码归属：部分核验" };
   const nodeReviewLabels = {
     "Pending Review": "待审核",
@@ -21,88 +20,79 @@
     "Historical · Rejected": "曾拒绝 · 需复核",
     Unknown: "审核有效性未知",
   };
-  const authoritativeModules = data.architecture.modules;
-  const authoritativeRelationships = Array.isArray(data.architecture.relationships) ? data.architecture.relationships : [];
+  const projectedReviewLabel = (review) => {
+    if (review?.result === "Pending" && review?.state === "not-reviewed") return "未审核";
+    if (review?.result === "APPROVED" && review?.state === "current") return "已批准 · 当前有效";
+    if (review?.result === "REJECTED" && review?.state === "current") return "已拒绝 · 当前有效";
+    if (review?.state === "needs-review") return `${review.result} · 需要复核`;
+    return `${review?.result || "Pending"} · ${review?.state || "unknown"}`;
+  };
+  const projectedReviewStatus = (prefix, review) => review?.result === "Pending" && review?.state === "not-reviewed"
+    ? `${prefix}状态：未审核`
+    : `${prefix}审核：${projectedReviewLabel(review)}`;
+  const projectedReviewClass = (review) => {
+    if (review?.result === "APPROVED" && review?.state === "current") return "approved";
+    if (review?.result === "REJECTED" && review?.state === "current") return "rejected";
+    if (review?.state === "needs-review") return "needs-review";
+    if (review?.state === "unknown") return "unknown";
+    return "pending";
+  };
+  const approvedScopeLabel = (review) => {
+    const scopes = review?.approved_scope;
+    if (!Array.isArray(scopes) || !scopes.length) return "无";
+    return scopes.map((scope) => {
+      if (Array.isArray(scope?.evidence_ids)) return `${scope.evidence_ids.length} 条 Evidence · ${scope.decision_id}`;
+      if (scope?.legacy_claim_kind) return `历史 Claim：${scope.legacy_claim_kind}`;
+      if (scope?.legacy_review_scope) return `历史范围：${scope.legacy_review_scope}`;
+      return "结构化批准范围";
+    }).join("；");
+  };
   const navigation = data.navigation || {
     root: { id: "top-level", name: "整体架构" }, drilldowns: [],
     history_and_auxiliary: { title: "历史与辅助区", description: "暂无导航数据。", default_expanded: false, items: [] },
   };
   const projection = data.view_projection;
-  const nodeReviewObjects = data.node_review_projection?.schema === "architecture-explorer.node-review-projection.v1"
-    ? data.node_review_projection.objects || {}
-    : {};
-  const nodeReviewFor = (module) => nodeReviewObjects[`candidate-node::${module.id}`] || null;
+  const nodeReviewFor = (module) => module.review_detail || null;
   const viewById = projection.view_index || {};
   const rootView = viewById[projection.root_view_id];
-  const drilldownByParent = Object.fromEntries(navigation.drilldowns.map((item) => [item.parent_module_id, item]));
-  const resolveNode = (reference) => {
-    if (reference.record_source === "architecture.modules") return authoritativeModules[reference.record_index];
-    if (reference.record_source === "navigation.drilldowns.children") {
-      return drilldownByParent[reference.owner_view_id]?.children?.[reference.record_index];
-    }
-    if (reference.record_source === "recursive_candidate_fragments.nodes") {
-      return data.recursive_candidate_fragments?.[reference.fragment_index]?.nodes?.[reference.record_index];
-    }
-    return null;
-  };
-  const resolveRelationship = (reference) => {
-    if (reference.record_source === "architecture.relationships") return authoritativeRelationships[reference.record_index];
-    if (reference.record_source === "navigation.drilldowns.collaborations") {
-      return drilldownByParent[reference.owner_view_id]?.collaborations?.[reference.record_index];
-    }
-    if (reference.record_source === "recursive_candidate_fragments.relationships") {
-      return data.recursive_candidate_fragments?.[reference.fragment_index]?.relationships?.[reference.record_index];
-    }
-    return null;
-  };
-  const moduleById = Object.fromEntries(
-    Object.entries(projection.node_index || {}).map(([nodeId, reference]) => [nodeId, resolveNode(reference)]),
-  );
-  const relationshipRecordById = Object.fromEntries(
-    Object.entries(projection.relationship_index || {}).map(([relationshipId, reference]) => [relationshipId, resolveRelationship(reference)]),
-  );
+  const moduleById = projection.node_index || {};
+  const relationshipRecordById = projection.relationship_index || {};
   const relationships = Object.entries(projection.relationship_index || {})
-    .filter(([, reference]) => reference.semantic_family === "formal-relationship")
-    .map(([relationshipId]) => relationshipRecordById[relationshipId]);
+    .filter(([, relationship]) => relationship.semantic === "formal")
+    .map(([, relationship]) => relationship);
   const relationshipById = Object.fromEntries(relationships.map((item) => [item.id, item]));
   const childById = Object.fromEntries(
-    Object.entries(moduleById).filter(([, item]) => item?.review_status === "candidate"),
+    Object.entries(moduleById).filter(([, item]) => item?.object_key?.kind === "candidate-node"),
   );
   const modules = (rootView?.appearances || []).map((appearance) => moduleById[appearance.node_id]);
-  const sourceEvidenceById = {};
-  const definitionFiles = data.source_facts?.python_definition_index?.files || [];
-  const callFiles = data.source_facts?.python_call_facts?.files || [];
+  const projectedEvidenceById = projection.evidence_index || {};
+  const evidenceRecords = (ids, field) => (ids || [])
+    .map((evidenceId) => projectedEvidenceById[evidenceId]?.[field])
+    .filter(Boolean);
+  const sourceFileByPath = Object.fromEntries(
+    Object.entries(projection.source_file_index || {}).map(([path, sourceFile]) => {
+      const facts = evidenceRecords(sourceFile.fact_evidence_ids, "fact");
+      return [path, {
+        ...sourceFile,
+        direct_imports: facts.filter((fact) => fact.evidence?.evidence_kind === "direct_import"),
+        entries: facts.filter((fact) => fact.evidence?.evidence_kind !== "direct_import"),
+        definitions: evidenceRecords(sourceFile.definition_evidence_ids, "definition"),
+        calls: evidenceRecords(sourceFile.call_evidence_ids, "call"),
+      }];
+    }),
+  );
+  const sourceCatalog = projection.source_catalog || {};
+  const sourceEvidenceById = Object.fromEntries(
+    Object.entries(projectedEvidenceById).map(([evidenceId, record]) => [
+      evidenceId,
+      record.file_path ? { ...record, file: sourceFileByPath[record.file_path] } : record,
+    ]),
+  );
+  const definitionFiles = Object.values(sourceFileByPath).filter((item) => item.definition_evidence_ids?.length);
   const definitionFileByPath = Object.fromEntries(definitionFiles.map((item) => [item.path, item]));
-  const resolveSourceEvidence = (reference) => {
-    const source = reference.record_source;
-    if (source?.startsWith("source_facts.modules.")) {
-      const collection = source.slice("source_facts.modules.".length);
-      const sourceModule = data.source_facts?.modules?.[reference.module_index];
-      const fact = sourceModule?.[collection]?.[reference.record_index];
-      return fact ? { fact, sourceModule } : null;
-    }
-    if (source?.startsWith("source_facts.powershell_scripts.")) {
-      const collection = source.slice("source_facts.powershell_scripts.".length);
-      const sourceModule = data.source_facts?.powershell_scripts?.[reference.script_index];
-      const fact = sourceModule?.[collection]?.[reference.record_index];
-      return fact ? { fact, sourceModule, language: "powershell" } : null;
-    }
-    if (source === "source_facts.python_definition_index.files.definitions") {
-      const file = definitionFiles[reference.file_index];
-      const definition = file?.definitions?.[reference.record_index];
-      return definition ? { definition, file } : null;
-    }
-    if (source === "source_facts.python_call_facts.files.calls") {
-      const file = callFiles[reference.file_index];
-      const call = file?.calls?.[reference.record_index];
-      return call ? { call, file } : null;
-    }
-    return null;
-  };
-  for (const [evidenceId, reference] of Object.entries(data.source_evidence_index || {})) {
-    const resolved = resolveSourceEvidence(reference);
-    if (resolved) sourceEvidenceById[evidenceId] = { ...resolved, reference };
-  }
+  const sourceModules = (sourceCatalog.python_module_paths || [])
+    .map((path) => sourceFileByPath[path])
+    .filter(Boolean);
   const definitionByEvidenceId = Object.fromEntries(
     Object.entries(sourceEvidenceById)
       .filter(([, record]) => record.definition)
@@ -258,7 +248,8 @@
   const candidateEvidenceCard = (evidenceId, returnContext, progressive = false) => {
     const record = sourceEvidenceById[evidenceId];
     if (!record) return text("p", `无法解析源码依据：${evidenceId}`, "load-error");
-    const { fact, sourceModule, language, definition, call, file } = record;
+    const { fact, language, definition, call, file } = record;
+    const sourceModule = file;
     const evidence = fact?.evidence || definition?.evidence || call?.evidence;
     const location = `${evidence.path}:${evidence.current_location.line_start} · symbol: ${evidence.symbol}`;
     const label = language === "powershell"
@@ -272,13 +263,13 @@
       : fact.module || `${fact.kind} · ${evidence.symbol}`;
     const explanation = language === "powershell"
       ? fact.kind === "script_binding"
-        ? `PowerShell 静态 AST 把这个脚本变量解析为明确路径；它支持当前未审核候选，但不证明目标脚本已经执行或形成正式架构协作。`
+        ? `PowerShell 静态 AST 把这个脚本变量解析为明确路径；它支持当前对象的证据调查，但不证明目标脚本已经执行或形成正式架构协作。`
         : fact.kind === "dot_source"
-          ? `PowerShell 静态 AST 确认这里使用 dot-source 接入明确绑定的脚本；它支持当前未审核候选，但不证明运行时调用或决策结果。`
-          : `PowerShell 静态 AST 确认这个关键函数入口写在 Supervisor 中；它支持当前未审核候选，但不证明入口在某次运行中被调用。`
+          ? `PowerShell 静态 AST 确认这里使用 dot-source 接入明确绑定的脚本；它支持当前对象的证据调查，但不证明运行时调用或决策结果。`
+          : `PowerShell 静态 AST 确认这个关键函数入口写在 Supervisor 中；它支持当前对象的证据调查，但不证明入口在某次运行中被调用。`
       : call
-        ? `这条静态调用事实来自“${file.path}”。它支持当前未审核候选的调查方向，但不证明调用已经执行；只有 Call Fact 明确给出的静态目标才允许继续导航。`
-        : `这条依据来自“${definition ? file.path : sourceModule.path}”。它支持当前未审核候选的调查方向，但不证明架构归属、运行可达或真实协作。`;
+        ? `这条静态调用事实来自“${file.path}”。它支持当前对象的调查方向，但不证明调用已经执行；只有 Call Fact 明确给出的静态目标才允许继续导航。`
+        : `这条依据来自“${definition ? file.path : sourceModule.path}”。它支持当前对象的调查方向，但不证明架构归属、运行可达或真实协作。`;
     const card = document.createElement("article"); card.className = "candidate-evidence-card";
     const evidenceRole = language === "powershell"
       ? "PowerShell AST 自动静态源码事实"
@@ -315,7 +306,7 @@
       browse.addEventListener("click", () => showDefinitionFile(definitionFile, returnContext, evidenceId));
       card.append(browse);
     }
-    if (call && record.reference.source_trail_kind === "call") {
+    if (call && record.source_trail_kind === "call") {
       const browse = text("button", "在 Source Trail 中查看此调用", "browse-call-fact");
       browse.type = "button";
       browse.dataset.evidenceId = evidenceId;
@@ -606,7 +597,7 @@
 
   const showSourceTrailEvidence = (evidenceId, returnContext) => {
     const record = sourceEvidenceById[evidenceId];
-    if (!record || !record.reference.source_trail_kind) return false;
+    if (!record || !record.source_trail_kind) return false;
     if (record.definition) {
       sourceTrail = {
         returnContext,
@@ -614,7 +605,7 @@
         entries: [{ kind: "definition", file: record.file, definition: record.definition }],
       };
     } else if (record.call) {
-      const enclosing = definitionByEvidenceId[record.reference.enclosing_definition_evidence_id];
+      const enclosing = definitionByEvidenceId[record.enclosing_definition_evidence_id];
       if (!enclosing) return false;
       sourceTrail = {
         returnContext,
@@ -633,8 +624,7 @@
   };
 
   const renderSourceModule = () => {
-    const sourceFacts = data.source_facts;
-    const module = sourceFacts?.modules?.[Number(sourceModuleSelect.value)];
+    const module = sourceModules[Number(sourceModuleSelect.value)];
     sourceModuleDetail.replaceChildren();
     if (!module) { sourceModuleDetail.append(text("p", "当前范围内没有可展示的 Python 源码事实。", "empty-evidence")); return; }
     const identity = document.createElement("dl"); identity.className = "source-module-identity";
@@ -664,11 +654,10 @@
   };
 
   const initializeSourceFacts = () => {
-    const sourceFacts = data.source_facts;
-    if (!sourceFacts || !Array.isArray(sourceFacts.modules)) { sourceFactsDetails.hidden = true; return; }
-    const supervisorCount = Number(sourceFacts.powershell_scope?.files_scanned || 0);
-    sourceFactsCount.textContent = `${sourceFacts.scope.files_scanned} 个 Python 文件 · ${supervisorCount} 个 Supervisor · 默认收起`;
-    sourceFacts.modules.forEach((module, index) => {
+    if (!sourceModules.length) { sourceFactsDetails.hidden = true; return; }
+    const supervisorCount = Number(sourceCatalog.powershell_files_scanned || 0);
+    sourceFactsCount.textContent = `${Number(sourceCatalog.python_files_scanned || sourceModules.length)} 个 Python 文件 · ${supervisorCount} 个 Supervisor · 默认收起`;
+    sourceModules.forEach((module, index) => {
       const option = document.createElement("option"); option.value = String(index); option.textContent = module.path; sourceModuleSelect.append(option);
     });
     sourceModuleSelect.addEventListener("change", renderSourceModule); renderSourceModule();
@@ -736,6 +725,18 @@
     "candidate-and-release": "可以把它看作装订与出厂检查环节：把获批译文放入候选文档，再确认包装内容和发布边界没有被意外改变。",
   };
 
+  const relationshipReviewMeaning = (review) => {
+    const label = review.result === "APPROVED" && review.state === "current"
+      ? `当前已审核 · ${projectedReviewLabel(review)}`
+      : projectedReviewLabel(review);
+    const item = document.createElement("article");
+    item.append(
+      text("h3", label),
+      text("p", `审核结果与当前状态由对象自己的显式投影提供；批准范围：${approvedScopeLabel(review)}。`),
+    );
+    return item;
+  };
+
   const showRelationship = (relation) => {
     const guide = relation.presentation_zh;
     detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
@@ -749,8 +750,8 @@
     const plainExplanation = relationshipPlainExplanation(relation, guide);
     if (plainExplanation) detailContent.append(text("p", plainExplanation, "plain-collaboration-explanation"));
     const statusGrid = document.createElement("section"); statusGrid.className = "meaning-grid";
+    statusGrid.append(relationshipReviewMeaning(relation.review));
     for (const [title, description] of [
-      [reviewLabels[relation.review_status] || "未知", guide.status_explanations[relation.review_status] || "当前没有可用的有效审核结论。"],
       ["静态条件可达", guide.status_explanations[relation.code_reachability.status]],
       ["真实运行状态未采集", guide.status_explanations[relation.runtime_state]],
     ]) { const item = document.createElement("article"); item.append(text("h3", title), text("p", description)); statusGrid.append(item); }
@@ -779,7 +780,7 @@
     const facts = document.createElement("dl"); facts.className = "detail-facts";
     for (const [term, value] of [
       ["Relationship ID", relation.id], ["Direction", relation.direction], ["Relationship type", relation.type],
-      ["Review status", relation.review_status], ["Code reachability", relation.code_reachability.status],
+      ["Review result/state", projectedReviewLabel(relation.review)], ["Code reachability", relation.code_reachability.status],
       ["Runtime state", relation.runtime_state], ["Evidence continuity", relation.source_continuity.status],
     ]) facts.append(text("dt", term), text("dd", value));
     original.append(facts, text("h4", "原始 Owner 审核文字"), text("pre", relation.architecture_explanation || "—", "review-notes"));
@@ -787,21 +788,20 @@
   };
 
   const candidateRelationshipsForNode = (nodeId) => Object.entries(projection.relationship_index || {})
-    .filter(([, reference]) => reference.semantic_family.startsWith("candidate-"))
-    .map(([relationshipId]) => relationshipRecordById[relationshipId])
+    .filter(([, relationship]) => Boolean(relationship.object_key))
+    .map(([, relationship]) => relationship)
     .filter((item) => item.source_node_id === nodeId || item.target_node_id === nodeId);
 
   const showCandidateRelationship = (collaboration) => {
     const source = childById[collaboration.source_node_id];
     const target = childById[collaboration.target_node_id];
-    const semanticFamily = projection.relationship_index[collaboration.id]?.semantic_family;
-    const isDecomposition = semanticFamily === "candidate-decomposition";
+    const isDecomposition = collaboration.semantic === "decomposition";
     const semanticLabel = isDecomposition ? "候选分解" : "候选协作";
     detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.evidenceId;
     detailContent.dataset.collaborationId = collaboration.id;
     const title = text("h2", `${source.name} → ${target.name}`, "detail-title"); title.id = "detail-title";
     detailContent.append(
-      text("p", `${semanticLabel} · 未审核`, "eyebrow"),
+      text("p", `${semanticLabel}：${projectedReviewLabel(collaboration.review)}`, "eyebrow"),
       title,
       text("p", collaboration.name, "plain-relation-name"),
       text("p", `关系类型：${semanticLabel}`, "candidate-collaboration-type"),
@@ -810,10 +810,12 @@
       text("p", collaboration.plain_explanation, "plain-collaboration-explanation")
     );
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
-    statuses.append(text("span", `${isDecomposition ? "分解" : "协作"}状态：未审核`, "status candidate"), text("span", "源码归属：未核验", "status coverage-unverified"));
-    detailContent.append(statuses, text("p", `这些静态源码依据只支持${semanticLabel}解释，不证明运行时行为或审核批准。`, "candidate-warning"));
+    statuses.append(text("span", projectedReviewStatus(isDecomposition ? "分解" : "协作", collaboration.review), `status ${projectedReviewClass(collaboration.review)}`), text("span", "源码归属：未核验", "status coverage-unverified"));
+    const reviewMeaning = document.createElement("section"); reviewMeaning.className = "meaning-grid";
+    reviewMeaning.append(relationshipReviewMeaning(collaboration.review));
+    detailContent.append(statuses, reviewMeaning, text("p", `这些静态源码依据只支持${semanticLabel}解释，不证明运行时行为或审核批准。`, "candidate-warning"));
     detailContent.append(text("h3", `源码依据（${collaboration.evidence_ids.length}）`));
-    const returnContext = { kind: "candidate-collaboration", collaboration };
+    const returnContext = { kind: collaboration.object_key.kind, collaboration };
     for (const evidenceId of collaboration.evidence_ids) {
       detailContent.append(candidateEvidenceCard(evidenceId, returnContext));
     }
@@ -822,7 +824,7 @@
 
   const relationshipsForModule = (moduleId) => {
     const childReferences = childById[moduleId]?.source_assignment?.relationship_ids || [];
-    const direct = relationships.filter((item) => item.source_module === moduleId || item.target_module === moduleId).map((item) => item.id);
+    const direct = relationships.filter((item) => item.source_node_id === moduleId || item.target_node_id === moduleId).map((item) => item.id);
     return [...new Set([...childReferences, ...direct])].map((id) => relationshipById[id]).filter(Boolean);
   };
 
@@ -921,7 +923,7 @@
   };
 
   const showModuleDetail = (module) => {
-    const isCandidate = module.review_status === "candidate";
+    const isCandidate = module.object_key?.kind === "candidate-node";
     const candidateKind = candidateKindFor(module);
     const related = relationshipsForModule(module.id);
     detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
@@ -937,9 +939,16 @@
         text("span", nodeDetailReviewLabel(nodeReview), `status ${nodeDetailReviewStatusClass(nodeReview)} node-detail-review-status`),
         text("span", module.source_assignment.status === "partial" ? "源码归属：部分确认" : assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`)
       );
-      if (candidateLinks.length) statuses.append(text("span", "候选协作：未审核", "status candidate"));
+      const candidateLinkStates = new Map(candidateLinks.map((relationship) => {
+        const kind = relationship.semantic === "decomposition" ? "候选分解" : "候选协作";
+        const label = projectedReviewLabel(relationship.review);
+        return [`${kind}:${label}`, { kind, label, reviewClass: projectedReviewClass(relationship.review) }];
+      }));
+      for (const { kind, label, reviewClass } of candidateLinkStates.values()) {
+        statuses.append(text("span", `${kind}：${label}`, `status ${reviewClass}`));
+      }
     } else {
-      statuses.append(text("span", isCandidate ? `${candidateKind}状态：未审核` : "逻辑定义：已批准", `status ${isCandidate ? "candidate" : "approved"}`));
+      statuses.append(text("span", isCandidate ? projectedReviewStatus(candidateKind, module.review) : "逻辑定义：已批准", `status ${isCandidate ? projectedReviewClass(module.review) : "approved"}`));
       appendNodeReviewStatuses(statuses, module);
     }
     if (isCandidate) {
@@ -949,7 +958,7 @@
       const visibleDecomposition = currentView().relationship_ids.some((relationshipId) => {
         const reference = projection.relationship_index[relationshipId];
         const record = relationshipRecordById[relationshipId];
-        return reference?.semantic_family === "candidate-decomposition"
+        return reference?.semantic === "decomposition"
           && record?.source_node_id === module.id;
       });
       if (visibleDecomposition) detailContent.append(text("p", "此节点既有审核只适用于已批准的职责主张；不批准当前 View 中新增的候选分解、候选协作或子节点。", "candidate-warning node-review-scope-limit"));
@@ -996,20 +1005,20 @@
     return view.relationship_ids.map((relationshipId) => {
       const reference = projection.relationship_index[relationshipId];
       const record = relationshipRecordById[relationshipId];
-      if (reference.semantic_family.startsWith("candidate-")) {
+      if (reference.object_key) {
         return {
           id: relationshipId,
           sourceId: record.source_node_id,
           targetId: record.target_node_id,
           kind: "candidate",
-          semanticFamily: reference.semantic_family,
+          semantic: reference.semantic,
           record,
         };
       }
       return {
         id: relationshipId,
-        sourceId: record.source_module,
-        targetId: record.target_module,
+        sourceId: record.source_node_id,
+        targetId: record.target_node_id,
         kind: "reviewed",
         record,
       };
@@ -1017,8 +1026,8 @@
       visibleNodeIds.has(edge.sourceId)
         && visibleNodeIds.has(edge.targetId)
         && (edge.kind === "candidate"
-          ? edge.record.review_status === "candidate"
-          : edge.record.review_status === "current-reviewed" && edge.record.source_continuity?.status === "exact-match")
+          ? Boolean(edge.record.object_key)
+          : edge.record.review.result === "APPROVED" && edge.record.review.state === "current")
     ));
   };
 
@@ -1067,7 +1076,7 @@
     const sourceRect = sourceCard.getBoundingClientRect();
     const targetRect = targetCard.getBoundingClientRect();
     let direct = edgeEndpoints(sourceRect, targetRect, surfaceRect);
-    if (edge.semanticFamily === "candidate-decomposition" && targetRect.top >= sourceRect.bottom) {
+    if (edge.semantic === "decomposition" && targetRect.top >= sourceRect.bottom) {
       direct = {
         start: {
           x: sourceRect.left + sourceRect.width / 2 - surfaceRect.left,
@@ -1124,7 +1133,7 @@
           x: (side === "left" ? targetRect.left : targetRect.right) - surfaceRect.left,
           y: targetCenter.y,
         };
-        candidates.push(edge.semanticFamily === "candidate-decomposition"
+        candidates.push(edge.semantic === "decomposition"
           ? [
             start,
             { x: corridorX, y: start.y },
@@ -1316,30 +1325,34 @@
       const pathData = points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
       const group = document.createElementNS(relationshipGraph.namespaceURI, "g");
       group.dataset.sourceNodeId = edge.sourceId; group.dataset.targetNodeId = edge.targetId;
-      if (edge.semanticFamily === "candidate-decomposition") group.dataset.decompositionId = edge.id;
+      if (edge.semantic === "decomposition") group.dataset.decompositionId = edge.id;
       else if (edge.kind === "candidate") group.dataset.collaborationId = edge.id;
       else group.dataset.relationshipId = edge.id;
       const title = document.createElementNS(relationshipGraph.namespaceURI, "title");
       const sourceName = moduleById[edge.sourceId].name; const targetName = moduleById[edge.targetId].name;
-      const candidateType = edge.semanticFamily === "candidate-decomposition" ? "候选分解" : "候选协作";
-      title.textContent = `${sourceName} 到 ${targetName}，${edge.kind === "candidate" ? `${candidateType}·未审核` : "当前已审核"}`;
+      const candidateType = edge.semantic === "decomposition" ? "候选分解" : "候选协作";
+      const trustClass = projectedReviewClass(edge.record.review);
+      const trustLabel = projectedReviewLabel(edge.record.review);
+      title.textContent = `${sourceName} 到 ${targetName}，${edge.kind === "candidate" ? candidateType : "正式关系"}·${trustLabel}`;
       const hit = document.createElementNS(relationshipGraph.namespaceURI, "path");
       hit.setAttribute("d", pathData); hit.setAttribute("class", "graph-edge-hit");
       const line = document.createElementNS(relationshipGraph.namespaceURI, "path");
-      const relationshipKind = edge.semanticFamily === "candidate-decomposition"
+      const relationshipKind = edge.semantic === "decomposition"
         ? "decomposition"
-        : edge.semanticFamily === "candidate-collaboration" ? "collaboration" : "";
-      line.setAttribute("d", pathData); line.setAttribute("class", `graph-edge ${edge.kind} ${relationshipKind}`.trim());
-      line.setAttribute("marker-end", `url(#${edge.kind}-arrowhead)`);
+        : edge.semantic === "collaboration" ? "collaboration" : "formal";
+      line.setAttribute("d", pathData); line.setAttribute("class", `graph-edge ${edge.kind} ${relationshipKind} review-${trustClass}`.trim());
+      line.setAttribute(
+        "marker-end",
+        trustClass === "approved" ? "url(#reviewed-arrowhead)" : "url(#candidate-arrowhead)",
+      );
       hit.addEventListener("click", () => activateGraphEdge(edge));
       group.append(title, hit, line); relationshipEdgeLayer.append(group);
 
       const labelText = edge.kind === "candidate" ? edge.record.name : edge.record.presentation_zh.relationship_name;
-      const trustLabel = edge.kind === "candidate" ? `${candidateType}，未经审核` : "当前已审核关系";
-      const label = text("button", labelText, `graph-edge-label ${edge.kind} ${relationshipKind}`.trim());
+      const label = text("button", labelText, `graph-edge-label ${edge.kind} ${relationshipKind} review-${trustClass}`.trim());
       label.type = "button";
       label.classList.toggle("corridor", points.length > 2);
-      if (edge.semanticFamily === "candidate-decomposition") label.dataset.decompositionId = edge.id;
+      if (edge.semantic === "decomposition") label.dataset.decompositionId = edge.id;
       else if (edge.kind === "candidate") label.dataset.collaborationId = edge.id;
       else label.dataset.relationshipId = edge.id;
       label.setAttribute("aria-label", `${sourceName}到${targetName}，${labelText}，${trustLabel}，打开关系证据`);
@@ -1391,11 +1404,13 @@
     const scopeAppearsInView = view.appearances.some((appearance) => appearance.node_id === view.scope_node_id);
     heroTitle.textContent = atTop ? "顶层架构" : (scopeAppearsInView ? moduleById[view.scope_node_id]?.name : null) || view.display_name;
     heroTitle.classList.toggle("internal-view-title", !atTop);
-    const isCandidateView = !atTop && view.relationship_ids.some((relationshipId) => (
-      projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-")
-    ));
-    heroStatus.hidden = !isCandidateView;
-    heroStatus.textContent = isCandidateView ? "Candidate · Pending Review" : "";
+    const visibleReviews = [
+      ...view.appearances.map((appearance) => moduleById[appearance.node_id]?.review),
+      ...view.relationship_ids.map((relationshipId) => projection.relationship_index[relationshipId]?.review),
+    ].filter(Boolean);
+    const reviewLabels = [...new Set(visibleReviews.map(projectedReviewLabel))];
+    heroStatus.hidden = !reviewLabels.length;
+    heroStatus.textContent = reviewLabels.length ? `对象可信状态：${reviewLabels.join(" / ")}` : "";
     heroLede.textContent = view.coverage_note;
     modulesHeading.textContent = atTop ? "七个顶层模块" : "候选职责与组件";
   };
@@ -1426,7 +1441,7 @@
         statuses.append(text("span", assignmentLabels[module.source_assignment.status], "candidate-card-status source-assignment-status"));
         appendNodeReviewStatuses(statuses, module);
       } else {
-        statuses.append(text("span", `${candidateKindFor(module)}状态：未审核`, "status candidate"), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
+        statuses.append(text("span", projectedReviewStatus(candidateKindFor(module), module.review), `status ${projectedReviewClass(module.review)}`), text("span", assignmentLabels[module.source_assignment.status], `status coverage-${module.source_assignment.status}`));
       }
     }
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
@@ -1463,7 +1478,7 @@
     const decomposedTargets = new Set(view.relationship_ids.flatMap((relationshipId) => {
       const reference = projection.relationship_index[relationshipId];
       const record = relationshipRecordById[relationshipId];
-      return reference?.semantic_family === "candidate-decomposition"
+      return reference?.semantic === "decomposition"
           && record?.source_node_id === view.scope_node_id
         ? [record.target_node_id]
         : [];
@@ -1482,15 +1497,20 @@
       ? `1 个当前范围 · ${visible.length - 1} 个候选节点`
       : `${visible.length} 个${atTop ? "模块" : "候选节点"}`;
     const collaborations = view.relationship_ids
-      .filter((relationshipId) => projection.relationship_index[relationshipId]?.semantic_family.startsWith("candidate-"))
+      .filter((relationshipId) => Boolean(projection.relationship_index[relationshipId]?.object_key))
       .map((relationshipId) => relationshipRecordById[relationshipId]);
     candidateCollaborations.hidden = collaborations.length === 0;
     document.querySelector("#candidate-collaborations-heading").textContent = "候选关系";
     candidateCollaborationList.replaceChildren();
     for (const collaboration of collaborations) {
-      const button = document.createElement("button"); button.type = "button"; button.className = "candidate-collaboration";
+      const button = document.createElement("button"); button.type = "button";
+      button.className = `candidate-collaboration review-${projectedReviewClass(collaboration.review)}`;
+      button.setAttribute(
+        "aria-label",
+        `${collaboration.name}，${projectedReviewLabel(collaboration.review)}，打开关系证据`,
+      );
       button.append(
-        text("span", `${projection.relationship_index[collaboration.id].semantic_family === "candidate-decomposition" ? "分解" : "协作"}状态：未审核`, "status candidate"),
+        text("span", projectedReviewStatus(collaboration.semantic === "decomposition" ? "分解" : "协作", collaboration.review), `status ${projectedReviewClass(collaboration.review)}`),
         text("h4", collaboration.name),
         text("p", collaboration.professional_description, "candidate-collaboration-professional"),
         text("p", collaboration.plain_explanation, "candidate-plain-explanation"),
@@ -1505,9 +1525,15 @@
     relationList.replaceChildren(); relationshipCount.textContent = `${relationships.length} 条关系`;
     for (const relation of relationships) {
       const guide = relation.presentation_zh; const button = document.createElement("button"); button.type = "button";
-      button.className = `relationship-line review-${relation.review_status}`; button.dataset.relationshipId = relation.id;
+      const reviewClass = relation.review.state === "needs-review"
+        ? "needs-review"
+        : projectedReviewClass(relation.review);
+      button.className = `relationship-line review-${reviewClass}`; button.dataset.relationshipId = relation.id;
       const arrow = text("span", "→", "relation-arrow"); arrow.setAttribute("aria-hidden", "true");
-      button.append(text("span", guide.source_module_name, "relation-node"), arrow, text("span", guide.target_module_name, "relation-node"), text("span", `${guide.relationship_name} · ${relation.type}`, "relation-type"), text("span", reviewLabels[relation.review_status] || "未知", "relation-status"));
+      const reviewLabel = relation.review.result === "APPROVED" && relation.review.state === "current"
+        ? `当前已审核 · ${projectedReviewLabel(relation.review)}`
+        : projectedReviewLabel(relation.review);
+      button.append(text("span", guide.source_module_name, "relation-node"), arrow, text("span", guide.target_module_name, "relation-node"), text("span", `${guide.relationship_name} · ${relation.type}`, "relation-type"), text("span", reviewLabel, "relation-status"));
       button.setAttribute("aria-label", `${guide.source_module_name}到${guide.target_module_name}，打开同一关系证据详情`);
       button.addEventListener("click", () => { dispatch({ type: "RELATIONSHIP_PRIMARY", relationshipId: relation.id }); showRelationship(relationshipById[state.relationshipId]); });
       relationList.append(button);
@@ -1544,7 +1570,7 @@
     const moduleId = state.contextMenu?.moduleId;
     const module = moduleById[moduleId]; if (!module) return;
     dialogOpener = grid.querySelector(`[data-module-id="${CSS.escape(moduleId)}"]`);
-    if (module.review_status === "candidate") {
+    if (module.object_key?.kind === "candidate-node") {
       dispatch({ type: "MENU_EVIDENCE", relationshipId: null }); renderContextMenu(); showModuleDetail(module); return;
     }
     const related = relationshipsForModule(module.id); dispatch({ type: "MENU_EVIDENCE", relationshipId: related[0]?.id || null }); renderContextMenu();

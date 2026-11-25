@@ -188,7 +188,7 @@
     );
     const viewStatus = document.querySelector("#view-status");
     assert(
-      viewStatus && !viewStatus.hidden && viewStatus.textContent === "Candidate · Pending Review",
+      viewStatus && !viewStatus.hidden && viewStatus.textContent.includes("对象可信状态：") && viewStatus.textContent.includes("未审核"),
       "Candidate/Pending Review was not exposed independently from the title",
     );
     const parentScope = card("translation-routing-and-acquisition");

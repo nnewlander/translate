@@ -118,7 +118,7 @@
     assert(group.dataset.targetNodeId === targetId, `${collaborationId} target changed`);
     const currentEdge = () => document.querySelector(`[data-collaboration-id="${collaborationId}"] .graph-edge.candidate`);
     const currentLabel = () => document.querySelector(`.graph-edge-label[data-collaboration-id="${collaborationId}"]`);
-    assert(currentEdge().getAttribute("marker-end") === "url(#candidate-arrowhead)", `${collaborationId} lacks a directed arrowhead`);
+    assert(currentEdge().getAttribute("marker-end") === "url(#candidate-arrowhead)", `${collaborationId} lacks the non-current-trust arrowhead`);
     assert(getComputedStyle(currentEdge()).strokeDasharray !== "none", `${collaborationId} is not dashed`);
     assert(currentLabel()?.textContent === collaborationName, `${collaborationId} does not use its existing Chinese name`);
     assert(!currentLabel().textContent.includes("候选·未审核"), `${collaborationId} uses trust state as its main label`);

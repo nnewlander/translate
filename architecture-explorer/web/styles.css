@@ -430,8 +430,11 @@ h2 {
   stroke-width: 2.5;
   vector-effect: non-scaling-stroke;
 }
-.graph-edge.candidate { stroke: #8b6c2d; stroke-dasharray: 8 7; }
-.graph-edge.candidate.collaboration { stroke-dasharray: 3 6; }
+.graph-edge.review-approved { stroke: #526b49; stroke-dasharray: none; }
+.graph-edge.review-rejected,
+.graph-edge.review-needs-review,
+.graph-edge.review-unknown,
+.graph-edge.review-pending { stroke: #8b6c2d; stroke-dasharray: 8 7; }
 .graph-edge-hit {
   fill: none;
   stroke: transparent;
@@ -552,6 +555,10 @@ h2 {
 
 .approved { border-color: #b7c8af; background: #eaf1e6; color: #2f4630; }
 .candidate { border-color: #d7c08f; background: #fff8e8; color: #59451f; }
+.rejected { border-color: #d5a2a2; background: #fff0f0; color: #762d2d; }
+.needs-review { border-color: #d7c08f; background: #fff8e8; color: #59451f; }
+.unknown { border-color: #c4cbd1; background: #f1f3f5; color: #414b53; }
+.pending { border-color: #d7c08f; background: #fff8e8; color: #59451f; }
 .unclassified { border-color: #cfd5cc; background: #f5f6f4; color: #3f453d; }
 .coverage-unverified { border-color: #d7c08f; background: #fff8e8; color: #59451f; }
 .coverage-partial { border-color: #cfd5cc; color: #3f453d; }
