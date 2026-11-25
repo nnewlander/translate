@@ -424,6 +424,28 @@ def test_projection_allows_shared_evidence_reference_without_copying_identity() 
     assert list(projection["evidence_index"]).count(shared_id) == 1
 
 
+def test_projection_accepts_v3_candidates_without_evidence_references() -> None:
+    explorer = _current_explorer()
+    for drilldown in explorer["navigation"]["drilldowns"]:
+        for child in drilldown["children"]:
+            child["source_assignment"].pop("evidence_ids")
+        for relationship in drilldown.get("collaborations", []):
+            relationship.pop("evidence_ids", None)
+
+    projection = apply_view_projection(explorer)["view_projection"]
+
+    candidate = projection["node_index"][
+        explorer["navigation"]["drilldowns"][0]["children"][0]["id"]
+    ]
+    assert candidate["review"] == {
+        "result": "Pending",
+        "state": "not-reviewed",
+        "approved_scope": [],
+        "reasons": ["trusted-review-decision:missing"],
+    }
+    assert projection["evidence_index"]
+
+
 def test_projection_rejects_missing_or_repeated_evidence_references() -> None:
     missing = _current_explorer()
     missing["navigation"]["drilldowns"][0]["children"][0]["source_assignment"][

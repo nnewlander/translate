@@ -553,6 +553,11 @@ def _validate_candidate_evidence_references(
             evidence_ids = record.get("evidence_ids")
         else:
             continue
+        if evidence_ids is None:
+            # v3 candidate inputs predate per-object locatable Evidence and
+            # legitimately omit the reference list, even when global source
+            # facts are available. Present references remain strictly checked.
+            continue
         if not isinstance(evidence_ids, list) or not all(
             isinstance(evidence_id, str) and evidence_id for evidence_id in evidence_ids
         ):
