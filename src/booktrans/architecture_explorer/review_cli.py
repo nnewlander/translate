@@ -41,6 +41,15 @@ from .node_review_definitions import (
     write_node_review_packets,
 )
 from .node_review_pilot import preflight_node_review_anchor_candidate
+from .relationship_review import (
+    build_relationship_review_packets,
+    evaluate_relationship_review_state,
+    project_relationship_reviews,
+    stable_review_object_key,
+    update_relationship_review_state,
+    validate_relationship_review_definitions,
+    write_relationship_review_packets,
+)
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
 from .view_definitions import apply_view_definitions
@@ -54,6 +63,7 @@ from .review_source import (
     _gh_api,
     _gh_preflight,
 )
+from .review_trust import production_relationship_review_trust_policy
 
 
 def _object(path: Path) -> dict[str, Any]:
@@ -64,6 +74,80 @@ def _object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ExplorerInputError(f"Expected a JSON object: {path}")
     return value
+
+
+def _project_node_review_inputs(
+    explorer: dict[str, Any],
+    definitions_path: Path,
+    material_directories: list[Path],
+    *,
+    trust_policy: _NodeReviewTrustPolicy,
+    direct_material: tuple[Path, Path, Path | None] | None = None,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """Load, validate, and project authoritative Node Review materials."""
+
+    definitions = validate_node_review_definitions(_object(definitions_path))
+    material_inputs: list[tuple[Path, Path, Path | None]] = []
+    if direct_material is not None:
+        material_inputs.append(direct_material)
+    for directory in material_directories:
+        decision_path = directory / "decision.json"
+        source_path = directory / "source.json"
+        state_path = directory / "state.json"
+        if not decision_path.is_file() or not source_path.is_file():
+            raise ExplorerInputError(
+                f"Node Review material directory is incomplete: {directory}"
+            )
+        material_inputs.append(
+            (decision_path, source_path, state_path if state_path.is_file() else None)
+        )
+    materials_by_key: dict[str, dict[str, Any]] = {}
+    generation_inputs: dict[str, dict[str, Any]] = {}
+    for decision_path, source_path, state_path in material_inputs:
+        decision = _object(decision_path)
+        source = _object(source_path)
+        key = stable_node_review_key(
+            {
+                "kind": decision.get("object_key", {}).get("kind"),
+                "node_id": decision.get("object_key", {}).get("node_id"),
+            }
+        )
+        if key in materials_by_key:
+            raise ExplorerInputError(f"Duplicate Node Review material object: {key}")
+        if decision.get("schema") == "architecture-explorer.node-review-decision.v2":
+            state = evaluate_node_review_v2_state(decision, state_path)
+        else:
+            state = _evaluate_node_review_state(decision, state_path)
+            state["object_key"] = deepcopy(decision["object_key"])
+        materials_by_key[key] = {
+            "decision": decision,
+            "source": source,
+            "state": state,
+        }
+        generation_inputs[key] = {
+            "decision": {
+                "path": decision_path.name,
+                "sha256": hashlib.sha256(decision_path.read_bytes()).hexdigest(),
+            },
+            "source": {
+                "path": source_path.name,
+                "sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+            },
+        }
+        if state_path is not None:
+            generation_inputs[key]["state"] = {
+                "path": state_path.name,
+                "sha256": hashlib.sha256(state_path.read_bytes()).hexdigest(),
+            }
+    return (
+        project_node_reviews(
+            explorer,
+            definitions,
+            materials_by_key,
+            trust_policy=trust_policy,
+        ),
+        generation_inputs,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -105,6 +189,14 @@ def _parser() -> argparse.ArgumentParser:
     packets.add_argument("--explorer-data", type=Path, required=True)
     packets.add_argument("--review-definitions", type=Path, required=True)
     packets.add_argument("--output-directory", type=Path, required=True)
+    relationship_packets = commands.add_parser(
+        "prepare-relationship-reviews",
+        help="generate isolated Candidate Collaboration/Decomposition packets",
+    )
+    relationship_packets.add_argument("--repository", type=Path, required=True)
+    relationship_packets.add_argument("--explorer-data", type=Path, required=True)
+    relationship_packets.add_argument("--review-definitions", type=Path, required=True)
+    relationship_packets.add_argument("--output-directory", type=Path, required=True)
     preflight = commands.add_parser(
         "preflight-node-review",
         help=(
@@ -139,6 +231,23 @@ def _parser() -> argparse.ArgumentParser:
     node_state.add_argument("--node-review-state", type=Path, required=True)
     node_state.add_argument("--assessed-at", required=True)
     node_state.add_argument("--node-review-definition", type=Path)
+    relationship_state = commands.add_parser(
+        "update-relationship-review-state",
+        help="explicitly assess and atomically update one Relationship Review State",
+    )
+    relationship_state.add_argument("--repository", type=Path, required=True)
+    relationship_state.add_argument("--explorer-data", type=Path, required=True)
+    relationship_state.add_argument("--review-definition", type=Path, required=True)
+    relationship_state.add_argument("--review-decision", type=Path, required=True)
+    relationship_state.add_argument("--review-source", type=Path, required=True)
+    relationship_state.add_argument("--review-state", type=Path, required=True)
+    relationship_state.add_argument(
+        "--node-review-definitions", type=Path, required=True
+    )
+    relationship_state.add_argument(
+        "--node-review-material-directory", type=Path, action="append", default=[]
+    )
+    relationship_state.add_argument("--assessed-at", required=True)
     build = commands.add_parser("build", help="build the offline reviewed relationship site")
     build.add_argument("--repository", type=Path, required=True)
     build.add_argument("--snapshot", type=Path, required=True)
@@ -162,6 +271,13 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--node-review-material-directory", type=Path, action="append", default=[]
     )
+    build.add_argument("--relationship-review-definitions", type=Path)
+    build.add_argument(
+        "--relationship-review-material-directory",
+        type=Path,
+        action="append",
+        default=[],
+    )
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
     return parser
@@ -176,6 +292,9 @@ def main(
         argv,
         github_api=github_api,
         node_review_trust_policy=_PRODUCTION_NODE_REVIEW_TRUST_POLICY,
+        relationship_review_trust_policy=(
+            production_relationship_review_trust_policy()
+        ),
     )
 
 
@@ -184,8 +303,40 @@ def _main(
     *,
     github_api: Callable[[str], dict[str, Any]] = _gh_api,
     node_review_trust_policy: _NodeReviewTrustPolicy,
+    relationship_review_trust_policy: _NodeReviewTrustPolicy | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
+    relationship_review_trust_policy = (
+        relationship_review_trust_policy or node_review_trust_policy
+    )
+    if args.command == "prepare-relationship-reviews":
+        definitions = validate_relationship_review_definitions(
+            _object(args.review_definitions)
+        )
+        relative_files = tuple(
+            f"{stable_review_object_key(definition['object_key']).replace('::', '__')}/{filename}"
+            for definition in definitions
+            for filename in ("review-packet.json", "review-packet.md")
+        )
+        output = validate_cli_output_path(
+            args.repository,
+            args.output_directory,
+            directory=True,
+            inputs=(args.explorer_data, args.review_definitions),
+            output_files=relative_files,
+        )
+        packets_by_key = build_relationship_review_packets(
+            _object(args.explorer_data), definitions
+        )
+        written = write_relationship_review_packets(packets_by_key, output)
+        for key, (packet_path, report_path) in written.items():
+            print(f"relationship_review_object={key}")
+            print(f"relationship_review_packet={packet_path}")
+            print(f"relationship_review_report={report_path}")
+            print(
+                f"relationship_review_packet_sha256={packets_by_key[key]['packet_sha256']}"
+            )
+        return 0
     if args.command == "prepare-node-reviews":
         definitions = validate_node_review_definitions(_object(args.review_definitions))
         relative_files = tuple(
@@ -446,6 +597,60 @@ def _main(
         print(f"node_review_status={state['state']}")
         print(f"node_review_continuity={state['continuity']}")
         return 0
+    if args.command == "update-relationship-review-state":
+        state_path = validate_cli_output_path(
+            args.repository,
+            args.review_state,
+            directory=False,
+            inputs=(
+                args.explorer_data,
+                args.review_definition,
+                args.review_decision,
+                args.review_source,
+                args.node_review_definitions,
+                *args.node_review_material_directory,
+            ),
+        )
+        explorer = _object(args.explorer_data)
+        try:
+            explorer["source_facts"] = scan_python_source_facts(args.repository)
+        except ExplorerInputError as error:
+            explorer["_relationship_review_scan_error"] = (
+                "missing" if "missing" in str(error).lower() else "parse-failure"
+            )
+        decision = _object(args.review_decision)
+        definitions = validate_relationship_review_definitions(
+            _object(args.review_definition)
+        )
+        decision_key = stable_review_object_key(decision["object_key"])
+        matches = [
+            definition
+            for definition in definitions
+            if stable_review_object_key(definition["object_key"]) == decision_key
+        ]
+        if len(matches) != 1:
+            raise ExplorerInputError(
+                "Relationship Review Decision has no unique Review Definition"
+            )
+        explorer, _ = _project_node_review_inputs(
+            explorer,
+            args.node_review_definitions,
+            args.node_review_material_directory,
+            trust_policy=node_review_trust_policy,
+        )
+        state = update_relationship_review_state(
+            explorer,
+            matches[0],
+            decision,
+            _object(args.review_source),
+            state_path,
+            assessed_at=args.assessed_at,
+            trust_policy=relationship_review_trust_policy,
+        )
+        print(f"relationship_review_state={state_path}")
+        print(f"relationship_review_status={state['state']}")
+        print(f"relationship_review_continuity={state['continuity']}")
+        return 0
     review_state_path = None
     if args.review_state is not None:
         review_state_path = (
@@ -470,6 +675,8 @@ def _main(
                 node_review_state_path,
                  args.node_review_definitions,
                  *args.node_review_material_directory,
+                args.relationship_review_definitions,
+                *args.relationship_review_material_directory,
                 args.view_definition,
                 *args.candidate_fragment
             ) if path is not None
@@ -479,6 +686,20 @@ def _main(
     if args.node_review_definitions is not None and args.legacy_node_review_v1:
         raise ExplorerInputError(
             "Review Definitions and the Decision v1 compatibility adapter are mutually exclusive"
+        )
+    if (
+        args.relationship_review_definitions is None
+        and args.relationship_review_material_directory
+    ):
+        raise ExplorerInputError(
+            "Relationship Review material directories require Review Definitions"
+        )
+    if (
+        args.relationship_review_definitions is not None
+        and args.node_review_definitions is None
+    ):
+        raise ExplorerInputError(
+            "Relationship Review requires Node Review Definitions for both endpoints"
         )
     if args.node_review_definitions is None:
         if args.node_review_material_directory:
@@ -559,70 +780,17 @@ def _main(
             "sha256": hashlib.sha256(args.view_definition.read_bytes()).hexdigest(),
         }
     if args.node_review_definitions is not None:
-        definitions = validate_node_review_definitions(
-            _object(args.node_review_definitions)
-        )
-        materials_by_key: dict[str, dict[str, Any]] = {}
-        material_inputs: list[tuple[Path, Path, Path | None]] = []
+        direct_material = None
         if args.node_review_decision is not None and args.node_review_source is not None:
-            material_inputs.append(
+            direct_material = (
                 (args.node_review_decision, args.node_review_source, node_review_state_path)
             )
-        for directory in args.node_review_material_directory:
-            decision_path = directory / "decision.json"
-            source_path = directory / "source.json"
-            state_path = directory / "state.json"
-            if not decision_path.is_file() or not source_path.is_file():
-                raise ExplorerInputError(
-                    f"Node Review material directory is incomplete: {directory}"
-                )
-            material_inputs.append(
-                (decision_path, source_path, state_path if state_path.is_file() else None)
-            )
-        material_generation_inputs: dict[str, dict[str, Any]] = {}
-        for decision_path, source_path, state_path in material_inputs:
-            decision_input = _object(decision_path)
-            source_input = _object(source_path)
-            decision_key = stable_node_review_key(
-                {
-                    "kind": decision_input.get("object_key", {}).get("kind"),
-                    "node_id": decision_input.get("object_key", {}).get("node_id"),
-                }
-            )
-            if decision_key in materials_by_key:
-                raise ExplorerInputError(
-                    f"Duplicate Node Review material object: {decision_key}"
-                )
-            if decision_input.get("schema") == "architecture-explorer.node-review-decision.v2":
-                state = evaluate_node_review_v2_state(decision_input, state_path)
-            else:
-                state = _evaluate_node_review_state(decision_input, state_path)
-                state["object_key"] = deepcopy(decision_input["object_key"])
-            materials_by_key[decision_key] = {
-                "decision": decision_input,
-                "source": source_input,
-                "state": state,
-            }
-            material_generation_inputs[decision_key] = {
-                "decision": {
-                    "path": decision_path.name,
-                    "sha256": hashlib.sha256(decision_path.read_bytes()).hexdigest(),
-                },
-                "source": {
-                    "path": source_path.name,
-                    "sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
-                },
-            }
-            if state_path is not None:
-                material_generation_inputs[decision_key]["state"] = {
-                    "path": state_path.name,
-                    "sha256": hashlib.sha256(state_path.read_bytes()).hexdigest(),
-                }
-        data = project_node_reviews(
+        data, material_generation_inputs = _project_node_review_inputs(
             data,
-            definitions,
-            materials_by_key,
+            args.node_review_definitions,
+            args.node_review_material_directory,
             trust_policy=node_review_trust_policy,
+            direct_material=direct_material,
         )
         data["generation_inputs"]["node_review_definitions"] = {
             "path": args.node_review_definitions.name,
@@ -676,6 +844,64 @@ def _main(
                     "path": node_review_state_path.name,
                     "sha256": hashlib.sha256(node_review_state_path.read_bytes()).hexdigest(),
                 }
+    if args.relationship_review_definitions is not None:
+        definitions = validate_relationship_review_definitions(
+            _object(args.relationship_review_definitions)
+        )
+        materials_by_key: dict[str, dict[str, Any]] = {}
+        material_generation_inputs: dict[str, dict[str, Any]] = {}
+        for directory in args.relationship_review_material_directory:
+            decision_path = directory / "decision.json"
+            source_path = directory / "source.json"
+            state_path = directory / "state.json"
+            if not decision_path.is_file() or not source_path.is_file():
+                raise ExplorerInputError(
+                    f"Relationship Review material directory is incomplete: {directory}"
+                )
+            decision = _object(decision_path)
+            key = stable_review_object_key(decision.get("object_key", {}))
+            if key in materials_by_key:
+                raise ExplorerInputError(
+                    f"Duplicate Relationship Review material object: {key}"
+                )
+            materials_by_key[key] = {
+                "decision": decision,
+                "source": _object(source_path),
+                "state": evaluate_relationship_review_state(
+                    decision, state_path if state_path.is_file() else None
+                ),
+            }
+            material_generation_inputs[key] = {
+                "decision": {
+                    "path": decision_path.name,
+                    "sha256": hashlib.sha256(decision_path.read_bytes()).hexdigest(),
+                },
+                "source": {
+                    "path": source_path.name,
+                    "sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+                },
+            }
+            if state_path.is_file():
+                material_generation_inputs[key]["state"] = {
+                    "path": state_path.name,
+                    "sha256": hashlib.sha256(state_path.read_bytes()).hexdigest(),
+                }
+        data = project_relationship_reviews(
+            data,
+            definitions,
+            materials_by_key,
+            trust_policy=relationship_review_trust_policy,
+        )
+        data["generation_inputs"]["relationship_review_definitions"] = {
+            "path": args.relationship_review_definitions.name,
+            "sha256": hashlib.sha256(
+                args.relationship_review_definitions.read_bytes()
+            ).hexdigest(),
+        }
+        if material_generation_inputs:
+            data["generation_inputs"]["relationship_reviews"] = (
+                material_generation_inputs
+            )
     write_site(data, output, args.web_assets)
     relation = data["architecture"]["relationships"][0]
     print(f"site={output / 'index.html'}")

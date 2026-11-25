@@ -1,0 +1,53 @@
+{
+  "schema": "architecture-explorer.review-projection.v1",
+  "objects": {
+    "candidate-collaboration::relationship-under-review": {
+      "object_key": {
+        "kind": "candidate-collaboration",
+        "object_id": "relationship-under-review"
+      },
+      "semantics": {
+        "family": "collaboration",
+        "direction": {
+          "source_node_id": "supervisor-boundary",
+          "target_node_id": "worker-entry"
+        }
+      },
+      "result": "APPROVED",
+      "state": "current",
+      "reasons": [],
+      "approved_scope": [
+        {
+          "object_key": {
+            "kind": "candidate-collaboration",
+            "object_id": "relationship-under-review"
+          },
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "claims_sha256": "test-fixture-claims-hash",
+          "evidence_ids": ["test-fixture-evidence"],
+          "decision_id": "github-comment:test-fixture"
+        }
+      ]
+    },
+    "candidate-decomposition::decomposition-under-review": {
+      "object_key": {
+        "kind": "candidate-decomposition",
+        "object_id": "decomposition-under-review"
+      },
+      "semantics": {
+        "family": "decomposition",
+        "direction": {
+          "source_node_id": "supervisor-boundary",
+          "target_node_id": "worker-entry"
+        }
+      },
+      "result": "REJECTED",
+      "state": "current",
+      "reasons": [],
+      "approved_scope": []
+    }
+  }
+}

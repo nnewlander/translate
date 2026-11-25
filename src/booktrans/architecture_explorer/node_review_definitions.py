@@ -31,6 +31,7 @@ from .review_source import review_source_sha256
 NODE_REVIEW_DEFINITIONS_SCHEMA = "architecture-explorer.node-review-definitions.v1"
 NODE_REVIEW_PACKET_V2_SCHEMA = "architecture-explorer.node-review-packet.v2"
 NODE_REVIEW_DECISION_V2_SCHEMA = "architecture-explorer.node-review-decision.v2"
+REJECTION_BASIS_SCHEMA = "architecture-explorer.rejection-basis.v1"
 _DEFINITION_FIELDS = {
     "object_key",
     "reviewed_source_snapshot",
@@ -393,8 +394,7 @@ def render_node_review_packet_report(packet: dict[str, Any]) -> str:
 def render_node_review_decision_body(decision: dict[str, Any]) -> str:
     object_key = decision.get("object_key", {})
     inputs = decision.get("inputs", {})
-    return "\n".join(
-        (
+    lines = [
             "ARCHITECTURE_EXPLORER_NODE_REVIEW_V2",
             f"Decision-ID: {decision.get('decision_id')}",
             f"Result: {decision.get('result')}",
@@ -402,8 +402,51 @@ def render_node_review_decision_body(decision: dict[str, Any]) -> str:
             f"Claims-SHA256: {inputs.get('claims_sha256')}",
             f"Candidate-Fact-SHA256: {inputs.get('candidate_fact_sha256')}",
             f"Reviewed-Revision: {decision.get('reviewed_source_snapshot', {}).get('revision')}",
+    ]
+    if "rejection_basis" in decision:
+        lines.append(
+            f"Rejection-Basis-SHA256: {_canonical_sha256(decision['rejection_basis'])}"
         )
-    )
+    return "\n".join(lines)
+
+
+def rejected_node_review_claim_hashes(decision: dict[str, Any]) -> set[str] | None:
+    """Return explicitly rejected Claim hashes, or ``None`` for legacy ambiguity."""
+
+    basis = decision.get("rejection_basis")
+    if basis is None:
+        return None
+    if (
+        decision.get("result") != "REJECTED"
+        or not isinstance(basis, dict)
+        or set(basis) != {"schema", "rejected_claims"}
+        or basis.get("schema") != REJECTION_BASIS_SCHEMA
+        or not isinstance(basis.get("rejected_claims"), list)
+        or not basis["rejected_claims"]
+    ):
+        raise ExplorerInputError("Node Review rejection basis is invalid")
+    claim_hashes = {
+        _canonical_sha256(claim)
+        for claim in decision.get("claims", [])
+        if isinstance(claim, dict)
+    }
+    rejected: set[str] = set()
+    for item in basis["rejected_claims"]:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"claim_sha256", "reason_code", "explanation"}
+            or not isinstance(item.get("claim_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", item["claim_sha256"]) is None
+            or item["claim_sha256"] not in claim_hashes
+            or not isinstance(item.get("reason_code"), str)
+            or re.fullmatch(r"[A-Z][A-Z0-9_]*", item["reason_code"]) is None
+            or not isinstance(item.get("explanation"), str)
+            or not item["explanation"]
+            or item["claim_sha256"] in rejected
+        ):
+            raise ExplorerInputError("Node Review rejection basis is invalid")
+        rejected.add(item["claim_sha256"])
+    return rejected
 
 
 def verify_node_review_v2_materials(
@@ -447,7 +490,15 @@ def verify_node_review_v2_integrity(
         "inputs",
         "claims",
     }
-    if set(decision) != expected_fields or decision.get("schema") != NODE_REVIEW_DECISION_V2_SCHEMA:
+    actual_fields = set(decision)
+    if (
+        frozenset(actual_fields)
+        not in {
+            frozenset(expected_fields),
+            frozenset(expected_fields | {"rejection_basis"}),
+        }
+        or decision.get("schema") != NODE_REVIEW_DECISION_V2_SCHEMA
+    ):
         raise ExplorerInputError("Node Review Decision v2 must use the closed schema")
     key = stable_node_review_key(definition["object_key"])
     if decision.get("object_key") != definition["object_key"]:
@@ -483,6 +534,7 @@ def verify_node_review_v2_integrity(
         raise ExplorerInputError(f"Node Review Decision v2 Claims are invalid: {key}")
     if _canonical_sha256(claims) != inputs["claims_sha256"]:
         raise ExplorerInputError(f"Node Review Decision v2 Claims hash mismatch: {key}")
+    rejected_node_review_claim_hashes(decision)
     _matching_anchor(review_source, trust_policy)
     comment = review_source.get("comment", {})
     if decision.get("decision_id") != f"github-comment:{comment.get('id')}":
@@ -732,7 +784,9 @@ __all__ = [
     "NODE_REVIEW_DEFINITIONS_SCHEMA",
     "NODE_REVIEW_DECISION_V2_SCHEMA",
     "NODE_REVIEW_PACKET_V2_SCHEMA",
+    "REJECTION_BASIS_SCHEMA",
     "build_node_review_packets",
+    "rejected_node_review_claim_hashes",
     "render_node_review_decision_body",
     "stable_node_review_key",
     "validate_node_review_definitions",
