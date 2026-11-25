@@ -40,6 +40,9 @@ Continue through checkpoints and batches unless an immutable-artifact validation
   import `booktrans`, stop and report `PROJECT_VENV_UNAVAILABLE`. Do not
   repair, recreate, activate an alternate environment, or fall back to
   Conda/global Python without explicit owner approval.
+- In a new `worktrees\architecture-explorer-*` worktree, run
+  `& .\scripts\architecture_explorer\prepare_worktree.ps1` before Python work.
+  Its `PYTHONPATH` binding is process-scoped, so rerun it in each new shell.
 
 ## Agent skills
 
