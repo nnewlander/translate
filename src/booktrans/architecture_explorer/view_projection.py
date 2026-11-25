@@ -510,7 +510,6 @@ def _source_projection(
     catalog = {
         "schema": SOURCE_CATALOG_SCHEMA,
         "scanner_version": source_facts.get("scanner_version"),
-        "source_snapshot": deepcopy(source_facts.get("source_snapshot")),
         "limitations": deepcopy(source_facts.get("limitations", [])),
         "file_paths": sorted(source_file_index),
         "python_module_paths": [source_file["path"] for source_file in modules],

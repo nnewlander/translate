@@ -1,0 +1,455 @@
+{
+  "schema": "architecture-explorer.coverage-audit-baseline.v1",
+  "authority": false,
+  "purpose": "Planning and acceptance evidence for GitHub Issue #75; not a runtime, review, or source-fact authority.",
+  "ticket": "https://github.com/nnewlander/translate/issues/75",
+  "spec": "https://github.com/nnewlander/translate/issues/74",
+  "contract": "architecture-explorer/v3",
+  "fixed_design_base": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+  "branch_start": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+  "integration_branch": "experiment/matt-skills",
+  "implementation_branch": "codex/architecture-explorer-v4-ticket-01",
+  "authoritative_input_patterns": [
+    "architecture-explorer/modules.json",
+    "architecture-explorer/navigation.v1.json",
+    "architecture-explorer/candidates/*.json",
+    "architecture-explorer/recursive-candidates/*.json",
+    "architecture-explorer/views/recursive-views.v1.json",
+    "architecture-explorer/reviews/supervisor-worker.v1.json",
+    "architecture-explorer/reviews/supervisor-worker.source.v1.json",
+    "architecture-explorer/review-definitions/node-reviews.v1.json",
+    "docs/architecture-explorer-acceptance-v3.md",
+    "source tree scanned by architecture-explorer-t6-4/1.5"
+  ],
+  "fixed_git_inventory": {
+    "content_sha256": "518c26a6115d9ce5243b0b071f33a551deb50114c32c9e5ff5935f41c7c9e2cb",
+    "counts": {
+      "top-level-module": 7,
+      "candidate-fragment": 11,
+      "candidate-node": 27,
+      "candidate-collaboration": 12,
+      "candidate-decomposition": 9,
+      "formal-relationship": 1,
+      "formal-evidence": 13,
+      "view": 12,
+      "view-entry-action": 4,
+      "node-review-definition": 2
+    }
+  },
+  "source_facts": {
+    "schema": "architecture-explorer.python-source-facts.v1",
+    "scanner_version": "architecture-explorer-t6-4/1.5",
+    "deterministic_facts_sha256": "4060a4d5079dee8623afe22210bf1d776850433709773198bc8e37e7ae3682b5",
+    "modules_scanned": 320,
+    "definition_index": {
+      "classes": 199,
+      "functions_and_methods": 1538,
+      "definitions": 1737
+    }
+  },
+  "projection_totals": {
+    "top_level_modules": 7,
+    "candidate_nodes": 27,
+    "all_nodes": 34,
+    "formal_relationships": 1,
+    "candidate_collaborations": 12,
+    "candidate_decompositions": 9,
+    "all_relationships": 22,
+    "views": 12,
+    "appearances": 39,
+    "max_view_transition_depth_from_root": 2,
+    "perspectives": [
+      "component",
+      "logical-architecture",
+      "responsibility"
+    ]
+  },
+  "formal_review_coverage": {
+    "approved_top_level_logical_definitions": 7,
+    "verified_top_level_source_coverage": 0,
+    "current_reviewed_formal_relationships": 1,
+    "formal_relationships": 1,
+    "formal_relationship_approved_evidence": 13,
+    "candidate_node_review_definitions": 2,
+    "candidate_node_decisions": 0,
+    "candidate_nodes": 27,
+    "candidate_relationship_decisions": 0,
+    "candidate_relationships": 21
+  },
+  "view_depths": {
+    "top-level": 0,
+    "document-understanding": 1,
+    "scope-and-request": 1,
+    "translation-execution": 1,
+    "translation-routing-and-acquisition-internal": 2,
+    "translation-provider-adapters-internal": 2,
+    "quality-and-repair": 1,
+    "quality-semantic-review-and-repair-internal": 2,
+    "production-evidence": 1,
+    "production-control": 1,
+    "worker-launch-boundary-internal": 2,
+    "candidate-and-release": 1
+  },
+  "appearances_by_view": [
+    {
+      "view_id": "top-level",
+      "authority_files": ["architecture-explorer/modules.json", "architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/*.json"],
+      "appearances": [
+        {"node_id": "document-understanding", "primary_action": {"kind": "open-view", "target_view_id": "document-understanding", "transition_kind": "decomposition", "destination_label": "文档理解与定位"}},
+        {"node_id": "scope-and-request", "primary_action": {"kind": "open-view", "target_view_id": "scope-and-request", "transition_kind": "decomposition", "destination_label": "工作范围与请求构造"}},
+        {"node_id": "translation-execution", "primary_action": {"kind": "open-view", "target_view_id": "translation-execution", "transition_kind": "decomposition", "destination_label": "翻译执行与模型接入"}},
+        {"node_id": "quality-and-repair", "primary_action": {"kind": "open-view", "target_view_id": "quality-and-repair", "transition_kind": "decomposition", "destination_label": "质量判断与受限修复"}},
+        {"node_id": "production-evidence", "primary_action": {"kind": "open-view", "target_view_id": "production-evidence", "transition_kind": "decomposition", "destination_label": "生产证据与 Checkpoint"}},
+        {"node_id": "production-control", "primary_action": {"kind": "open-view", "target_view_id": "production-control", "transition_kind": "decomposition", "destination_label": "生产调度与控制"}},
+        {"node_id": "candidate-and-release", "primary_action": {"kind": "open-view", "target_view_id": "candidate-and-release", "transition_kind": "decomposition", "destination_label": "候选文档与发布验证"}}
+      ]
+    },
+    {
+      "view_id": "document-understanding",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/document-understanding.v1.json"],
+      "appearances": [{"node_id": "document-package-extraction"}, {"node_id": "document-translation-view"}]
+    },
+    {
+      "view_id": "scope-and-request",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/scope-and-request.v1.json"],
+      "appearances": [{"node_id": "scope-logical-work-order-selection"}, {"node_id": "scope-request-context-assembly"}]
+    },
+    {
+      "view_id": "translation-execution",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/translation-execution.v1.json", "architecture-explorer/views/recursive-views.v1.json"],
+      "appearances": [
+        {"node_id": "translation-routing-and-acquisition", "primary_action": {"kind": "open-view", "target_view_id": "translation-routing-and-acquisition-internal", "transition_kind": "decomposition", "destination_label": "查看语义路由与候选获取内部职责"}},
+        {"node_id": "translation-provider-adapters", "primary_action": {"kind": "open-view", "target_view_id": "translation-provider-adapters-internal", "transition_kind": "decomposition", "destination_label": "查看 Qwen Provider 适配内部组件"}}
+      ]
+    },
+    {
+      "view_id": "quality-and-repair",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/quality-and-repair.v1.json", "architecture-explorer/views/recursive-views.v1.json"],
+      "appearances": [
+        {"node_id": "quality-deterministic-qa"},
+        {"node_id": "quality-semantic-review-and-repair", "primary_action": {"kind": "open-view", "target_view_id": "quality-semantic-review-and-repair-internal", "transition_kind": "decomposition", "destination_label": "查看语义审核与受限修复内部职责"}}
+      ]
+    },
+    {
+      "view_id": "production-evidence",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/production-evidence.v1.json"],
+      "appearances": [{"node_id": "checkpoint-evidence-persistence"}, {"node_id": "checkpoint-manifest-seal"}]
+    },
+    {
+      "view_id": "production-control",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/production-control.v1.json", "architecture-explorer/views/recursive-views.v1.json"],
+      "appearances": [
+        {"node_id": "supervisor-orchestration"},
+        {"node_id": "worker-launch-boundary", "primary_action": {"kind": "open-view", "target_view_id": "worker-launch-boundary-internal", "transition_kind": "decomposition", "destination_label": "查看 Worker 启动边界内部职责"}},
+        {"node_id": "state-and-control-decisions"},
+        {"node_id": "production-control-adapters"},
+        {"node_id": "deterministic-worker-wrapper"}
+      ]
+    },
+    {
+      "view_id": "candidate-and-release",
+      "authority_files": ["architecture-explorer/navigation.v1.json", "architecture-explorer/candidates/candidate-and-release.v1.json"],
+      "appearances": [{"node_id": "candidate-document-projection"}, {"node_id": "package-preservation-verifier"}, {"node_id": "release-membership-derivation"}]
+    },
+    {
+      "view_id": "worker-launch-boundary-internal",
+      "authority_files": ["architecture-explorer/views/recursive-views.v1.json", "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"],
+      "appearances": [{"node_id": "worker-launch-boundary"}, {"node_id": "supervisor-process-launch-construction"}, {"node_id": "deterministic-worker-wrapper"}, {"node_id": "worker-production-entry-guard"}]
+    },
+    {
+      "view_id": "translation-routing-and-acquisition-internal",
+      "authority_files": ["architecture-explorer/views/recursive-views.v1.json", "architecture-explorer/recursive-candidates/translation-routing-and-acquisition.v2.json"],
+      "appearances": [{"node_id": "translation-routing-and-acquisition"}, {"node_id": "semantic-unit-route-decision"}, {"node_id": "translation-provider-dispatch-and-raw-projection"}]
+    },
+    {
+      "view_id": "translation-provider-adapters-internal",
+      "authority_files": ["architecture-explorer/views/recursive-views.v1.json", "architecture-explorer/recursive-candidates/qwen-provider-adapters.v2.json"],
+      "appearances": [{"node_id": "translation-provider-adapters"}, {"node_id": "qwen-mt-single-text-adapter"}, {"node_id": "qwen-max-structured-translation-adapter"}]
+    },
+    {
+      "view_id": "quality-semantic-review-and-repair-internal",
+      "authority_files": ["architecture-explorer/views/recursive-views.v1.json", "architecture-explorer/recursive-candidates/quality-semantic-review-and-repair.v2.json"],
+      "appearances": [{"node_id": "quality-semantic-review-and-repair"}, {"node_id": "semantic-review-contract-boundary"}, {"node_id": "repair-authorization-gate"}, {"node_id": "constrained-repair-call-boundary"}]
+    }
+  ],
+  "module_traceability": [
+    {
+      "id": "document-understanding",
+      "authority_files": ["architecture-explorer/candidates/document-understanding.v1.json"],
+      "candidate_node_ids": ["document-package-extraction", "document-translation-view"],
+      "candidate_relationship_ids": ["candidate-collaboration:document-extraction-to-view"],
+      "view_ids": ["document-understanding"],
+      "candidate_evidence_ids": [
+        "evidence:sha256:44990231f67c4fefc181bd2bb0f77346fb68e03787c80b81ccba602fb8b999f1",
+        "evidence:sha256:4d18a9ca35dfe8b299d91fee47450bacee343beb9a03a7790801cef443170951",
+        "evidence:sha256:5e68b55b5455a84270458056423101f17a435d333ba57e6c1d8830360f46c82d",
+        "evidence:sha256:6c7798cace323d9d700361e4867373f36e0f5ddeb75a57b58464f4ae51e80386",
+        "evidence:sha256:7aecacaf036fddd03174420f483f628ca5d44ad93188b0a2d3ff9ebab0dc1dcb",
+        "evidence:sha256:87ccce27dfb7634b20bda977315db48097cf60665b0e26e68ad198256d5ae009"
+      ],
+      "candidate_evidence_paths": ["src/booktrans/ooxml/extractor.py", "src/booktrans/ooxml/translation_view.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": [], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": []}
+    },
+    {
+      "id": "scope-and-request",
+      "authority_files": ["architecture-explorer/candidates/scope-and-request.v1.json"],
+      "candidate_node_ids": ["scope-logical-work-order-selection", "scope-request-context-assembly"],
+      "candidate_relationship_ids": ["candidate-collaboration:scope-selection-to-request"],
+      "view_ids": ["scope-and-request"],
+      "candidate_evidence_ids": [
+        "evidence:sha256:3b5cdacfbbe5fd5727f74bfa6524cef8837e61cfc5761933a4a2258f5944b942",
+        "evidence:sha256:41f956112f69aac07e47fbca948ce96078616c3da2e224a3727b950f88cdb792",
+        "evidence:sha256:72c94106eed7743bfc363efe53e46d8d6f16638af280baa4ffb716cd2be32f80",
+        "evidence:sha256:74492c3c57322fe5f87466e4bf44cc5cb2fe23659c5de2b32268c9236dcb066b",
+        "evidence:sha256:85e2502ab43c4c114d44f77cd83341cb66b4778ca6af5f223b16535f3facde4a",
+        "evidence:sha256:b451391943f86f0d74739924ea6f99e731ba30b3678e17990ca978c619c684ee",
+        "evidence:sha256:cedc9d2ddffaf1bcf614b2733d67d06660a64c61f5313cffa4521f390333b3f1",
+        "evidence:sha256:d318301b59d68b08b833a9427fa7da1418964f2385abfb134b6da047d0e51cbf",
+        "evidence:sha256:e1d64b0e61d7b5cb8e6b36d42b2e76cd513ae6afa0e6e021ed971773a2c2c2e1"
+      ],
+      "candidate_evidence_paths": ["scripts/write_full_book_translation_scope.py", "src/booktrans/production_worker/selection.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": [], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": []}
+    },
+    {
+      "id": "translation-execution",
+      "authority_files": [
+        "architecture-explorer/candidates/translation-execution.v1.json",
+        "architecture-explorer/recursive-candidates/qwen-provider-adapters.v2.json",
+        "architecture-explorer/recursive-candidates/translation-routing-and-acquisition.v2.json"
+      ],
+      "candidate_node_ids": ["translation-routing-and-acquisition", "translation-provider-adapters", "qwen-mt-single-text-adapter", "qwen-max-structured-translation-adapter", "semantic-unit-route-decision", "translation-provider-dispatch-and-raw-projection"],
+      "candidate_relationship_ids": [
+        "candidate-collaboration:translation-routing-to-provider",
+        "candidate-decomposition:translation-provider-adapters-to-qwen-mt-single-text-adapter",
+        "candidate-decomposition:translation-provider-adapters-to-qwen-max-structured-translation-adapter",
+        "candidate-decomposition:translation-routing-and-acquisition-to-semantic-unit-route-decision",
+        "candidate-decomposition:translation-routing-and-acquisition-to-translation-provider-dispatch-and-raw-projection",
+        "candidate-collaboration:semantic-unit-route-decision-to-translation-provider-dispatch-and-raw-projection"
+      ],
+      "view_ids": ["translation-execution", "translation-routing-and-acquisition-internal", "translation-provider-adapters-internal"],
+      "candidate_evidence_ids": [
+        "evidence:sha256:07e4f3494c3839e64f0654410bd555cc329c6792a9111e00b2723a74e20ef129",
+        "evidence:sha256:1330bb40914dc1def7813d5192e5543a35f76d203a505ea8193c09b403976925",
+        "evidence:sha256:2bbed5580700f742f3334e8ad69970f5a74f0f568580ba2a046706ef96facc8c",
+        "evidence:sha256:326d7f9ec550c147e347710d216ccb36599f224427358602bc16b554b6b9117c",
+        "evidence:sha256:39cbf8872a181ebded36df6a3bbb5071fd5da00515163e941391d6d9fb57dcff",
+        "evidence:sha256:4c6239f3072f949608ab351042d81b259a40c381bfbc958085846107f1ccbd70",
+        "evidence:sha256:4e2f5b8f4df9cd957c300be39038a518ec9320963488d80642d55076656d2bfa",
+        "evidence:sha256:601034257756a5dacad2d2ef240ec8f81ea69df19e6b5aa48fe351a6cdab90c5",
+        "evidence:sha256:68e3b87c5840c3d9a195191a26596f0d3ef1d4ed55df9ef983d5f703deef5504",
+        "evidence:sha256:7309f08c1b7add222fedd09d8d693cf01b1ee5d91e9e750a91bc4718dd52e3d2",
+        "evidence:sha256:78430c7182e8c7c65313dfe899941dff1832a149402635845cfa8c4a9ed6db5d",
+        "evidence:sha256:844102e6051ddf2ec6ff4dce2f53437030fc0e6532843ac114e61a9522983d96",
+        "evidence:sha256:984489f7ed1dc3bf6ffc258e92c39a1d3554ea499a9dfb6e6e75fc35305fbdc3",
+        "evidence:sha256:991cf2dc83a87d39bd8950c9e6b62cb695517ce6aef5abd60ab0189436075c42",
+        "evidence:sha256:cf8b1f80bc34f3f0b0b6948f8f21e9a2a616e36256dee5f68910ea5363cf4358",
+        "evidence:sha256:d55785f6425c76a38557500a8aa1a213b233cfcfbe166e90ea493cec7ef8bad9",
+        "evidence:sha256:e3bbe044e1ce1ca9a85b6454073be0d43369e2adf9eb33329dc2fef0efa0a74d",
+        "evidence:sha256:e8aa77742b6c89e17eb224d888ab7c8feb2b8f69500edf9ee21d10c823bc01fd",
+        "evidence:sha256:ea3534de04d762c72d980c779591be38d208763150bf79424fd0b2d9bc1f2e30",
+        "evidence:sha256:eea9ce0866ba8e783deb872e9c62e9139dc9b41ec215d6515efc9db04c2f2bea",
+        "evidence:sha256:f19cd98a7bc6dcd892d7880bac15f7fbf0cbf3db70c5dfee64f9162a4e09cac7",
+        "evidence:sha256:f50a8261e2eaf46c0e23e4f77e961ecc0d7221c645ec523e8fd6632dd8ad19dd",
+        "evidence:sha256:f60811cca5914c260a41cc65dbb13ed8f69e3d992364f091bfe826d8afdd0680",
+        "evidence:sha256:f9e82e1319536376ff94ba3e751355519df8038bf8f5704116a272817b4ca73d"
+      ],
+      "candidate_evidence_paths": ["src/booktrans/production_worker/pipeline.py", "src/booktrans/providers/qwen_max.py", "src/booktrans/providers/qwen_mt.py", "src/booktrans/providers/router.py", "src/booktrans/providers/translation_provider.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": ["translation-routing-and-acquisition"], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": ["relationship:production-control:launches:translation-execution"]}
+    },
+    {
+      "id": "quality-and-repair",
+      "authority_files": ["architecture-explorer/candidates/quality-and-repair.v1.json", "architecture-explorer/recursive-candidates/quality-semantic-review-and-repair.v2.json"],
+      "candidate_node_ids": ["quality-deterministic-qa", "quality-semantic-review-and-repair", "semantic-review-contract-boundary", "repair-authorization-gate", "constrained-repair-call-boundary"],
+      "candidate_relationship_ids": [
+        "candidate-collaboration:quality-qa-to-semantic-repair",
+        "candidate-decomposition:quality-semantic-review-and-repair-to-semantic-review-contract-boundary",
+        "candidate-decomposition:quality-semantic-review-and-repair-to-repair-authorization-gate",
+        "candidate-decomposition:quality-semantic-review-and-repair-to-constrained-repair-call-boundary",
+        "candidate-collaboration:semantic-review-contract-boundary-to-repair-authorization-gate",
+        "candidate-collaboration:repair-authorization-gate-to-constrained-repair-call-boundary"
+      ],
+      "view_ids": ["quality-and-repair", "quality-semantic-review-and-repair-internal"],
+      "candidate_evidence_ids": [
+        "evidence:sha256:029772a522f363ad21e4ae2c4c527c8d4d2b0b17fcd4e5b5369947ab79bb8c33",
+        "evidence:sha256:0ee42856d1485c346b3c98f00ac096209b4e6298692e507371c79a571d410c48",
+        "evidence:sha256:1ae25b2034070447e25666841fcc8f737a60a314ba17ba1ca1ba23c728a0b36c",
+        "evidence:sha256:21bdd7d118512a9003b58a70c49bed4c10f42a27df0ef5a88614b4f5e363b8e5",
+        "evidence:sha256:2ad2ef43dd06310aac8f94beb75ced83a771a10e09787afbffa312c8df52b9ab",
+        "evidence:sha256:54fc9bc45ff40e49f62d49b8f7d190ec34eb617c520d78f464d544ce1296178f",
+        "evidence:sha256:58903418ad4171b5bb8ff334c4b683a2d5d4a353f3c54f4b22430e55c377c4b6",
+        "evidence:sha256:60c20454d9012e1006dc2a6f10060f74e4a8113a506b0426d5f6bafedf2bfceb",
+        "evidence:sha256:6b3eae8fe5fc3dfa81f7762da21b98e8579ca042c4a87f2fbc739983433790d1",
+        "evidence:sha256:6e5daf60a526a924bc3d776dd66d37cb52b12fcb6cb29dc834baebd692c0abe9",
+        "evidence:sha256:b28fe7c13cfa10b3c65bd84e681bb5628f1589e15bd46b84923923632059c139",
+        "evidence:sha256:c4b4ffa893088a9463f196276d23df2e240683e0f2899783b2f248c5e6552dfd",
+        "evidence:sha256:c68c284a3c4858d995aa5092daa71ba4ae43a2f4c8984053595d0cd0e3f6c01d",
+        "evidence:sha256:cb24e0b86ebcd884747d463bafdd332faf46a4ec9bc6c8614cfdbac3278d9579",
+        "evidence:sha256:e1a90c2d85a20605e101b13d2b236cbc0bcbd76522a1c402fdc0c76846aded77",
+        "evidence:sha256:f19f9875217cec5296d796fadb0001dfb0a24e115f7b4d325c9465c7623a6ca7"
+      ],
+      "candidate_evidence_paths": ["src/booktrans/production_worker/pipeline.py", "src/booktrans/production_worker/qa.py", "src/booktrans/production_worker/reviewer_dispatch_policy.py", "src/booktrans/production_worker/semantic_review_run.py", "src/booktrans/providers/repair_gate.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": [], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": []}
+    },
+    {
+      "id": "production-evidence",
+      "authority_files": ["architecture-explorer/candidates/production-evidence.v1.json"],
+      "candidate_node_ids": ["checkpoint-evidence-persistence", "checkpoint-manifest-seal"],
+      "candidate_relationship_ids": ["candidate-collaboration:checkpoint-evidence-to-manifest-seal"],
+      "view_ids": ["production-evidence"],
+      "candidate_evidence_ids": ["evidence:sha256:4b7703e57020be4fd0cf332ed2159bcdbb3a2929b3bb8cab113ef5467a9f45c0", "evidence:sha256:b3e51b489d71aea1a3dff03d90a6b02612b3bfdd5c7c8be69a708dbc582430bf"],
+      "candidate_evidence_paths": ["src/booktrans/production_worker/production_checkpoint.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": [], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": []}
+    },
+    {
+      "id": "production-control",
+      "authority_files": ["architecture-explorer/candidates/production-control.v1.json", "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"],
+      "candidate_node_ids": ["supervisor-orchestration", "worker-launch-boundary", "state-and-control-decisions", "production-control-adapters", "deterministic-worker-wrapper", "supervisor-process-launch-construction", "worker-production-entry-guard"],
+      "candidate_relationship_ids": [
+        "candidate-collaboration:supervisor-to-control-adapters",
+        "candidate-collaboration:supervisor-to-worker-wrapper",
+        "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction",
+        "candidate-decomposition:worker-launch-boundary-to-worker-production-entry-guard",
+        "candidate-collaboration:worker-wrapper-to-production-entry-guard"
+      ],
+      "view_ids": ["production-control", "worker-launch-boundary-internal"],
+      "candidate_evidence_ids": [
+        "evidence:sha256:09668e39b062678585018de5e5829cb229bbf4a808ec34c5a87cf510ded3e79c",
+        "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+        "evidence:sha256:3289d8975d805468296e9a2bc30e1e1e276899ad97b3c17323ed6b55c9c210ff",
+        "evidence:sha256:6972e39e21b49c4853e9763f549b5fb5fdf039cc0a15f3184ed74f0d613b0b7d",
+        "evidence:sha256:6e36e3c009c8408b2fddd0188c1597ee8fa83511b38d60f09f734a1a4c722aad",
+        "evidence:sha256:73ff577c855008cf0261991574392080b5d717caadbea0d82cbd75612fc7d43d",
+        "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "evidence:sha256:d2b5c8a38a7c98c892a06003fee65d5be4ecb926e9b00d9b2acfe9feee7a5692",
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+        "evidence:sha256:f07b280ecdf720aca516171e447c2e1d3eed3dac147dbddfbdc5c54adc7bbcb3",
+        "evidence:sha256:fdfe8854b9f3e100b3e1e3d2b3679234b5705c38e6a6191ee5109e9e5fc445de"
+      ],
+      "candidate_evidence_paths": ["scripts/production/production_campaign_supervisor.ps1", "scripts/production/run_qwen_deterministic_worker.py", "src/booktrans/production_worker/worker.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": ["worker-launch-boundary"], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": ["relationship:production-control:launches:translation-execution"]}
+    },
+    {
+      "id": "candidate-and-release",
+      "authority_files": ["architecture-explorer/candidates/candidate-and-release.v1.json"],
+      "candidate_node_ids": ["candidate-document-projection", "package-preservation-verifier", "release-membership-derivation"],
+      "candidate_relationship_ids": ["candidate-collaboration:projection-to-package-verification"],
+      "view_ids": ["candidate-and-release"],
+      "candidate_evidence_ids": ["evidence:sha256:0f6a0b1a170dc4d0af9ef1884c8321700bed4627da870aea2d2eae85540445eb", "evidence:sha256:48656d1f208b47a617720598207b0b5191bf2926ecc49e5dcb2af05337c64944", "evidence:sha256:506f1db306674e15d15ea807ba88611f0fa2c5b2412a0f69e52e88d25dc20f37", "evidence:sha256:7cefa2574e9054fb72cc3ee4d6f2fcf57ee7bea463147d1e3e47a472302664d8"],
+      "candidate_evidence_paths": ["scripts/advance_full_book_batch013.py", "src/booktrans/harness/package_preservation.py", "src/booktrans/harness/tagged_roundtrip.py"],
+      "review_coverage": {"candidate_node_review_definition_ids": [], "candidate_node_decisions": 0, "candidate_relationship_decisions": 0, "formal_relationship_ids": []}
+    }
+  ],
+  "modules": [
+    {
+      "id": "document-understanding",
+      "candidate_nodes": 2,
+      "candidate_collaborations": 1,
+      "candidate_decompositions": 0,
+      "owned_views": 1,
+      "owned_view_appearances": 2,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 1,
+      "perspectives": ["responsibility"],
+      "unique_candidate_evidence": 6,
+      "resolved_candidate_evidence": 6,
+      "evidence_kinds": {"direct_import": 6},
+      "extension_priority": "P0"
+    },
+    {
+      "id": "scope-and-request",
+      "candidate_nodes": 2,
+      "candidate_collaborations": 1,
+      "candidate_decompositions": 0,
+      "owned_views": 1,
+      "owned_view_appearances": 2,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 1,
+      "perspectives": ["responsibility"],
+      "unique_candidate_evidence": 9,
+      "resolved_candidate_evidence": 9,
+      "evidence_kinds": {"direct_import": 9},
+      "extension_priority": "P0"
+    },
+    {
+      "id": "translation-execution",
+      "candidate_nodes": 6,
+      "candidate_collaborations": 2,
+      "candidate_decompositions": 4,
+      "owned_views": 3,
+      "owned_view_appearances": 8,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 2,
+      "perspectives": ["component", "responsibility"],
+      "unique_candidate_evidence": 24,
+      "resolved_candidate_evidence": 24,
+      "evidence_kinds": {"direct_import": 6, "python_call": 5, "python_definition": 13},
+      "extension_priority": "P2"
+    },
+    {
+      "id": "quality-and-repair",
+      "candidate_nodes": 5,
+      "candidate_collaborations": 3,
+      "candidate_decompositions": 3,
+      "owned_views": 2,
+      "owned_view_appearances": 6,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 2,
+      "perspectives": ["responsibility"],
+      "unique_candidate_evidence": 16,
+      "resolved_candidate_evidence": 16,
+      "evidence_kinds": {"direct_import": 8, "python_call": 4, "python_definition": 4},
+      "extension_priority": "P0-deterministic-QA-only"
+    },
+    {
+      "id": "production-evidence",
+      "candidate_nodes": 2,
+      "candidate_collaborations": 1,
+      "candidate_decompositions": 0,
+      "owned_views": 1,
+      "owned_view_appearances": 2,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 1,
+      "perspectives": ["responsibility"],
+      "unique_candidate_evidence": 2,
+      "resolved_candidate_evidence": 2,
+      "evidence_kinds": {"direct_import": 2},
+      "extension_priority": "P0"
+    },
+    {
+      "id": "production-control",
+      "candidate_nodes": 7,
+      "candidate_collaborations": 3,
+      "candidate_decompositions": 2,
+      "owned_views": 2,
+      "owned_view_appearances": 9,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 2,
+      "perspectives": ["responsibility"],
+      "unique_candidate_evidence": 11,
+      "resolved_candidate_evidence": 11,
+      "evidence_kinds": {
+        "deterministic_worker_wrapper": 1,
+        "powershell_dot_source": 1,
+        "powershell_function_entry": 5,
+        "powershell_script_binding": 2,
+        "python_definition": 2
+      },
+      "extension_priority": "P1"
+    },
+    {
+      "id": "candidate-and-release",
+      "candidate_nodes": 3,
+      "candidate_collaborations": 1,
+      "candidate_decompositions": 0,
+      "owned_views": 1,
+      "owned_view_appearances": 3,
+      "root_appearances": 1,
+      "max_view_transition_depth_from_root": 1,
+      "perspectives": ["responsibility"],
+      "unique_candidate_evidence": 4,
+      "resolved_candidate_evidence": 4,
+      "evidence_kinds": {"direct_import": 4},
+      "extension_priority": "P0"
+    }
+  ]
+}

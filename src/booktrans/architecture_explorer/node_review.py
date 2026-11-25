@@ -7,7 +7,6 @@ through a versioned Review Definition rather than this fixed legacy contract.
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
 import hashlib
 import json
 from typing import Any, Callable
@@ -16,7 +15,11 @@ from .generator import ExplorerInputError
 from .review_source import (
     build_review_source_receipt,
     review_source_sha256,
-    _verify_owner_admin_review_source_against_anchor,
+)
+from .review_trust import (
+    ReviewApprovalAnchor,
+    ReviewTrustPolicy,
+    match_trusted_review_source,
 )
 from .source_primitives import build_static_evidence
 from .node_review_projection import attach_node_review_projection
@@ -116,23 +119,8 @@ CANDIDATE_EVIDENCE_FINGERPRINTS = (
 )
 
 
-@dataclass(frozen=True)
-class _NodeReviewApprovalAnchor:
-    """Host-owned trust root for one exact GitHub source receipt."""
-
-    issue_id: int
-    issue_number: int
-    comment_id: int
-    comment_created_at: str
-    comment_updated_at: str
-    source_receipt_sha256: str
-
-
-@dataclass(frozen=True)
-class _NodeReviewTrustPolicy:
-    """Versioned application policy; never populated from review input JSON."""
-
-    anchors: tuple[_NodeReviewApprovalAnchor, ...] = ()
+_NodeReviewApprovalAnchor = ReviewApprovalAnchor
+_NodeReviewTrustPolicy = ReviewTrustPolicy
 
 
 _PRODUCTION_NODE_REVIEW_TRUST_POLICY = _NodeReviewTrustPolicy(
@@ -558,27 +546,10 @@ def _matching_anchor(
     source: dict[str, Any] | None,
     trust_policy: _NodeReviewTrustPolicy,
 ) -> _NodeReviewApprovalAnchor:
-    if source is None:
-        raise ExplorerInputError("Node review source is missing")
-    issue = source.get("issue") if isinstance(source.get("issue"), dict) else {}
-    comment = source.get("comment") if isinstance(source.get("comment"), dict) else {}
-    for anchor in trust_policy.anchors:
-        if (
-            issue.get("id") == anchor.issue_id
-            and issue.get("number") == anchor.issue_number
-            and comment.get("id") == anchor.comment_id
-            and comment.get("created_at") == anchor.comment_created_at
-            and comment.get("updated_at") == anchor.comment_updated_at
-        ):
-            errors = _verify_owner_admin_review_source_against_anchor(
-                source,
-                expected_sha256=anchor.source_receipt_sha256,
-            )
-            if errors:
-                raise ExplorerInputError(f"Node review source is untrusted: {errors}")
-            return anchor
-    raise ExplorerInputError(
-        "Node review source has no independently trusted approval anchor"
+    return match_trusted_review_source(
+        source,
+        trust_policy,
+        label="Node review",
     )
 
 

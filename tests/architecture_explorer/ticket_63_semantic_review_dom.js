@@ -203,6 +203,28 @@
     document.querySelector("#relationship-detail").close();
   });
 
+  const approvedCollaboration = ticketRelationships[3];
+  const approvedCollaborationRecord = projectedRelationships[approvedCollaboration.id];
+  approvedCollaborationRecord.review = {
+    result: "APPROVED",
+    state: "current",
+    approved_scope: approvalScope(
+      approvedCollaborationRecord,
+      "github-comment:collaboration-current",
+      1,
+    ),
+    reasons: [],
+  };
+  const approvedCollaborationButton = relationshipButtons.find(
+    (candidate) => candidate.querySelector("h4")?.textContent === approvedCollaboration.name,
+  );
+  approvedCollaborationButton.click();
+  const approvedCollaborationDetail = document.querySelector("#detail-content");
+  assert(approvedCollaborationDetail.textContent.includes("关系类型：候选协作"), "approved Collaboration detail changed its semantics");
+  assert(approvedCollaborationDetail.textContent.includes("当前已审核 · 已批准 · 当前有效"), "approved Collaboration detail omitted its explicit current state");
+  assert(approvedCollaborationDetail.textContent.includes("批准范围：1 条 Evidence · github-comment:collaboration-current"), "approved Collaboration detail omitted its non-empty approved_scope");
+  document.querySelector("#relationship-detail").close();
+
   const architecturePath = breadcrumb();
   card("semantic-review-contract-boundary").click();
   assert(document.querySelector("#relationship-detail").open, "candidate detail did not open");
