@@ -29,6 +29,15 @@ from tests.architecture_explorer.test_t7_top_level_graph import (
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+V3_RECURSIVE_FRAGMENT_PATHS = tuple(
+    REPOSITORY / "architecture-explorer/recursive-candidates" / name
+    for name in (
+        "quality-semantic-review-and-repair.v2.json",
+        "qwen-provider-adapters.v2.json",
+        "translation-routing-and-acquisition.v2.json",
+        "worker-launch-boundary.v2.json",
+    )
+)
 
 
 def _json(relative_path: str) -> dict:
@@ -47,15 +56,9 @@ def _semantic_routing_fragment() -> dict:
 
 
 def _v3_recursive_fragments() -> list[dict]:
-    # These inputs belong to recursive-views.v1.json and its fixed inventory.
     return [
-        _json(f"architecture-explorer/recursive-candidates/{name}")
-        for name in (
-            "quality-semantic-review-and-repair.v2.json",
-            "qwen-provider-adapters.v2.json",
-            "translation-routing-and-acquisition.v2.json",
-            "worker-launch-boundary.v2.json",
-        )
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in V3_RECURSIVE_FRAGMENT_PATHS
     ]
 
 
@@ -577,9 +580,7 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     ]
     for candidate in sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json")):
         build_args.extend(("--candidate-fragment", str(candidate)))
-    for candidate in sorted(
-        (REPOSITORY / "architecture-explorer/recursive-candidates").glob("*.json")
-    ):
+    for candidate in V3_RECURSIVE_FRAGMENT_PATHS:
         build_args.extend(("--candidate-fragment", str(candidate)))
     build_args.extend(
         (
