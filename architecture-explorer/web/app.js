@@ -1590,22 +1590,20 @@
   const restoreDialogOpener = () => {
     const opener = dialogOpener;
     dialogOpener = null;
-    window.setTimeout(() => {
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    }, 20);
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
   };
-  dialog.addEventListener("close", () => {
+  const finishDialogClose = () => {
+    if (dialog.open) return;
     clearDefinitionFileState();
     dispatch({ type: "DETAIL_CLOSED" });
     restoreDialogOpener();
-  });
-  dialog.addEventListener("cancel", () => {
-    clearDefinitionFileState();
-    restoreDialogOpener();
-  });
-  dialog.querySelector(".dialog-close")?.addEventListener("click", () => {
-    clearDefinitionFileState();
-    restoreDialogOpener();
+  };
+  dialog.addEventListener("close", finishDialogClose);
+  dialog.querySelector(".dialog-close")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+    finishDialogClose();
   });
   window.addEventListener("resize", scheduleRelationshipGraph);
   window.addEventListener("scroll", scheduleRelationshipGraph, { passive: true });

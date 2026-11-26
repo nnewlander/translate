@@ -267,11 +267,13 @@
     assert(detail.textContent.includes("未确认目标"), "unresolved call lost its trust boundary");
     assert(!detail.querySelector(".call-target"), "unresolved call exposed a guessed target");
     assert(breadcrumb() === internalPath, "Source Trail changed the architecture View path");
+    const dialog = document.querySelector("#relationship-detail");
+    assert(dialog.open, "Source Trail dialog was not open before closing");
     click(".dialog-close", "Source Trail close control is missing");
-    await nextPaint();
+    const focusOnClose = document.activeElement;
     assert(
-      document.activeElement?.dataset.moduleId === "translation-provider-dispatch-and-raw-projection",
-      "Source Trail close did not restore the dispatch Appearance focus",
+      !dialog.open && focusOnClose === dispatchCard,
+      `Source Trail close did not restore the dispatch Appearance focus (active: ${focusOnClose?.dataset.moduleId || focusOnClose?.id || focusOnClose?.tagName}; opener connected: ${dispatchCard.isConnected})`,
     );
 
     click("#home-button", "HOME control is missing");
