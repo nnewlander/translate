@@ -1,5 +1,18 @@
 # Architecture Explorer v4 Ticket 09 实施交接
 
+## Draft PR #95 预验证跟进
+
+[预验证 Windows / Chrome](https://github.com/nnewlander/translate/actions/runs/45825103412/job/139927117084) 在远端 Head `8686a1c60bff5f80deda1ef37f74c2708538f217` 上得到 720 通过、20 失败、2 跳过。18 项历史 Node Review 用例依赖旧测试探针改写投影后点击卡片重绘。另有两项 30 秒超时，分别发生在 Chrome 页面 DOM 抓取和 viewport 探针启动。
+
+在 [T7 PR #93](https://github.com/nnewlander/translate/pull/93) 核验修复提交 `a821bed7b100914bb7f1976e590fcca0e98db803` 后，本地 Merge Commit `63eda88dd20fc3a03bbb806f524dac39bcac7bb6` 同步了该提交，其 tree 为 `bb0a855c379dfc5bd4d0c9bd639c2a554160ab48`。原 T9 功能提交 `c8eead17fdf0b6a474d50ca77072d381301c9e9f` 保留。同步仅引入 T7 handoff 和 `t8_node_review_dom.js` 的既有修复，两文件的 Git blob 均与 T7 一致。审核状态由生成页面提供，六种状态及三种宽度继续实际覆盖，中文标签、布局、详情和 Evidence 断言保留。同期校验确认 T9 功能、共享发现测试和产品导航及审核代码的内容与原草稿提交一致。
+
+使用项目解释器在 Windows 上以 Chrome `158.0.8127.38` 对本地 Merge Commit 执行两次聚焦检查：
+
+- `--basetemp=D:/translate/t9ci1`。对照 CI 日志逐项核对 20 个失败标识，全部通过。另有 4 项 T9 构建、Projection、Perspective 导航与 Evidence 用例及 1 项共享 View 发现用例通过。合计 25 通过，用时 130.22 秒。
+- `--basetemp=D:/translate/t9ci2`。单独执行 `test_candidate_fragments.py::test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typography[1280-900]` 和 `test_recursive_views.py::test_real_offline_chrome_explores_the_internal_candidate_view[1440]`，2 通过，用时 39.83 秒。两项超时未在两次本地运行中复现，GitHub Runner 的触发条件仍未确定。测试时限及重试行为沿用既有实现。
+
+本地日志和 JUnit 位于 `output/architecture-explorer/ticket-09-ci-follow-up/`。本轮仅更新 [Draft PR #95](https://github.com/nnewlander/translate/pull/95) 的说明，本地同步留待下一次推送。远端预验证仍保留失败记录。待 T7 与 T8 依次正式集成，再同步实际集成 Head、调整 Base 并运行正式 Windows / Chrome CI。
+
 ## 审查固定点
 
 ```text
