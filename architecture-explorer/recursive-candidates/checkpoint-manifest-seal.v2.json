@@ -1,0 +1,120 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "checkpoint-manifest-seal",
+  "nodes": [
+    {
+      "id": "prepared-seal-generation",
+      "node_type": "responsibility",
+      "name": "Prepared Seal 工件代次",
+      "professional_description": "按候选内容和最终化输入绑定待封存代次。CURRENT 最终化使用输入指纹选择代次，旧路径在允许复用根目录时可沿用根目录布局。",
+      "plain_explanation": "目录和 prepared_state 只表明已准备了一个代次。完整工件还要经过校验，随后才能登记到批次清单。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4c93bdb110b2e38852a9d4ff1d5b270b68a1f960948d62a03ad805df0f91cec7",
+        "evidence:sha256:14202e1b6a52c1432d376afe1d67272e56a7243d71e748009b90753e609d3986"
+      ]
+    },
+    {
+      "id": "sealed-checkpoint-manifest-projection",
+      "node_type": "responsibility",
+      "name": "Checkpoint 封存投影",
+      "professional_description": "校验工件完整性、预期 Checkpoint 顺序及批次目标上限，派生清单条目和下一步进度。",
+      "plain_explanation": "清单记录封存证据的位置和汇总。投影函数计算该索引，实际发布由调用方决定。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:14202e1b6a52c1432d376afe1d67272e56a7243d71e748009b90753e609d3986",
+        "evidence:sha256:4e2d93be851ba8bd91b64c67ea6d9d8259f6cb5d23f7a7bf0a94d157a3b67cda",
+        "evidence:sha256:61b8e74e17f2ffde296b7c6ef48648f92c7f45a7dd694da0dcde6d3048ceaf6a"
+      ]
+    },
+    {
+      "id": "checkpoint-manifest-publication",
+      "node_type": "responsibility",
+      "name": "批次清单发布与恢复",
+      "professional_description": "旧根清单原子更新，后继清单绑定前驱哈希并发布新版本。commit_prepared_checkpoint 匹配已登记工件时可无操作返回。",
+      "plain_explanation": "清单选定当前索引版本，底层证据由封存工件承载。实际故障恢复结果未知。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:9e6138a178634dd5a116d4dd8c32a86ea3a03781682d8c2e64c0f1f8a2b2c854",
+        "evidence:sha256:ec424672d5b25466f31021521c2082b4425711361dc58eed63ed7d14d2d8c110",
+        "evidence:sha256:d2ef425a058e90cb501ceb89f7a3dc4f7770ce1d9a34e1cf86726b2ad9696122",
+        "evidence:sha256:fce1c3c1d264517ad6f5a12b0d76a823eead3d6331994b0ca8219e77d68da2ac"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:checkpoint-manifest-seal-to-prepared-seal-generation",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "checkpoint-manifest-seal",
+      "target_node_id": "prepared-seal-generation",
+      "name": "封存组件包含待封存代次准备",
+      "professional_description": "代次选择与完整性预检是 Checkpoint 封存的一项内部职责。",
+      "plain_explanation": "箭头由封存职责指向其中的代次准备职责。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4c93bdb110b2e38852a9d4ff1d5b270b68a1f960948d62a03ad805df0f91cec7",
+        "evidence:sha256:14202e1b6a52c1432d376afe1d67272e56a7243d71e748009b90753e609d3986"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:checkpoint-manifest-seal-to-sealed-checkpoint-manifest-projection",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "checkpoint-manifest-seal",
+      "target_node_id": "sealed-checkpoint-manifest-projection",
+      "name": "封存组件包含清单投影",
+      "professional_description": "将封存工件转换成批次清单条目是一项独立的封存职责。",
+      "plain_explanation": "箭头由封存职责指向其中的索引派生职责。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4e2d93be851ba8bd91b64c67ea6d9d8259f6cb5d23f7a7bf0a94d157a3b67cda"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:prepared-seal-generation-to-sealed-checkpoint-manifest-projection",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "prepared-seal-generation",
+      "target_node_id": "sealed-checkpoint-manifest-projection",
+      "name": "完整待封存代次进入清单投影校验",
+      "professional_description": "预检在必需工件均存在时将所选代次交给清单投影校验。完整但无效的代次会失败。",
+      "plain_explanation": "箭头沿所选代次和工件的交接方向。缺件时预检不给出可发布投影。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:14202e1b6a52c1432d376afe1d67272e56a7243d71e748009b90753e609d3986",
+        "evidence:sha256:4e2d93be851ba8bd91b64c67ea6d9d8259f6cb5d23f7a7bf0a94d157a3b67cda"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:checkpoint-manifest-seal-to-checkpoint-manifest-publication",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "checkpoint-manifest-seal",
+      "target_node_id": "checkpoint-manifest-publication",
+      "name": "封存组件包含清单发布",
+      "professional_description": "清单发布区分根清单的原子更新与绑定前驱哈希的不可变后继。",
+      "plain_explanation": "分解从封存指向清单登记与恢复职责。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:9e6138a178634dd5a116d4dd8c32a86ea3a03781682d8c2e64c0f1f8a2b2c854",
+        "evidence:sha256:ec424672d5b25466f31021521c2082b4425711361dc58eed63ed7d14d2d8c110",
+        "evidence:sha256:d2ef425a058e90cb501ceb89f7a3dc4f7770ce1d9a34e1cf86726b2ad9696122",
+        "evidence:sha256:fce1c3c1d264517ad6f5a12b0d76a823eead3d6331994b0ca8219e77d68da2ac"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:sealed-checkpoint-manifest-projection-to-checkpoint-manifest-publication",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "sealed-checkpoint-manifest-projection",
+      "target_node_id": "checkpoint-manifest-publication",
+      "name": "通过校验的封存投影交给清单发布",
+      "professional_description": "根清单路径经 append 更新。Worker 使用代次时将经校验的投影提交至后继清单。",
+      "plain_explanation": "箭头从投影派生指向发布。相同封存可在恢复提交时校验并复用。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:9e6138a178634dd5a116d4dd8c32a86ea3a03781682d8c2e64c0f1f8a2b2c854",
+        "evidence:sha256:fce1c3c1d264517ad6f5a12b0d76a823eead3d6331994b0ca8219e77d68da2ac",
+        "evidence:sha256:ec424672d5b25466f31021521c2082b4425711361dc58eed63ed7d14d2d8c110",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "package-preservation-verifier",
+  "nodes": [
+    {
+      "id": "protected-package-payload-check",
+      "node_type": "responsibility",
+      "name": "受保护的 DOCX 包负载",
+      "professional_description": "验证候选可按 OOXML 打开并比较源、候选 ZIP 条目。核对计划范围外负载、关系和媒体；调用方可要求检查计划范围内 XML 的规范等价。",
+      "plain_explanation": "计划涉及部件清单用于划定比较范围。每处写回是否成功仍需核对投影报告和往返验证。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:af84cdfec15d267657474c7ff5238c91f09b769c98743ce7abc621d24e6c6dc8",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9"
+      ]
+    },
+    {
+      "id": "projected-anchor-roundtrip-check",
+      "node_type": "responsibility",
+      "name": "候选重抽取与锚点回检",
+      "professional_description": "候选 Harness 对比重新抽取的内容并检查投影后的结构锚点，将诊断汇入往返报告。",
+      "plain_explanation": "包内容核对与锚点回检回答不同问题。两者都只提供结构和内容依据，页面外观仍需渲染观察。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:6439084db4833913c26bf50ac4791d9f6e6e32202786e14e6cf9a066c6e9659a",
+        "evidence:sha256:bc395558030d54f739705a15c41a1ce420d4e1607a4c9c94855f43be544bf332",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:package-preservation-verifier-to-protected-package-payload-check",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "package-preservation-verifier",
+      "target_node_id": "protected-package-payload-check",
+      "name": "包保真验证包含受保护负载核对",
+      "professional_description": "检查候选包有效性、条目集合、计划范围外负载、关系文件与媒体。调用方也可要求核对计划范围内 XML 的规范等价。",
+      "plain_explanation": "分解从包保真职责指向 ZIP 与 OOXML 负载的核对。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:af84cdfec15d267657474c7ff5238c91f09b769c98743ce7abc621d24e6c6dc8",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:tagged-candidate-output-to-protected-package-payload-check",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "tagged-candidate-output",
+      "target_node_id": "protected-package-payload-check",
+      "name": "候选文件和计划部件进入包保真校验",
+      "professional_description": "合成往返和校准导入传入候选路径及按投影输入形成的 patch_report.touched_ooxml_parts，以划定包保真校验范围。两者另做重抽取和锚点检查，并把定位失败纳入验证报告。",
+      "plain_explanation": "箭头沿候选文件和计划清单的交接方向。包保真结果需要与写回报告及往返结果一起解读。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:83bfe203b26a23ea4a7846fc045720db925ae8b61e2b167cba76f54281f65869",
+        "evidence:sha256:af84cdfec15d267657474c7ff5238c91f09b769c98743ce7abc621d24e6c6dc8",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:tagged-candidate-output-to-projected-anchor-roundtrip-check",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "tagged-candidate-output",
+      "target_node_id": "projected-anchor-roundtrip-check",
+      "name": "候选 DOCX 进入重抽取与锚点回检",
+      "professional_description": "两个 Harness 重新抽取候选并与预期文本比较，同时核对通过投影的单元所对应的锚点。",
+      "plain_explanation": "箭头沿候选产物到另一组结构检查的方向。锚点回检与包级检查由 Harness 汇总。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9",
+        "evidence:sha256:6439084db4833913c26bf50ac4791d9f6e6e32202786e14e6cf9a066c6e9659a",
+        "evidence:sha256:bc395558030d54f739705a15c41a1ce420d4e1607a4c9c94855f43be544bf332"
+      ]
+    }
+  ]
+}

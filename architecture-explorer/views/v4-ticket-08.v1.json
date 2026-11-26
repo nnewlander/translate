@@ -1,0 +1,258 @@
+{
+  "schema": "architecture-explorer.view-definitions.v1",
+  "entry_actions": [
+    {
+      "view_id": "production-evidence",
+      "node_id": "checkpoint-manifest-seal",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "checkpoint-manifest-seal-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看 Checkpoint 封存职责"
+      }
+    },
+    {
+      "view_id": "production-evidence",
+      "node_id": "checkpoint-evidence-persistence",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "checkpoint-evidence-persistence-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看 Checkpoint 证据工件"
+      }
+    },
+    {
+      "view_id": "candidate-and-release",
+      "node_id": "release-membership-derivation",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "release-membership-derivation-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看发布成员资格"
+      }
+    },
+    {
+      "view_id": "candidate-and-release",
+      "node_id": "candidate-document-projection",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "candidate-document-projection-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看候选 DOCX 写回"
+      }
+    },
+    {
+      "view_id": "candidate-and-release",
+      "node_id": "package-preservation-verifier",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "package-preservation-verifier-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看包保真与回检"
+      }
+    }
+  ],
+  "views": [
+    {
+      "id": "checkpoint-manifest-seal-internal",
+      "display_name": "Checkpoint 封存职责",
+      "perspective": "responsibility",
+      "scope_node_id": "checkpoint-manifest-seal",
+      "coverage_note": "待封存工件何时可以成为批次清单条目？分解指向代次准备和校验投影，协作沿所选工件进入投影。CURRENT 最终化绑定代次。实际封存结果未知，可继续查看清单发布。",
+      "appearances": [
+        {
+          "node_id": "checkpoint-manifest-seal"
+        },
+        {
+          "node_id": "prepared-seal-generation"
+        },
+        {
+          "node_id": "sealed-checkpoint-manifest-projection",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "checkpoint-manifest-publication-internal",
+            "transition_kind": "cross-node",
+            "destination_label": "查看清单发布与恢复"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:checkpoint-manifest-seal-to-prepared-seal-generation",
+        "candidate-decomposition:checkpoint-manifest-seal-to-sealed-checkpoint-manifest-projection",
+        "candidate-collaboration:prepared-seal-generation-to-sealed-checkpoint-manifest-projection"
+      ]
+    },
+    {
+      "id": "checkpoint-manifest-publication-internal",
+      "display_name": "清单发布与恢复",
+      "perspective": "responsibility",
+      "scope_node_id": "checkpoint-manifest-seal",
+      "coverage_note": "工件投影通过后，哪个清单版本成为当前索引？分解指向发布职责，协作沿通过校验的投影进入登记。根清单更新、后继发布与旧根目录恢复入口各有条件。实际故障恢复结果未知。",
+      "appearances": [
+        {
+          "node_id": "checkpoint-manifest-seal"
+        },
+        {
+          "node_id": "checkpoint-manifest-publication",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "checkpoint-to-batch-release",
+            "transition_kind": "cross-node",
+            "destination_label": "查看批次发布边界"
+          }
+        },
+        {
+          "node_id": "sealed-checkpoint-manifest-projection"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:checkpoint-manifest-seal-to-checkpoint-manifest-publication",
+        "candidate-collaboration:sealed-checkpoint-manifest-projection-to-checkpoint-manifest-publication"
+      ]
+    },
+    {
+      "id": "checkpoint-evidence-persistence-internal",
+      "display_name": "Checkpoint 证据工件",
+      "perspective": "responsibility",
+      "scope_node_id": "checkpoint-evidence-persistence",
+      "coverage_note": "Checkpoint 保存哪些证据，哪份会进入发布成员派生？分解指向持久化职责内部的工件类型。从最终 QA 工件可查看消费方。实际工件产出未知。",
+      "appearances": [
+        {
+          "node_id": "checkpoint-evidence-persistence"
+        },
+        {
+          "node_id": "checkpoint-raw-artifacts"
+        },
+        {
+          "node_id": "checkpoint-final-qa-evidence",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "checkpoint-to-batch-release",
+            "transition_kind": "cross-node",
+            "destination_label": "追踪封存证据到发布"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:checkpoint-evidence-persistence-to-checkpoint-raw-artifacts",
+        "candidate-decomposition:checkpoint-evidence-persistence-to-checkpoint-final-qa-evidence"
+      ]
+    },
+    {
+      "id": "release-membership-derivation-internal",
+      "display_name": "发布成员资格与后继选择",
+      "perspective": "responsibility",
+      "scope_node_id": "release-membership-derivation",
+      "coverage_note": "哪些证据能纳入发布集合，集合如何影响后继选择？分解指向准入规则，协作沿门禁证据和派生集合的流向。实际成员和运行阶段未知。",
+      "appearances": [
+        {
+          "node_id": "release-membership-derivation"
+        },
+        {
+          "node_id": "release-membership-evidence-rules"
+        },
+        {
+          "node_id": "batch-release-debt-reconciliation"
+        },
+        {
+          "node_id": "release-rollover-phase-selection"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:release-membership-derivation-to-release-membership-evidence-rules",
+        "candidate-collaboration:batch-release-debt-reconciliation-to-release-membership-derivation",
+        "candidate-collaboration:release-membership-derivation-to-release-rollover-phase-selection"
+      ]
+    },
+    {
+      "id": "checkpoint-to-batch-release",
+      "display_name": "从封存工件到批次发布",
+      "perspective": "responsibility",
+      "scope_node_id": "batch-release-debt-reconciliation",
+      "coverage_note": "封存产物通过哪些路径支撑发布？箭头分别跟随批次清单、最终 QA 和门禁证据。门禁在批次就绪后才接入。实际通过结果和 DOCX 视觉验收均未由这些依据证明。",
+      "appearances": [
+        {
+          "node_id": "batch-release-debt-reconciliation"
+        },
+        {
+          "node_id": "checkpoint-manifest-publication"
+        },
+        {
+          "node_id": "checkpoint-final-qa-evidence"
+        },
+        {
+          "node_id": "release-membership-derivation",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "release-membership-derivation-internal",
+            "transition_kind": "decomposition",
+            "destination_label": "查看发布成员资格"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-collaboration:checkpoint-manifest-publication-to-batch-release-debt-reconciliation",
+        "candidate-collaboration:checkpoint-final-qa-evidence-to-release-membership-derivation",
+        "candidate-collaboration:batch-release-debt-reconciliation-to-release-membership-derivation"
+      ]
+    },
+    {
+      "id": "candidate-document-projection-internal",
+      "display_name": "候选 DOCX 的生成入口",
+      "perspective": "responsibility",
+      "scope_node_id": "candidate-document-projection",
+      "coverage_note": "何时会生成候选 DOCX，生成物能进入哪些独立检查？分解指向写回职责，协作跟踪显式 Harness 输入与可另外提供给诊断器的文件。生产封存本身不确定候选文件已生成或已渲染。",
+      "appearances": [
+        {
+          "node_id": "candidate-document-projection"
+        },
+        {
+          "node_id": "candidate-harness-entrypoints"
+        },
+        {
+          "node_id": "tagged-candidate-output",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "package-preservation-verifier-internal",
+            "transition_kind": "cross-node",
+            "destination_label": "查看候选文件的结构检查"
+          }
+        },
+        {
+          "node_id": "rendered-document-diagnostic"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:candidate-document-projection-to-tagged-candidate-output",
+        "candidate-collaboration:candidate-harness-entrypoints-to-tagged-candidate-output",
+        "candidate-collaboration:tagged-candidate-output-to-rendered-document-diagnostic"
+      ]
+    },
+    {
+      "id": "package-preservation-verifier-internal",
+      "display_name": "候选 DOCX 的包保真与回检",
+      "perspective": "responsibility",
+      "scope_node_id": "package-preservation-verifier",
+      "coverage_note": "候选文件的包负载与结构锚点分别怎样受核验？分解指向包内保护规则，协作沿候选文件和触及部件到各检查。此处的验证不产出视觉 QA 或发布成员资格。",
+      "appearances": [
+        {
+          "node_id": "package-preservation-verifier"
+        },
+        {
+          "node_id": "protected-package-payload-check"
+        },
+        {
+          "node_id": "projected-anchor-roundtrip-check"
+        },
+        {
+          "node_id": "tagged-candidate-output"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:package-preservation-verifier-to-protected-package-payload-check",
+        "candidate-collaboration:tagged-candidate-output-to-protected-package-payload-check",
+        "candidate-collaboration:tagged-candidate-output-to-projected-anchor-roundtrip-check"
+      ]
+    }
+  ]
+}

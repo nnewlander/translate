@@ -1,0 +1,91 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "candidate-document-projection",
+  "nodes": [
+    {
+      "id": "candidate-harness-entrypoints",
+      "node_type": "responsibility",
+      "name": "合成往返与校准导入入口",
+      "professional_description": "CLI 显式启动 TaggedSyntheticRoundTrip 或 CalibrationImporter。校准导入在合同诊断阻断或投影集合为空时提前返回。",
+      "plain_explanation": "独立命令或工作流可以生成验证候选。具体入口是否被执行以及候选是否生成，需要运行证据。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:59f3869b9fb4939bc75398aa5f1d92fe6e5d521257793a9904236817af715ee3",
+        "evidence:sha256:e114cfad31a3004c818c6121c93dc4511f4002d30ed8bb6ea519b27bc8a54931",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9"
+      ]
+    },
+    {
+      "id": "tagged-candidate-output",
+      "node_type": "responsibility",
+      "name": "带标记的候选 DOCX 写回",
+      "professional_description": "按 TranslationView 的源定位将投影输入分组，预先生成计划涉及部件清单 touched_ooxml_parts，再尝试定位并写回候选包。投影调用正常返回后才累计 locators_resolved、writes_attempted 和 writes_verified；后者核对构造的文本节点。缺失部件或投影失败另记诊断。Harness 还核验源文件指纹。",
+      "plain_explanation": "清单说明哪些部件计划参与写回。即使部件缺失，它也可能列在其中而没有任何写入通过核对。实际结果要结合定位计数、写入计数和诊断理解；候选重抽取、视觉 QA 与整书交付分别需要各自的证据。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:83bfe203b26a23ea4a7846fc045720db925ae8b61e2b167cba76f54281f65869",
+        "evidence:sha256:395fec6fde59faf51163b05b7c849c19b2f264a8b61f2c91be15cee766f262c7",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881"
+      ]
+    },
+    {
+      "id": "rendered-document-diagnostic",
+      "node_type": "responsibility",
+      "name": "独立渲染差异诊断",
+      "professional_description": "对另外提供的预渲染 PDF、限定页面观察、锚点及 DOCX 结构进行只读比较，脚本输出诊断事实。",
+      "plain_explanation": "源 PDF 只可作为观察证据。诊断器不启动渲染，视觉 QA 与整书交付仍需单独授权并取得可信的渲染证据。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:7a3282c884525c6a37d8d0c195b692c4ec7b2d180c16fee70a92ef6a8b4f93fa",
+        "evidence:sha256:97a02d1cc359eee8d36092b48842494aabf6bb72f0d15728ea627b234c99af30"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:candidate-document-projection-to-tagged-candidate-output",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "candidate-document-projection",
+      "target_node_id": "tagged-candidate-output",
+      "name": "候选投影包含按源定位写回 DOCX",
+      "professional_description": "候选投影根据输入确定计划部件，再用 OOXML 部件和块定位尝试写入准入内容，并在报告中记录定位、构造文本核对与失败诊断。",
+      "plain_explanation": "分解指向候选包写回与结果报告。计划清单只说明投影范围，写回结果须核对报告。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:83bfe203b26a23ea4a7846fc045720db925ae8b61e2b167cba76f54281f65869",
+        "evidence:sha256:395fec6fde59faf51163b05b7c849c19b2f264a8b61f2c91be15cee766f262c7"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:candidate-harness-entrypoints-to-tagged-candidate-output",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "candidate-harness-entrypoints",
+      "target_node_id": "tagged-candidate-output",
+      "name": "显式 Harness 入口委托候选投影",
+      "professional_description": "标记合成往返生成测试目标。校准导入匹配请求和响应，通过校验且有可投影记录才调用 tagged projector。",
+      "plain_explanation": "箭头沿 Harness 交给投影器的批输入。Checkpoint 保存的候选记录是否形成文件，要看有没有显式进入文件投影路径。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:59f3869b9fb4939bc75398aa5f1d92fe6e5d521257793a9904236817af715ee3",
+        "evidence:sha256:e114cfad31a3004c818c6121c93dc4511f4002d30ed8bb6ea519b27bc8a54931",
+        "evidence:sha256:ba6350a6b553308b103500a6a529515747add619a37705ffe48fd3a94dd9c881",
+        "evidence:sha256:a1a52a782b7e2489c7d7d6bbcb80660b4c229503f2e837e3444e985a14977de9"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:tagged-candidate-output-to-rendered-document-diagnostic",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "tagged-candidate-output",
+      "target_node_id": "rendered-document-diagnostic",
+      "name": "候选 DOCX 可显式提供给渲染诊断",
+      "professional_description": "诊断脚本通过显式参数接收候选和源 DOCX、预渲染 PDF、页面观察及由不可变证据得出的锚点。",
+      "plain_explanation": "箭头表示可由调用者提供的文件，不表示 Harness 调用诊断，也不表示已渲染或视觉通过。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:7a3282c884525c6a37d8d0c195b692c4ec7b2d180c16fee70a92ef6a8b4f93fa",
+        "evidence:sha256:97a02d1cc359eee8d36092b48842494aabf6bb72f0d15728ea627b234c99af30"
+      ]
+    }
+  ]
+}

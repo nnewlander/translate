@@ -28,6 +28,15 @@ from tests.architecture_explorer.test_t7_top_level_graph import (
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+V3_RECURSIVE_FRAGMENT_PATHS = tuple(
+    REPOSITORY / "architecture-explorer/recursive-candidates" / name
+    for name in (
+        "quality-semantic-review-and-repair.v2.json",
+        "qwen-provider-adapters.v2.json",
+        "translation-routing-and-acquisition.v2.json",
+        "worker-launch-boundary.v2.json",
+    )
+)
 
 
 def _json(relative_path: str) -> dict:
@@ -45,18 +54,16 @@ def _semantic_routing_fragment() -> dict:
     )
 
 
-def _real_recursive_fragments() -> list[dict]:
+def _v3_recursive_fragments() -> list[dict]:
     return [
         json.loads(path.read_text(encoding="utf-8"))
-        for path in sorted(
-            (REPOSITORY / "architecture-explorer/recursive-candidates").glob("*.json")
-        )
+        for path in V3_RECURSIVE_FRAGMENT_PATHS
     ]
 
 
 def _recursive_explorer(fragment: dict | None = None) -> dict:
     return apply_candidate_fragments(
-        _current_explorer(), [fragment] if fragment is not None else _real_recursive_fragments()
+        _current_explorer(), [fragment] if fragment is not None else _v3_recursive_fragments()
     )
 
 
@@ -535,12 +542,13 @@ def test_cli_build_discovers_authoritative_view_documents_without_an_option(
     assert review_main(build_args) == 0
     generated = _json(str(site.relative_to(REPOSITORY) / "explorer-data.json"))
 
-    assert len(generated["view_projection"]["view_index"]) == 12
+    assert "worker-launch-boundary-internal" in generated["view_projection"]["view_index"]
     generation_inputs = generated["generation_inputs"]["view_definitions"]
-    assert [item["path"] for item in generation_inputs] == [
-        "architecture-explorer/views/recursive-views.v1.json"
-    ]
-    assert len(generation_inputs[0]["sha256"]) == 64
+    assert [item["path"] for item in generation_inputs] == sorted(
+        path.relative_to(REPOSITORY).as_posix()
+        for path in (REPOSITORY / "architecture-explorer/views").rglob("*.json")
+    )
+    assert all(len(item["sha256"]) == 64 for item in generation_inputs)
 
 
 @pytest.mark.parametrize("viewport_width", [1440, 1280, 960])
@@ -563,9 +571,7 @@ def test_real_offline_chrome_explores_the_internal_candidate_view(
     ]
     for candidate in sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json")):
         build_args.extend(("--candidate-fragment", str(candidate)))
-    for candidate in sorted(
-        (REPOSITORY / "architecture-explorer/recursive-candidates").glob("*.json")
-    ):
+    for candidate in V3_RECURSIVE_FRAGMENT_PATHS:
         build_args.extend(("--candidate-fragment", str(candidate)))
     build_args.extend(
         (
@@ -660,7 +666,7 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
     }
     explorer = apply_candidate_fragments(
         _current_explorer(),
-        [*_real_recursive_fragments(), test_fragment],
+        [*_v3_recursive_fragments(), test_fragment],
     )
     definitions = _json("architecture-explorer/views/recursive-views.v1.json")
     definitions["entry_actions"].append(
