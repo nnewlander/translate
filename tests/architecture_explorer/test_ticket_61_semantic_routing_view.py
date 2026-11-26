@@ -59,11 +59,11 @@ def test_ticket_61_real_data_projects_only_the_approved_internal_objects() -> No
     assert len(projection["node_index"]) == 34
     assert len(projection["view_index"]) == 12
     assert sum(
-        reference["semantic_family"] == "candidate-collaboration"
+        reference["semantic"] == "collaboration"
         for reference in projection["relationship_index"].values()
     ) == 12
     assert sum(
-        reference["semantic_family"] == "candidate-decomposition"
+        reference["semantic"] == "decomposition"
         for reference in projection["relationship_index"].values()
     ) == 9
 

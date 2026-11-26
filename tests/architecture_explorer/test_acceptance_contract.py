@@ -539,11 +539,11 @@ def test_v2_historical_inventory_matches_generated_v2_projection(
             - len(modules)
         ),
         "candidate_collaborations": sum(
-            reference["semantic_family"] == "candidate-collaboration"
+            reference["semantic"] == "collaboration"
             for reference in relationship_references
         ),
         "candidate_decompositions": sum(
-            reference["semantic_family"] == "candidate-decomposition"
+            reference["semantic"] == "decomposition"
             for reference in published_explorer["view_projection"][
                 "relationship_index"
             ].values()

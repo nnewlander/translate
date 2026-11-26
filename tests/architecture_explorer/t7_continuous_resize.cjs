@@ -282,6 +282,7 @@ async function main() {
           });
           const pathLength = points.slice(1).reduce((total, end, index) => total + Math.hypot(end.x - points[index].x, end.y - points[index].y), 0);
           const directDistance = Math.hypot(points.at(-1).x - points[0].x, points.at(-1).y - points[0].y);
+          const line = edge.querySelector('.graph-edge');
           return {
             id,
             points,
@@ -290,7 +291,9 @@ async function main() {
             targetBounds: cardBounds(edge.dataset.targetNodeId),
             sourceAttached: onBoundary(points[0], cardBounds(edge.dataset.sourceNodeId)),
             targetAttached: onBoundary(points.at(-1), cardBounds(edge.dataset.targetNodeId)),
-            marker: edge.querySelector('.graph-edge').getAttribute('marker-end'),
+            marker: line.getAttribute('marker-end'),
+            trustClass: ['approved', 'rejected', 'needs-review', 'unknown', 'pending'].find((name) => line.classList.contains('review-' + name)) || null,
+            strokeDasharray: getComputedStyle(line).strokeDasharray,
             labelClearsCards,
             labelAttached,
             labelClearsOtherLabels,
@@ -328,6 +331,7 @@ async function main() {
       expectedMarker,
       expectedRelationshipIds = null,
       expectedMarkers = null,
+      expectedTrustPresentation = null,
       failures = null,
     ) => {
       const initialOrder = await evaluate("JSON.stringify(Array.from(document.querySelectorAll('#module-grid .module-card'), node => node.dataset.moduleId))");
@@ -352,6 +356,16 @@ async function main() {
             observation.edges.every((edge) => edge.marker === (expectedMarkers?.[edge.id] || expectedMarker)),
             `${graphId} lost target arrow direction at ${width}x${height}: ${JSON.stringify(observation.edges)}`,
           );
+          if (expectedTrustPresentation) {
+            assert(
+              observation.edges.every((edge) => edge.trustClass === expectedTrustPresentation[edge.id]?.trustClass),
+              `${graphId} lost explicit Relationship trust projection at ${width}x${height}: ${JSON.stringify(observation.edges)}`,
+            );
+            assert(
+              observation.edges.every((edge) => edge.strokeDasharray === expectedTrustPresentation[edge.id]?.strokeDasharray),
+              `${graphId} crossed the v3 trusted-solid/untrusted-dashed boundary at ${width}x${height}: ${JSON.stringify(observation.edges)}`,
+            );
+          }
           assert(observation.edges.every((edge) => edge.labelClearsCards), `${graphId} placed a relationship label over a node at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
           assert(observation.edges.every((edge) => edge.unrelatedNodesClear), `${graphId} crossed an unrelated node at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
           assert(observation.edges.every((edge) => edge.labelAttached && edge.labelClearsOtherLabels && edge.labelClearsOtherPaths), `${graphId} produced unsafe relationship labels at ${width}x${height}: ${JSON.stringify(observation.edges)}`);
@@ -515,15 +529,28 @@ async function main() {
           const ids = projection.view_index['${viewId}'].relationship_ids;
           return {
             ids,
-            markers: Object.fromEntries(ids.map((id) => [
-              id,
-              projection.relationship_index[id].semantic_family.startsWith('candidate-')
-                ? 'url(#candidate-arrowhead)'
-                : 'url(#reviewed-arrowhead)',
-            ])),
+            markers: Object.fromEntries(ids.map((id) => {
+              const review = projection.relationship_index[id].review;
+              const isCurrentApproved = review.result === 'APPROVED' && review.state === 'current';
+              return [id, isCurrentApproved ? 'url(#reviewed-arrowhead)' : 'url(#candidate-arrowhead)'];
+            })),
+            trustPresentation: Object.fromEntries(ids.map((id) => {
+              const review = projection.relationship_index[id].review;
+              const trustClass = review.result === 'APPROVED' && review.state === 'current'
+                ? 'approved'
+                : review.result === 'REJECTED' && review.state === 'current'
+                  ? 'rejected'
+                  : review.state === 'needs-review'
+                    ? 'needs-review'
+                    : review.state === 'unknown' ? 'unknown' : 'pending';
+              return [id, {
+                trustClass,
+                strokeDasharray: trustClass === 'approved' ? 'none' : '8px, 7px',
+              }];
+            })),
           };
         })()`);
-        await assertResizeSequence(viewId, expected.ids.length, null, expected.ids, expected.markers, failures);
+        await assertResizeSequence(viewId, expected.ids.length, null, expected.ids, expected.markers, expected.trustPresentation, failures);
       }
       fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2), "utf8");
       assert(failures.length === 0, `all-View matrix failures:\n${failures.join("\n")}`);

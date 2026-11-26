@@ -9,7 +9,11 @@ from .generator import ExplorerInputError
 from .source_evidence import build_source_evidence_index
 
 
-VIEW_PROJECTION_SCHEMA = "architecture-explorer.view-projection.v1"
+VIEW_PROJECTION_SCHEMA = "architecture-explorer.view-projection.v2"
+REVIEW_PROJECTION_SCHEMA = "architecture-explorer.review-projection.v1"
+REVIEW_RESULTS = {"APPROVED", "REJECTED", "Pending"}
+REVIEW_STATES = {"current", "needs-review", "unknown", "not-reviewed"}
+SOURCE_CATALOG_SCHEMA = "architecture-explorer.source-catalog.v1"
 
 
 def _text(value: Any, field: str) -> str:
@@ -18,16 +22,589 @@ def _text(value: Any, field: str) -> str:
     return value
 
 
+def _pending_review() -> dict[str, Any]:
+    return {
+        "result": "Pending",
+        "state": "not-reviewed",
+        "approved_scope": [],
+        "reasons": ["trusted-review-decision:missing"],
+    }
+
+
+def _canonical_key(kind: str, object_id: str) -> str:
+    return f"{kind}::{object_id}"
+
+
+def _explicit_reviews(explorer: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    projection = explorer.get("review_projection")
+    if projection is None:
+        return {}
+    if (
+        not isinstance(projection, dict)
+        or projection.get("schema") != REVIEW_PROJECTION_SCHEMA
+    ):
+        raise ExplorerInputError(
+            "View Projection review projection schema is invalid"
+        )
+    objects = projection.get("objects")
+    if not isinstance(objects, dict):
+        raise ExplorerInputError("View Projection review projection objects must be an object")
+    validated: dict[str, dict[str, Any]] = {}
+    for key, review in objects.items():
+        if not isinstance(review, dict):
+            raise ExplorerInputError("View Projection review must be an object")
+        object_key = review.get("object_key")
+        if not isinstance(object_key, dict):
+            raise ExplorerInputError("View Projection review object key is invalid")
+        kind = _text(object_key.get("kind"), "review object kind")
+        object_id = _text(object_key.get("object_id"), "review object id")
+        if key != _canonical_key(kind, object_id):
+            raise ExplorerInputError(f"View Projection review object mismatch: {key}")
+        result = review.get("result")
+        state = review.get("state")
+        if kind not in {"candidate-collaboration", "candidate-decomposition"}:
+            raise ExplorerInputError(
+                f"View Projection Relationship Review kind is invalid: {kind}"
+            )
+        semantics = review.get("semantics")
+        if not isinstance(semantics, dict) or set(semantics) != {
+            "family",
+            "direction",
+        }:
+            raise ExplorerInputError(
+                f"View Projection Relationship Review semantics are invalid: {key}"
+            )
+        family = semantics.get("family")
+        expected_family = {
+            "candidate-collaboration": "collaboration",
+            "candidate-decomposition": "decomposition",
+        }[kind]
+        direction = semantics.get("direction")
+        if (
+            family != expected_family
+            or not isinstance(direction, dict)
+            or set(direction) != {"source_node_id", "target_node_id"}
+        ):
+            raise ExplorerInputError(
+                f"View Projection Relationship Review semantics are invalid: {key}"
+            )
+        source_node_id = _text(
+            direction.get("source_node_id"), "review source Node id"
+        )
+        target_node_id = _text(
+            direction.get("target_node_id"), "review target Node id"
+        )
+        approved_scope = review.get("approved_scope")
+        reasons = review.get("reasons")
+        if result not in REVIEW_RESULTS:
+            raise ExplorerInputError(f"View Projection review result is invalid: {result}")
+        if state not in REVIEW_STATES:
+            raise ExplorerInputError(f"View Projection review state is invalid: {state}")
+        if not isinstance(reasons, list) or not all(
+            isinstance(reason, str) and reason for reason in reasons
+        ):
+            raise ExplorerInputError("View Projection review reasons must be strings")
+        if result == "Pending":
+            if state != "not-reviewed" or approved_scope:
+                raise ExplorerInputError(
+                    "View Projection Pending review must be not-reviewed without approval scope"
+                )
+        elif state == "not-reviewed":
+            raise ExplorerInputError(
+                "View Projection decided review cannot be not-reviewed"
+            )
+        if not isinstance(approved_scope, list):
+            raise ExplorerInputError(
+                "View Projection approved scope must be a list"
+            )
+        if result == "APPROVED" and not approved_scope:
+            raise ExplorerInputError(
+                "View Projection approved review requires an approved scope"
+            )
+        if result != "APPROVED" and approved_scope:
+            raise ExplorerInputError(
+                "View Projection non-approved review cannot carry an approved scope"
+            )
+        for scope in approved_scope:
+            if not isinstance(scope, dict) or set(scope) != {
+                "object_key", "reviewed_source_snapshot", "claims_sha256",
+                "evidence_ids", "decision_id",
+            }:
+                raise ExplorerInputError(
+                    "View Projection Relationship Review approval scope is invalid"
+                )
+            if scope.get("object_key") != object_key:
+                raise ExplorerInputError(
+                    f"View Projection review approval scope object mismatch: {key}"
+                )
+            snapshot = scope.get("reviewed_source_snapshot")
+            evidence_ids = scope.get("evidence_ids")
+            if (
+                not isinstance(snapshot, dict)
+                or set(snapshot) != {"revision", "worktree_state"}
+                or not all(isinstance(value, str) and value for value in snapshot.values())
+                or not isinstance(scope.get("claims_sha256"), str)
+                or not scope["claims_sha256"]
+                or not isinstance(evidence_ids, list)
+                or not evidence_ids
+                or not all(isinstance(evidence_id, str) and evidence_id for evidence_id in evidence_ids)
+                or not isinstance(scope.get("decision_id"), str)
+                or not scope["decision_id"]
+            ):
+                raise ExplorerInputError(
+                    "View Projection Relationship Review approval scope is invalid"
+                )
+        validated[key] = {
+            "result": result,
+            "state": state,
+            "approved_scope": deepcopy(approved_scope),
+            "reasons": deepcopy(reasons),
+            "semantics": {
+                "family": family,
+                "direction": {
+                    "source_node_id": source_node_id,
+                    "target_node_id": target_node_id,
+                },
+            },
+        }
+        if "source" in review:
+            if not isinstance(review["source"], dict):
+                raise ExplorerInputError(
+                    "View Projection Relationship Review source is invalid"
+                )
+            validated[key]["source"] = deepcopy(review["source"])
+    return validated
+
+
+def _legacy_node_reviews(explorer: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    projection = explorer.get("node_review_projection")
+    if projection is None:
+        return {}
+    if (
+        not isinstance(projection, dict)
+        or projection.get("schema")
+        != "architecture-explorer.node-review-projection.v1"
+        or not isinstance(projection.get("objects"), dict)
+    ):
+        raise ExplorerInputError("View Projection legacy Node review projection is invalid")
+    adapted: dict[str, dict[str, Any]] = {}
+    for legacy_key, review in projection["objects"].items():
+        if not isinstance(review, dict) or not isinstance(review.get("object_key"), dict):
+            raise ExplorerInputError("View Projection legacy Node review is invalid")
+        object_key = review["object_key"]
+        if object_key.get("kind") != "candidate-node":
+            raise ExplorerInputError("View Projection legacy Node review kind is invalid")
+        object_id = _text(object_key.get("node_id"), "legacy review Node id")
+        expected_legacy_key = _canonical_key("candidate-node", object_id)
+        if legacy_key != expected_legacy_key:
+            raise ExplorerInputError(
+                f"View Projection legacy Node review object mismatch: {legacy_key}"
+            )
+        decision = review.get("decision")
+        result = decision.get("result") if isinstance(decision, dict) else "Pending"
+        state_record = review.get("state")
+        state = state_record.get("status") if isinstance(state_record, dict) else "unknown"
+        if result not in REVIEW_RESULTS:
+            result = "Pending"
+        if state not in REVIEW_STATES:
+            state = "unknown"
+        claim_kinds: list[str] = []
+        if result == "APPROVED" and isinstance(decision, dict):
+            claims = decision.get("claims")
+            if isinstance(claims, list):
+                claim_kinds = [
+                    claim["kind"]
+                    for claim in claims
+                    if isinstance(claim, dict)
+                    and isinstance(claim.get("kind"), str)
+                    and claim["kind"]
+                ]
+        adapted[expected_legacy_key] = {
+            "result": result,
+            "state": state,
+            "approved_scope": [
+                {"legacy_claim_kind": claim_kind} for claim_kind in claim_kinds
+            ],
+            "reasons": deepcopy(state_record.get("reasons", []))
+            if isinstance(state_record, dict)
+            else [],
+        }
+    return adapted
+
+
+def _review_for(
+    reviews: dict[str, dict[str, Any]], *, kind: str, object_id: str
+) -> dict[str, Any]:
+    return deepcopy(reviews.get(_canonical_key(kind, object_id), _pending_review()))
+
+
+def _candidate_node_record(
+    node: dict[str, Any],
+    reviews: dict[str, dict[str, Any]],
+    legacy_details: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    node_id = _text(node.get("id"), "Node id")
+    display_node = deepcopy(node)
+    display_node.pop("review_status", None)
+    record = {
+        **display_node,
+        "object_key": {"kind": "candidate-node", "object_id": node_id},
+        "review": _review_for(reviews, kind="candidate-node", object_id=node_id),
+    }
+    detail = legacy_details.get(_canonical_key("candidate-node", node_id))
+    if detail is not None:
+        record["review_detail"] = deepcopy(detail)
+    return record
+
+
+def _candidate_relationship_record(
+    relationship: dict[str, Any], reviews: dict[str, dict[str, Any]], *, kind: str
+) -> dict[str, Any]:
+    relationship_id = _text(relationship.get("id"), "Relationship id")
+    semantic_by_kind = {
+        "candidate-collaboration": "collaboration",
+        "candidate-decomposition": "decomposition",
+    }
+    if kind not in semantic_by_kind:
+        raise ExplorerInputError(
+            f"View Projection Relationship kind is invalid: {kind}"
+        )
+    display_relationship = deepcopy(relationship)
+    display_relationship.pop("semantic_family", None)
+    display_relationship.pop("review_status", None)
+    review = _review_for(reviews, kind=kind, object_id=relationship_id)
+    review_semantics = review.pop("semantics", None)
+    expected_semantics = {
+        "family": semantic_by_kind[kind],
+        "direction": {
+            "source_node_id": _text(
+                relationship.get("source_node_id"), "Relationship source Node id"
+            ),
+            "target_node_id": _text(
+                relationship.get("target_node_id"), "Relationship target Node id"
+            ),
+        },
+    }
+    if review_semantics is not None and review_semantics != expected_semantics:
+        raise ExplorerInputError(
+            f"View Projection Relationship Review semantics mismatch: {relationship_id}"
+        )
+    return {
+        **display_relationship,
+        "semantic": semantic_by_kind[kind],
+        "provenance": {"kind": "candidate-fragment"},
+        "object_key": {"kind": kind, "object_id": relationship_id},
+        "review": review,
+    }
+
+
+def _formal_relationship_record(relationship: dict[str, Any]) -> dict[str, Any]:
+    decision = relationship.get("review_decision")
+    result = decision.get("result") if isinstance(decision, dict) else "Pending"
+    if result not in REVIEW_RESULTS:
+        result = "Pending"
+    status = relationship.get("review_status")
+    continuity = relationship.get("source_continuity")
+    continuity_status = continuity.get("status") if isinstance(continuity, dict) else None
+    if status == "current-reviewed" and continuity_status == "exact-match":
+        state = "current"
+    elif status in {"historical-reviewed", "needs-review"}:
+        state = "needs-review"
+    else:
+        state = "unknown"
+    scope = relationship.get("review_scope")
+    display_relationship = deepcopy(relationship)
+    display_relationship.pop("review_status", None)
+    return {
+        **display_relationship,
+        "semantic": "formal",
+        "provenance": {"kind": "formal-relationship"},
+        "source_node_id": _text(
+            relationship.get("source_module"), "Relationship source Node id"
+        ),
+        "target_node_id": _text(
+            relationship.get("target_module"), "Relationship target Node id"
+        ),
+        "review": {
+            "result": result,
+            "state": state,
+            "approved_scope": (
+                [{"legacy_review_scope": scope}]
+                if isinstance(scope, str) and scope
+                else []
+            ),
+            "reasons": deepcopy(relationship.get("review_reasons", [])),
+        },
+    }
+
+
+def _complete_evidence_projection(
+    source_facts: dict[str, Any] | None,
+    references: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    if source_facts is None:
+        return {}
+    completed: dict[str, dict[str, Any]] = {}
+    for evidence_id, reference in references.items():
+        source = reference.get("record_source")
+        record: dict[str, Any]
+        if isinstance(source, str) and source.startswith("source_facts.modules."):
+            collection = source.removeprefix("source_facts.modules.")
+            source_module = source_facts["modules"][reference["module_index"]]
+            record = {
+                "fact": deepcopy(source_module[collection][reference["record_index"]]),
+                "file_path": _text(source_module.get("path"), "Evidence file path"),
+            }
+        elif isinstance(source, str) and source.startswith(
+            "source_facts.powershell_scripts."
+        ):
+            collection = source.removeprefix("source_facts.powershell_scripts.")
+            source_module = source_facts["powershell_scripts"][reference["script_index"]]
+            record = {
+                "fact": deepcopy(source_module[collection][reference["record_index"]]),
+                "file_path": _text(source_module.get("path"), "Evidence file path"),
+                "language": "powershell",
+            }
+        elif source == "source_facts.python_definition_index.files.definitions":
+            source_file = source_facts["python_definition_index"]["files"][reference["file_index"]]
+            record = {
+                "definition": deepcopy(
+                    source_file["definitions"][reference["record_index"]]
+                ),
+                "file_path": _text(source_file.get("path"), "Evidence file path"),
+            }
+        elif source == "source_facts.python_call_facts.files.calls":
+            source_file = source_facts["python_call_facts"]["files"][reference["file_index"]]
+            record = {
+                "call": deepcopy(source_file["calls"][reference["record_index"]]),
+                "file_path": _text(source_file.get("path"), "Evidence file path"),
+            }
+        else:
+            raise ExplorerInputError(
+                f"View Projection Evidence source is invalid: {evidence_id}"
+            )
+        if "source_trail_kind" in reference:
+            record["source_trail_kind"] = reference["source_trail_kind"]
+        if "enclosing_definition_evidence_id" in reference:
+            record["enclosing_definition_evidence_id"] = reference[
+                "enclosing_definition_evidence_id"
+            ]
+        completed[evidence_id] = record
+    return completed
+
+
+def _source_projection(
+    source_facts: dict[str, Any] | None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    if source_facts is None:
+        return {}, {
+            "schema": SOURCE_CATALOG_SCHEMA,
+            "file_paths": [],
+            "python_module_paths": [],
+            "powershell_script_paths": [],
+            "python_files_scanned": 0,
+            "powershell_files_scanned": 0,
+        }
+    if not isinstance(source_facts, dict):
+        raise ExplorerInputError("View Projection Source Facts must be an object")
+
+    modules = source_facts.get("modules")
+    powershell_scripts = source_facts.get("powershell_scripts")
+    definition_files = source_facts.get("python_definition_index", {}).get(
+        "files"
+    )
+    call_files = source_facts.get("python_call_facts", {}).get("files")
+    groups = {
+        "Python module": (
+            modules,
+            ("module_id", "module_kind", "file_sha256", "size_bytes"),
+            {
+                "fact_evidence_ids": ("direct_imports", "entries"),
+            },
+        ),
+        "PowerShell script": (
+            powershell_scripts,
+            ("file_sha256", "size_bytes", "parse_status", "parse_errors"),
+            {
+                "powershell_evidence_ids": (
+                    "entries",
+                    "script_bindings",
+                    "dot_sources",
+                ),
+            },
+        ),
+        "Definition file": (
+            definition_files,
+            ("module_id", "file_sha256"),
+            {"definition_evidence_ids": ("definitions",)},
+        ),
+        "Call Fact file": (
+            call_files,
+            ("module_id", "file_sha256"),
+            {"call_evidence_ids": ("calls",)},
+        ),
+    }
+    for label, (records, _, _) in groups.items():
+        if not isinstance(records, list):
+            raise ExplorerInputError(
+                f"View Projection Source Catalog {label} records must be a list"
+            )
+
+    source_file_index: dict[str, dict[str, Any]] = {}
+    for label, (records, metadata_fields, reference_groups) in groups.items():
+        seen_paths: set[str] = set()
+        for source_file in records:
+            if not isinstance(source_file, dict):
+                raise ExplorerInputError(
+                    f"View Projection Source Catalog {label} must be an object"
+                )
+            path = _text(source_file.get("path"), "Source file path")
+            if path in seen_paths:
+                raise ExplorerInputError(
+                    f"View Projection duplicate Source file identity: {label}:{path}"
+                )
+            seen_paths.add(path)
+            combined = source_file_index.setdefault(path, {"path": path})
+            for field in metadata_fields:
+                if field not in source_file:
+                    continue
+                value = source_file[field]
+                if field in combined and combined[field] != value:
+                    raise ExplorerInputError(
+                        "View Projection conflicting Source file record: "
+                        f"{path}:{field}"
+                    )
+                combined[field] = deepcopy(value)
+            for output_field, collections in reference_groups.items():
+                identities = combined.setdefault(output_field, [])
+                for collection in collections:
+                    records_in_collection = source_file.get(collection)
+                    if not isinstance(records_in_collection, list):
+                        raise ExplorerInputError(
+                            "View Projection Source Catalog collection must be a list: "
+                            f"{label}:{path}:{collection}"
+                        )
+                    for record in records_in_collection:
+                        evidence = record.get("evidence") if isinstance(record, dict) else None
+                        evidence_id = (
+                            evidence.get("evidence_id")
+                            if isinstance(evidence, dict)
+                            else None
+                        )
+                        if not isinstance(evidence_id, str) or not evidence_id:
+                            if label == "PowerShell script" and isinstance(record, dict) and record.get("resolution") != "known":
+                                continue
+                            raise ExplorerInputError(
+                                "View Projection Source Catalog record needs Evidence identity: "
+                                f"{label}:{path}:{collection}"
+                            )
+                        if evidence_id in identities:
+                            raise ExplorerInputError(
+                                "View Projection duplicate Evidence reference in Source file: "
+                                f"{path}:{evidence_id}"
+                            )
+                        identities.append(evidence_id)
+
+    python_scope = source_facts.get("scope", {})
+    powershell_scope = source_facts.get("powershell_scope", {})
+    catalog = {
+        "schema": SOURCE_CATALOG_SCHEMA,
+        "scanner_version": source_facts.get("scanner_version"),
+        "limitations": deepcopy(source_facts.get("limitations", [])),
+        "file_paths": sorted(source_file_index),
+        "python_module_paths": [source_file["path"] for source_file in modules],
+        "powershell_script_paths": [
+            source_file["path"] for source_file in powershell_scripts
+        ],
+        "python_files_scanned": (
+            python_scope.get("files_scanned")
+            if isinstance(python_scope, dict)
+            else 0
+        ),
+        "powershell_files_scanned": (
+            powershell_scope.get("files_scanned")
+            if isinstance(powershell_scope, dict)
+            else 0
+        ),
+    }
+    return source_file_index, catalog
+
+
+def _validate_candidate_evidence_references(
+    records: list[dict[str, Any]],
+    evidence_index: dict[str, dict[str, Any]],
+) -> None:
+    """Allow shared references while rejecting ambiguity within one object."""
+
+    for record in records:
+        object_key = record.get("object_key")
+        if not isinstance(object_key, dict):
+            continue
+        kind = object_key.get("kind")
+        object_id = object_key.get("object_id")
+        if kind == "candidate-node":
+            assignment = record.get("source_assignment")
+            evidence_ids = (
+                assignment.get("evidence_ids")
+                if isinstance(assignment, dict)
+                else None
+            )
+        elif kind in {"candidate-collaboration", "candidate-decomposition"}:
+            evidence_ids = record.get("evidence_ids")
+        else:
+            continue
+        if evidence_ids is None:
+            # v3 candidate inputs predate per-object locatable Evidence and
+            # legitimately omit the reference list, even when global source
+            # facts are available. Present references remain strictly checked.
+            continue
+        if not isinstance(evidence_ids, list) or not all(
+            isinstance(evidence_id, str) and evidence_id for evidence_id in evidence_ids
+        ):
+            raise ExplorerInputError(
+                f"View Projection Evidence references must be a string list: {kind}::{object_id}"
+            )
+        if len(set(evidence_ids)) != len(evidence_ids):
+            raise ExplorerInputError(
+                f"View Projection object repeats Evidence reference: {kind}::{object_id}"
+            )
+        unknown = next(
+            (evidence_id for evidence_id in evidence_ids if evidence_id not in evidence_index),
+            None,
+        )
+        if unknown is not None:
+            raise ExplorerInputError(
+                f"View Projection object has unknown Evidence reference: {kind}::{object_id}:{unknown}"
+            )
+
+
 def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
     """Adapt the current authoritative inputs into a read-only View Projection."""
 
     result = deepcopy(explorer)
+    explicit_reviews = _explicit_reviews(result)
+    legacy_reviews = _legacy_node_reviews(result)
+    legacy_projection = result.get("node_review_projection", {})
+    legacy_details = (
+        legacy_projection.get("objects", {})
+        if isinstance(legacy_projection, dict)
+        and isinstance(legacy_projection.get("objects", {}), dict)
+        else {}
+    )
+    duplicates = sorted(set(explicit_reviews) & set(legacy_reviews))
+    if duplicates:
+        raise ExplorerInputError(
+            f"View Projection review object is supplied twice: {duplicates[0]}"
+        )
+    explicit_reviews.update(legacy_reviews)
     source_facts = result.get("source_facts")
     source_evidence_index = (
         build_source_evidence_index(source_facts)
         if source_facts is not None
         else {}
     )
+    evidence_projection = _complete_evidence_projection(source_facts, source_evidence_index)
+    source_file_index, source_catalog = _source_projection(source_facts)
     result["source_evidence_index"] = source_evidence_index
     architecture = result.get("architecture")
     navigation = result.get("navigation")
@@ -68,22 +645,19 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
         drilldown_by_parent[parent_id] = drilldown
 
     node_index: dict[str, dict[str, Any]] = {}
-    for index, module in enumerate(modules):
+    for module in modules:
         if not isinstance(module, dict):
             raise ExplorerInputError("View Projection Node must be an object")
         node_id = _text(module.get("id"), "Node id")
         if node_id in node_index:
             raise ExplorerInputError(f"View Projection Node id must be unique: {node_id}")
-        node_index[node_id] = {
-            "record_source": "architecture.modules",
-            "record_index": index,
-        }
+        node_index[node_id] = deepcopy(module)
 
     for owner_view_id, drilldown in drilldown_by_parent.items():
         children = drilldown.get("children")
         if not isinstance(children, list):
             raise ExplorerInputError(f"View Projection View needs Appearances: {owner_view_id}")
-        for index, child in enumerate(children):
+        for child in children:
             if not isinstance(child, dict):
                 raise ExplorerInputError("View Projection Node must be an object")
             node_id = _text(child.get("id"), "Node id")
@@ -91,11 +665,9 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
                 raise ExplorerInputError(
                     f"View Projection Node id must be globally unique: {node_id}"
                 )
-            node_index[node_id] = {
-                "record_source": "navigation.drilldowns.children",
-                "owner_view_id": owner_view_id,
-                "record_index": index,
-            }
+            node_index[node_id] = _candidate_node_record(
+                child, explicit_reviews, legacy_details
+            )
 
     for fragment_index, fragment in enumerate(recursive_fragments):
         if not isinstance(fragment, dict):
@@ -103,7 +675,7 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
         nodes = fragment.get("nodes")
         if not isinstance(nodes, list):
             raise ExplorerInputError("View Projection recursive candidate needs Nodes")
-        for record_index, node in enumerate(nodes):
+        for node in nodes:
             if not isinstance(node, dict):
                 raise ExplorerInputError("View Projection Node must be an object")
             node_id = _text(node.get("id"), "Node id")
@@ -111,14 +683,12 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
                 raise ExplorerInputError(
                     f"View Projection Node id must be globally unique: {node_id}"
                 )
-            node_index[node_id] = {
-                "record_source": "recursive_candidate_fragments.nodes",
-                "fragment_index": fragment_index,
-                "record_index": record_index,
-            }
+            node_index[node_id] = _candidate_node_record(
+                node, explicit_reviews, legacy_details
+            )
 
     relationship_index: dict[str, dict[str, Any]] = {}
-    for index, relationship in enumerate(relationships):
+    for relationship in relationships:
         if not isinstance(relationship, dict):
             raise ExplorerInputError("View Projection Relationship must be an object")
         relationship_id = _text(relationship.get("id"), "Relationship id")
@@ -126,11 +696,7 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
             raise ExplorerInputError(
                 f"View Projection Relationship id must be unique: {relationship_id}"
             )
-        relationship_index[relationship_id] = {
-            "record_source": "architecture.relationships",
-            "record_index": index,
-            "semantic_family": "formal-relationship",
-        }
+        relationship_index[relationship_id] = _formal_relationship_record(relationship)
 
     for owner_view_id, drilldown in drilldown_by_parent.items():
         collaborations = drilldown.get("collaborations", [])
@@ -138,7 +704,7 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
             raise ExplorerInputError(
                 f"View Projection View relationships must be a list: {owner_view_id}"
             )
-        for index, collaboration in enumerate(collaborations):
+        for collaboration in collaborations:
             if not isinstance(collaboration, dict):
                 raise ExplorerInputError("View Projection Relationship must be an object")
             relationship_id = _text(collaboration.get("id"), "Relationship id")
@@ -147,12 +713,9 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
                     "View Projection Relationship id must be globally unique: "
                     f"{relationship_id}"
                 )
-            relationship_index[relationship_id] = {
-                "record_source": "navigation.drilldowns.collaborations",
-                "owner_view_id": owner_view_id,
-                "record_index": index,
-                "semantic_family": "candidate-collaboration",
-            }
+            relationship_index[relationship_id] = _candidate_relationship_record(
+                collaboration, explicit_reviews, kind="candidate-collaboration"
+            )
 
     for fragment_index, fragment in enumerate(recursive_fragments):
         recursive_relationships = fragment.get("relationships")
@@ -160,7 +723,7 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
             raise ExplorerInputError(
                 "View Projection recursive candidate needs Relationships"
             )
-        for record_index, relationship in enumerate(recursive_relationships):
+        for relationship in recursive_relationships:
             if not isinstance(relationship, dict):
                 raise ExplorerInputError("View Projection Relationship must be an object")
             relationship_id = _text(relationship.get("id"), "Relationship id")
@@ -168,14 +731,29 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
                 raise ExplorerInputError(
                     f"View Projection Relationship id must be globally unique: {relationship_id}"
                 )
-            relationship_index[relationship_id] = {
-                "record_source": "recursive_candidate_fragments.relationships",
-                "fragment_index": fragment_index,
-                "record_index": record_index,
-                "semantic_family": _text(
-                    relationship.get("semantic_family"), "Relationship semantic family"
+            relationship_index[relationship_id] = _candidate_relationship_record(
+                relationship,
+                explicit_reviews,
+                kind=_text(
+                    relationship.get("semantic_family"),
+                    "Relationship semantic family",
                 ),
-            }
+            )
+
+    projected_object_keys = {
+        _canonical_key(record["object_key"]["kind"], record["object_key"]["object_id"])
+        for record in [*node_index.values(), *relationship_index.values()]
+        if isinstance(record.get("object_key"), dict)
+    }
+    unknown_review_keys = sorted(set(explicit_reviews) - projected_object_keys)
+    if unknown_review_keys:
+        raise ExplorerInputError(
+            "View Projection review references unknown object: "
+            f"{unknown_review_keys[0]}"
+        )
+    _validate_candidate_evidence_references(
+        [*node_index.values(), *relationship_index.values()], evidence_projection
+    )
 
     module_ids = [_text(module.get("id"), "Node id") for module in modules]
     module_id_set = set(module_ids)
@@ -387,23 +965,10 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
                 raise ExplorerInputError(
                     f"View Projection references unknown Relationship: {relationship_id}"
                 )
-            if reference["record_source"] == "architecture.relationships":
-                record = relationships[reference["record_index"]]
-                endpoints = (record.get("source_module"), record.get("target_module"))
-            elif reference["record_source"] == "navigation.drilldowns.collaborations":
-                owner = drilldown_by_parent[reference["owner_view_id"]]
-                record = owner["collaborations"][reference["record_index"]]
-                endpoints = (
-                    record.get("source_node_id"),
-                    record.get("target_node_id"),
-                )
-            else:
-                fragment = recursive_fragments[reference["fragment_index"]]
-                record = fragment["relationships"][reference["record_index"]]
-                endpoints = (
-                    record.get("source_node_id"),
-                    record.get("target_node_id"),
-                )
+            endpoints = (
+                reference.get("source_node_id"),
+                reference.get("target_node_id"),
+            )
             if any(endpoint not in visible_nodes for endpoint in endpoints):
                 raise ExplorerInputError(
                     "View Projection Relationship endpoints must be visible in its View: "
@@ -415,6 +980,9 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
         "root_view_id": root_view_id,
         "node_index": node_index,
         "relationship_index": relationship_index,
+        "evidence_index": evidence_projection,
+        "source_file_index": source_file_index,
+        "source_catalog": source_catalog,
         "view_index": view_index,
     }
     canonical = json.dumps(
@@ -425,4 +993,8 @@ def apply_view_projection(explorer: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-__all__ = ["VIEW_PROJECTION_SCHEMA", "apply_view_projection"]
+__all__ = [
+    "REVIEW_PROJECTION_SCHEMA",
+    "VIEW_PROJECTION_SCHEMA",
+    "apply_view_projection",
+]

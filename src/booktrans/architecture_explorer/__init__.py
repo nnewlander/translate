@@ -24,8 +24,18 @@ from .node_review_definitions import (
 )
 from .node_review_projection import NODE_REVIEW_PROJECTION_SCHEMA
 from .source_scanner import scan_python_source_facts
-from .view_projection import VIEW_PROJECTION_SCHEMA, apply_view_projection
-from .view_definitions import VIEW_DEFINITIONS_SCHEMA, apply_view_definitions
+from .view_projection import (
+    REVIEW_PROJECTION_SCHEMA,
+    VIEW_PROJECTION_SCHEMA,
+    apply_view_projection,
+)
+from .view_definitions import (
+    VIEW_DEFINITIONS_SCHEMA,
+    apply_view_definition_documents,
+    apply_view_definitions,
+    authoritative_view_definition_paths,
+    discover_view_definition_paths,
+)
 
 __all__ = [
     "SCANNER_VERSION",
@@ -34,13 +44,17 @@ __all__ = [
     "NODE_REVIEW_DEFINITIONS_SCHEMA",
     "NODE_REVIEW_PACKET_V2_SCHEMA",
     "NODE_REVIEW_PROJECTION_SCHEMA",
+    "REVIEW_PROJECTION_SCHEMA",
     "VIEW_PROJECTION_SCHEMA",
     "apply_navigation",
     "apply_view_projection",
+    "apply_view_definition_documents",
     "apply_view_definitions",
+    "authoritative_view_definition_paths",
     "build_explorer",
     "evaluate_review_state",
     "evaluate_node_review_state",
+    "discover_view_definition_paths",
     "build_node_review_packets",
     "fetch_github_review_source",
     "import_review_mapping",
