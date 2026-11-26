@@ -52,7 +52,7 @@
     assert(document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1, "compact graph overflows horizontally");
     const reviewedEdges = Array.from(document.querySelectorAll(".graph-edge.reviewed"));
     assert(reviewedEdges.length === 1, "top level must contain exactly one reviewed SVG edge");
-    assert(reviewedEdges[0].getAttribute("marker-end") === "url(#reviewed-arrowhead)", "reviewed edge lacks target arrowhead");
+    assert(reviewedEdges[0].getAttribute("marker-end") === "url(#reviewed-arrowhead)", "approved/current edge lacks the formal trusted arrowhead");
     const initialPath = reviewedEdges[0].getAttribute("d");
     let points = coordinates(reviewedEdges[0]);
     const sourceRect = card("production-control").getBoundingClientRect();
@@ -97,8 +97,11 @@
     assert(graphLabel?.textContent === "进程启动", "reviewed graph label does not prioritize the published relationship name");
     assert(!graphLabel.textContent.includes("process-launch") && !graphLabel.textContent.includes("当前已审核"), "reviewed graph label still leads with technical type or trust state");
     const legend = document.querySelector("#graph-legend");
-    assert(legend?.textContent.includes("已审核关系"), "shared graph legend omits reviewed relationship meaning");
-    assert(legend?.textContent.includes("候选关系·未经审核"), "shared graph legend omits candidate trust warning");
+    assert(legend?.textContent.includes("正式可信关系"), "shared graph legend omits the approved/current solid-line boundary");
+    assert(legend?.textContent.includes("其他关系"), "shared graph legend omits the non-current-trust dashed-line boundary");
+    for (const removedStatus of ["当前拒绝", "需要复核", "状态未知", "未审核"]) {
+      assert(!legend?.textContent.includes(removedStatus), `shared graph legend still encodes ${removedStatus} as a separate arrow style`);
+    }
     const labelledPoints = coordinates(document.querySelector(".graph-edge.reviewed"));
     const surfaceRect = document.querySelector("#graph-surface").getBoundingClientRect();
     const pathMidpoint = {

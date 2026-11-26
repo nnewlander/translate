@@ -1,0 +1,1753 @@
+{
+  "fixture_only": true,
+  "explorer": {
+    "source_facts": {
+      "source_snapshot": {
+        "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+        "worktree": {
+          "state": "clean"
+        }
+      },
+      "deterministic_facts_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "fixture": {
+        "evidence": {
+          "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+          "source_role": "automatic_source_fact",
+          "evidence_kind": "python_function_entry",
+          "path": "src/example.py",
+          "symbol": "handoff",
+          "structural_anchor": "python:function:handoff",
+          "syntax_position": "module/function:handoff",
+          "current_location": {
+            "line_start": 10,
+            "line_end": 11
+          },
+          "snippet": "def handoff():\n    return worker()",
+          "normalized_snippet_sha256": "5d99e7c54c5b97206d939d913cb6e0200683853484917218c98949374f2e4fc1",
+          "file_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      }
+    },
+    "navigation": {
+      "drilldowns": [
+        {
+          "parent_module_id": "production-control",
+          "children": [
+            {
+              "id": "supervisor-boundary",
+              "node_type": "responsibility",
+              "name": "Supervisor boundary",
+              "responsibility": "Prepare the bounded handoff.",
+              "plain_explanation": "Prepares a bounded handoff.",
+              "review_status": "candidate",
+              "source_assignment": {
+                "status": "unverified",
+                "note": "Candidate Evidence only.",
+                "relationship_ids": [],
+                "evidence_ids": [
+                  "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+                ]
+              }
+            },
+            {
+              "id": "worker-entry",
+              "node_type": "responsibility",
+              "name": "Worker entry",
+              "responsibility": "Validate the bounded handoff.",
+              "plain_explanation": "Validates a bounded handoff.",
+              "review_status": "candidate",
+              "source_assignment": {
+                "status": "unverified",
+                "note": "Candidate Evidence only.",
+                "relationship_ids": [],
+                "evidence_ids": [
+                  "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+                ]
+              }
+            }
+          ],
+          "collaborations": []
+        }
+      ]
+    },
+    "recursive_candidate_fragments": [
+      {
+        "scope_node_id": "supervisor-boundary",
+        "nodes": [],
+        "relationships": [
+          {
+            "id": "relationship-under-review",
+            "semantic_family": "candidate-collaboration",
+            "source_node_id": "supervisor-boundary",
+            "target_node_id": "worker-entry",
+            "name": "Bounded handoff",
+            "professional_description": "Supervisor hands control to Worker.",
+            "plain_explanation": "One responsibility hands work to another.",
+            "review_status": "candidate",
+            "evidence_ids": [
+              "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+            ]
+          },
+          {
+            "id": "decomposition-under-review",
+            "semantic_family": "candidate-decomposition",
+            "source_node_id": "supervisor-boundary",
+            "target_node_id": "worker-entry",
+            "name": "Bounded handoff",
+            "professional_description": "Supervisor hands control to Worker.",
+            "plain_explanation": "One responsibility hands work to another.",
+            "review_status": "candidate",
+            "evidence_ids": [
+              "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "node_definitions": {
+    "schema": "architecture-explorer.node-review-definitions.v1",
+    "definitions": [
+      {
+        "object_key": {
+          "kind": "candidate-node",
+          "node_id": "worker-entry"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "classification_rationale": "The source supports this bounded responsibility.",
+        "claim_kinds": [
+          "IDENTITY",
+          "NAME",
+          "CLASSIFICATION",
+          "RESPONSIBILITY",
+          "PLAIN_EXPLANATION",
+          "SOURCE_ASSIGNMENT",
+          "CANDIDATE_EVIDENCE",
+          "DEPENDENCIES_AND_LIMITS"
+        ],
+        "candidate_evidence_ids": [
+          "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+        ],
+        "dependencies_and_limits": {
+          "dependencies": [],
+          "zero_dependency_reason": "No formal architecture dependency is required.",
+          "retained_unknowns": [
+            "Runtime reachability remains unknown."
+          ]
+        },
+        "legacy_compatibility": null
+      },
+      {
+        "object_key": {
+          "kind": "candidate-node",
+          "node_id": "supervisor-boundary"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "classification_rationale": "The source supports this bounded responsibility.",
+        "claim_kinds": [
+          "IDENTITY",
+          "NAME",
+          "CLASSIFICATION",
+          "RESPONSIBILITY",
+          "PLAIN_EXPLANATION",
+          "SOURCE_ASSIGNMENT",
+          "CANDIDATE_EVIDENCE",
+          "DEPENDENCIES_AND_LIMITS"
+        ],
+        "candidate_evidence_ids": [
+          "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+        ],
+        "dependencies_and_limits": {
+          "dependencies": [],
+          "zero_dependency_reason": "No formal architecture dependency is required.",
+          "retained_unknowns": [
+            "Runtime reachability remains unknown."
+          ]
+        },
+        "legacy_compatibility": null
+      }
+    ]
+  },
+  "relationship_definitions": {
+    "schema": "architecture-explorer.relationship-review-definitions.v1",
+    "definitions": [
+      {
+        "object_key": {
+          "kind": "candidate-collaboration",
+          "object_id": "relationship-under-review"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "endpoint_bindings": {
+          "source": {
+            "node_id": "supervisor-boundary",
+            "responsibility": "Prepare the bounded handoff."
+          },
+          "target": {
+            "node_id": "worker-entry",
+            "responsibility": "Validate the bounded handoff."
+          }
+        },
+        "semantics": {
+          "family": "collaboration",
+          "direction": {
+            "source_node_id": "supervisor-boundary",
+            "target_node_id": "worker-entry"
+          }
+        },
+        "claim_kinds": [
+          "IDENTITY",
+          "ENDPOINT_RESPONSIBILITIES",
+          "SEMANTICS_AND_DIRECTION",
+          "RELATIONSHIP_DESCRIPTION",
+          "CANDIDATE_EVIDENCE",
+          "DEPENDENCIES_AND_LIMITS"
+        ],
+        "candidate_evidence_ids": [
+          "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+        ],
+        "dependencies_and_limits": {
+          "dependencies": [],
+          "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+          "retained_unknowns": [
+            "Runtime reachability is not established."
+          ]
+        }
+      },
+      {
+        "object_key": {
+          "kind": "candidate-decomposition",
+          "object_id": "decomposition-under-review"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "endpoint_bindings": {
+          "source": {
+            "node_id": "supervisor-boundary",
+            "responsibility": "Prepare the bounded handoff."
+          },
+          "target": {
+            "node_id": "worker-entry",
+            "responsibility": "Validate the bounded handoff."
+          }
+        },
+        "semantics": {
+          "family": "decomposition",
+          "direction": {
+            "source_node_id": "supervisor-boundary",
+            "target_node_id": "worker-entry"
+          }
+        },
+        "claim_kinds": [
+          "IDENTITY",
+          "ENDPOINT_RESPONSIBILITIES",
+          "SEMANTICS_AND_DIRECTION",
+          "RELATIONSHIP_DESCRIPTION",
+          "CANDIDATE_EVIDENCE",
+          "DEPENDENCIES_AND_LIMITS"
+        ],
+        "candidate_evidence_ids": [
+          "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+        ],
+        "dependencies_and_limits": {
+          "dependencies": [],
+          "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+          "retained_unknowns": [
+            "Runtime reachability is not established."
+          ]
+        }
+      }
+    ]
+  },
+  "batch": {
+    "schema": "architecture-explorer.batch-review.v1",
+    "objects": {
+      "candidate-collaboration::relationship-under-review": {
+        "packet": {
+          "schema": "architecture-explorer.relationship-review-packet.v1",
+          "object_key": {
+            "kind": "candidate-collaboration",
+            "object_id": "relationship-under-review"
+          },
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "allowed_results": [
+            "APPROVED",
+            "REJECTED"
+          ],
+          "candidate_fact": {
+            "object_id": "relationship-under-review",
+            "semantic_family": "collaboration",
+            "source_node_id": "supervisor-boundary",
+            "target_node_id": "worker-entry",
+            "name": "Bounded handoff",
+            "professional_description": "Supervisor hands control to Worker.",
+            "plain_explanation": "One responsibility hands work to another.",
+            "provenance": "candidate",
+            "evidence_ids": [
+              "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+            ]
+          },
+          "endpoint_bindings": {
+            "source": {
+              "node_id": "supervisor-boundary",
+              "responsibility": "Prepare the bounded handoff."
+            },
+            "target": {
+              "node_id": "worker-entry",
+              "responsibility": "Validate the bounded handoff."
+            }
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-collaboration",
+                "object_id": "relationship-under-review"
+              },
+              "source": "relationship-review-definition.object-key"
+            },
+            {
+              "kind": "ENDPOINT_RESPONSIBILITIES",
+              "value": {
+                "source": {
+                  "node_id": "supervisor-boundary",
+                  "responsibility": "Prepare the bounded handoff."
+                },
+                "target": {
+                  "node_id": "worker-entry",
+                  "responsibility": "Validate the bounded handoff."
+                }
+              },
+              "source": "relationship-review-definition.endpoint-bindings"
+            },
+            {
+              "kind": "SEMANTICS_AND_DIRECTION",
+              "value": {
+                "family": "collaboration",
+                "direction": {
+                  "source_node_id": "supervisor-boundary",
+                  "target_node_id": "worker-entry"
+                }
+              },
+              "source": "relationship-review-definition.semantics"
+            },
+            {
+              "kind": "RELATIONSHIP_DESCRIPTION",
+              "value": {
+                "name": "Bounded handoff",
+                "professional_description": "Supervisor hands control to Worker.",
+                "plain_explanation": "One responsibility hands work to another."
+              },
+              "source": "candidate-relationship"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "relationship-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+                "retained_unknowns": [
+                  "Runtime reachability is not established."
+                ]
+              },
+              "source": "relationship-review-definition.dependencies-and-limits"
+            }
+          ],
+          "candidate_evidence": [
+            {
+              "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+              "source_role": "automatic_source_fact",
+              "evidence_kind": "python_function_entry",
+              "path": "src/example.py",
+              "symbol": "handoff",
+              "structural_anchor": "python:function:handoff",
+              "syntax_position": "module/function:handoff",
+              "current_location": {
+                "line_start": 10,
+                "line_end": 11
+              },
+              "snippet": "def handoff():\n    return worker()",
+              "normalized_snippet_sha256": "5d99e7c54c5b97206d939d913cb6e0200683853484917218c98949374f2e4fc1",
+              "file_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "inputs": {
+            "definition_sha256": "8f9b246d25fd81efbc32614835118703726cd31e8583099f9d613fa406214e4a",
+            "candidate_fact_sha256": "deda03bfa44572833f0893f925bf373e5b8e94f35190b17c643b12cc5dc8f427",
+            "endpoint_bindings_sha256": "0bea5bb0504d456c6965fb76be6f332aa01465038e98f5f86024eb62c5f00c41",
+            "claims_sha256": "8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364"
+          },
+          "packet_sha256": "2d04a331f246c76d74eaa7c83b62c25dc8c156a04cb21a42c7d04d2225606938"
+        },
+        "analysis": {
+          "topic": "受控交接",
+          "display_name": "候选协作",
+          "source_check": "源码片段与职责一致；运行时路径未验证。",
+          "assessment": "职责范围清晰。",
+          "concerns": [
+            "运行时路径未知"
+          ],
+          "risk": "低",
+          "suggestion": "APPROVED",
+          "suggestion_reason": "静态职责证据足够。"
+        }
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "packet": {
+          "schema": "architecture-explorer.relationship-review-packet.v1",
+          "object_key": {
+            "kind": "candidate-decomposition",
+            "object_id": "decomposition-under-review"
+          },
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "allowed_results": [
+            "APPROVED",
+            "REJECTED"
+          ],
+          "candidate_fact": {
+            "object_id": "decomposition-under-review",
+            "semantic_family": "decomposition",
+            "source_node_id": "supervisor-boundary",
+            "target_node_id": "worker-entry",
+            "name": "Bounded handoff",
+            "professional_description": "Supervisor hands control to Worker.",
+            "plain_explanation": "One responsibility hands work to another.",
+            "provenance": "candidate",
+            "evidence_ids": [
+              "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+            ]
+          },
+          "endpoint_bindings": {
+            "source": {
+              "node_id": "supervisor-boundary",
+              "responsibility": "Prepare the bounded handoff."
+            },
+            "target": {
+              "node_id": "worker-entry",
+              "responsibility": "Validate the bounded handoff."
+            }
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-decomposition",
+                "object_id": "decomposition-under-review"
+              },
+              "source": "relationship-review-definition.object-key"
+            },
+            {
+              "kind": "ENDPOINT_RESPONSIBILITIES",
+              "value": {
+                "source": {
+                  "node_id": "supervisor-boundary",
+                  "responsibility": "Prepare the bounded handoff."
+                },
+                "target": {
+                  "node_id": "worker-entry",
+                  "responsibility": "Validate the bounded handoff."
+                }
+              },
+              "source": "relationship-review-definition.endpoint-bindings"
+            },
+            {
+              "kind": "SEMANTICS_AND_DIRECTION",
+              "value": {
+                "family": "decomposition",
+                "direction": {
+                  "source_node_id": "supervisor-boundary",
+                  "target_node_id": "worker-entry"
+                }
+              },
+              "source": "relationship-review-definition.semantics"
+            },
+            {
+              "kind": "RELATIONSHIP_DESCRIPTION",
+              "value": {
+                "name": "Bounded handoff",
+                "professional_description": "Supervisor hands control to Worker.",
+                "plain_explanation": "One responsibility hands work to another."
+              },
+              "source": "candidate-relationship"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "relationship-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+                "retained_unknowns": [
+                  "Runtime reachability is not established."
+                ]
+              },
+              "source": "relationship-review-definition.dependencies-and-limits"
+            }
+          ],
+          "candidate_evidence": [
+            {
+              "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+              "source_role": "automatic_source_fact",
+              "evidence_kind": "python_function_entry",
+              "path": "src/example.py",
+              "symbol": "handoff",
+              "structural_anchor": "python:function:handoff",
+              "syntax_position": "module/function:handoff",
+              "current_location": {
+                "line_start": 10,
+                "line_end": 11
+              },
+              "snippet": "def handoff():\n    return worker()",
+              "normalized_snippet_sha256": "5d99e7c54c5b97206d939d913cb6e0200683853484917218c98949374f2e4fc1",
+              "file_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "inputs": {
+            "definition_sha256": "9d65aa4f0984084494dba10d3b91ad58999cdc8d682fd667b3a5c1abc1254fb1",
+            "candidate_fact_sha256": "ee95b860214d994cc6b57eac32eb40efa624e628dd35d23d6fca30423ad92f91",
+            "endpoint_bindings_sha256": "0bea5bb0504d456c6965fb76be6f332aa01465038e98f5f86024eb62c5f00c41",
+            "claims_sha256": "fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364"
+          },
+          "packet_sha256": "8847189780c24c2fee6583dc4d97d253aef6fde0cbd576be8cee43a647952b67"
+        },
+        "analysis": {
+          "topic": "受控交接",
+          "display_name": "候选分解",
+          "source_check": "源码片段与职责一致；运行时路径未验证。",
+          "assessment": "职责范围清晰。",
+          "concerns": [
+            "运行时路径未知"
+          ],
+          "risk": "低",
+          "suggestion": "APPROVED",
+          "suggestion_reason": "静态职责证据足够。"
+        }
+      },
+      "candidate-node::supervisor-boundary": {
+        "packet": {
+          "schema": "architecture-explorer.node-review-packet.v2",
+          "object_key": {
+            "kind": "candidate-node",
+            "node_id": "supervisor-boundary"
+          },
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "allowed_results": [
+            "APPROVED",
+            "REJECTED"
+          ],
+          "candidate_fact": {
+            "id": "supervisor-boundary",
+            "node_type": "responsibility",
+            "name": "Supervisor boundary",
+            "responsibility": "Prepare the bounded handoff.",
+            "plain_explanation": "Prepares a bounded handoff.",
+            "review_status": "candidate",
+            "source_assignment": {
+              "status": "unverified",
+              "note": "Candidate Evidence only.",
+              "relationship_ids": [],
+              "evidence_ids": [
+                "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+              ]
+            }
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-node",
+                "node_id": "supervisor-boundary"
+              },
+              "source": "candidate-fact.object-key"
+            },
+            {
+              "kind": "NAME",
+              "value": "Supervisor boundary",
+              "source": "candidate-fact.name"
+            },
+            {
+              "kind": "CLASSIFICATION",
+              "value": {
+                "node_type": "responsibility",
+                "rationale": "The source supports this bounded responsibility."
+              },
+              "source": "node-review-definition.classification"
+            },
+            {
+              "kind": "RESPONSIBILITY",
+              "value": "Prepare the bounded handoff.",
+              "source": "candidate-fact.responsibility"
+            },
+            {
+              "kind": "PLAIN_EXPLANATION",
+              "value": "Prepares a bounded handoff.",
+              "source": "candidate-fact.plain-explanation"
+            },
+            {
+              "kind": "SOURCE_ASSIGNMENT",
+              "value": {
+                "status": "unverified",
+                "note": "Candidate Evidence only.",
+                "relationship_ids": [],
+                "evidence_ids": [
+                  "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+                ]
+              },
+              "source": "candidate-fact.source-assignment"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "node-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "No formal architecture dependency is required.",
+                "retained_unknowns": [
+                  "Runtime reachability remains unknown."
+                ]
+              },
+              "source": "node-review-definition.dependencies-and-limits"
+            }
+          ],
+          "candidate_evidence": [
+            {
+              "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+              "source_role": "automatic_source_fact",
+              "evidence_kind": "python_function_entry",
+              "path": "src/example.py",
+              "symbol": "handoff",
+              "structural_anchor": "python:function:handoff",
+              "syntax_position": "module/function:handoff",
+              "current_location": {
+                "line_start": 10,
+                "line_end": 11
+              },
+              "snippet": "def handoff():\n    return worker()",
+              "normalized_snippet_sha256": "5d99e7c54c5b97206d939d913cb6e0200683853484917218c98949374f2e4fc1",
+              "file_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "dependency_evidence": [],
+          "inputs": {
+            "definition_sha256": "0e1f1656c958c70cb07f7ff0a5431a3b46794cac8491ea898f8dd5df8a0b151c",
+            "candidate_fact_sha256": "f58e57e3b5fe5beafd0ce48ba147e8a542ccc553de18a4f38ce94bda49321ec3",
+            "claims_sha256": "087601cc93645e72729f641133650a0c6620471f168b6a134f3a8d280aaea5fa",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+            "dependency_evidence_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "packet_sha256": "d9af849fd50860bd1dca9e1f189f4407a1d67f40738c8c6cf7c93fbc9a73ca99"
+        },
+        "analysis": {
+          "topic": "受控交接",
+          "display_name": "Supervisor 边界",
+          "source_check": "源码片段与职责一致；运行时路径未验证。",
+          "assessment": "职责范围清晰。",
+          "concerns": [
+            "运行时路径未知"
+          ],
+          "risk": "低",
+          "suggestion": "APPROVED",
+          "suggestion_reason": "静态职责证据足够。"
+        }
+      },
+      "candidate-node::worker-entry": {
+        "packet": {
+          "schema": "architecture-explorer.node-review-packet.v2",
+          "object_key": {
+            "kind": "candidate-node",
+            "node_id": "worker-entry"
+          },
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "allowed_results": [
+            "APPROVED",
+            "REJECTED"
+          ],
+          "candidate_fact": {
+            "id": "worker-entry",
+            "node_type": "responsibility",
+            "name": "Worker entry",
+            "responsibility": "Validate the bounded handoff.",
+            "plain_explanation": "Validates a bounded handoff.",
+            "review_status": "candidate",
+            "source_assignment": {
+              "status": "unverified",
+              "note": "Candidate Evidence only.",
+              "relationship_ids": [],
+              "evidence_ids": [
+                "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+              ]
+            }
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-node",
+                "node_id": "worker-entry"
+              },
+              "source": "candidate-fact.object-key"
+            },
+            {
+              "kind": "NAME",
+              "value": "Worker entry",
+              "source": "candidate-fact.name"
+            },
+            {
+              "kind": "CLASSIFICATION",
+              "value": {
+                "node_type": "responsibility",
+                "rationale": "The source supports this bounded responsibility."
+              },
+              "source": "node-review-definition.classification"
+            },
+            {
+              "kind": "RESPONSIBILITY",
+              "value": "Validate the bounded handoff.",
+              "source": "candidate-fact.responsibility"
+            },
+            {
+              "kind": "PLAIN_EXPLANATION",
+              "value": "Validates a bounded handoff.",
+              "source": "candidate-fact.plain-explanation"
+            },
+            {
+              "kind": "SOURCE_ASSIGNMENT",
+              "value": {
+                "status": "unverified",
+                "note": "Candidate Evidence only.",
+                "relationship_ids": [],
+                "evidence_ids": [
+                  "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+                ]
+              },
+              "source": "candidate-fact.source-assignment"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "node-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "No formal architecture dependency is required.",
+                "retained_unknowns": [
+                  "Runtime reachability remains unknown."
+                ]
+              },
+              "source": "node-review-definition.dependencies-and-limits"
+            }
+          ],
+          "candidate_evidence": [
+            {
+              "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+              "source_role": "automatic_source_fact",
+              "evidence_kind": "python_function_entry",
+              "path": "src/example.py",
+              "symbol": "handoff",
+              "structural_anchor": "python:function:handoff",
+              "syntax_position": "module/function:handoff",
+              "current_location": {
+                "line_start": 10,
+                "line_end": 11
+              },
+              "snippet": "def handoff():\n    return worker()",
+              "normalized_snippet_sha256": "5d99e7c54c5b97206d939d913cb6e0200683853484917218c98949374f2e4fc1",
+              "file_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "dependency_evidence": [],
+          "inputs": {
+            "definition_sha256": "820d7c421d0363341faad214218e9993184fb19013ef94867cc1f7e49a7d58d3",
+            "candidate_fact_sha256": "0833eecd66da0eba069ad196fab38fa538ceb23a0d12eb6799f14114d6da7718",
+            "claims_sha256": "90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+            "dependency_evidence_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "packet_sha256": "d56324202be6f95226358abf02f8fc47fbe64bb6406909d7e1f8994216f284ba"
+        },
+        "analysis": {
+          "topic": "受控交接",
+          "display_name": "Worker 入口",
+          "source_check": "源码片段与职责一致；运行时路径未验证。",
+          "assessment": "职责范围清晰。",
+          "concerns": [
+            "运行时路径未知"
+          ],
+          "risk": "低",
+          "suggestion": "APPROVED",
+          "suggestion_reason": "静态职责证据足够。"
+        }
+      }
+    },
+    "batch_sha256": "016d922acff598fa73e0e509e8482bd85d329c55d086ba47dcd9b9c967170ef3"
+  },
+  "first_confirmation": {
+    "schema": "architecture-explorer.batch-first-confirmation.v1",
+    "batch_sha256": "016d922acff598fa73e0e509e8482bd85d329c55d086ba47dcd9b9c967170ef3",
+    "checklist_sha256": "4e60e4e4de363c6e8c2b513f07180d0962e26803e43533170e8b396707eeccba",
+    "final_decision_list_sha256": "2dab6174643ad0b5f68e9782c2e82f0973f5432ad510eee28a966cdde47d4a34",
+    "decisions": {
+      "candidate-node::worker-entry": {
+        "result": "APPROVED",
+        "reason": "认可完整静态范围",
+        "scope": "FULL_PACKET"
+      },
+      "candidate-node::supervisor-boundary": {
+        "result": "PENDING",
+        "reason": "仍待审核"
+      },
+      "candidate-collaboration::relationship-under-review": {
+        "result": "REJECTED",
+        "reason": "证据不足"
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "result": "APPROVED",
+        "reason": "认可完整静态范围",
+        "scope": "FULL_PACKET"
+      }
+    },
+    "bindings": {
+      "candidate-collaboration::relationship-under-review": {
+        "object_key": {
+          "kind": "candidate-collaboration",
+          "object_id": "relationship-under-review"
+        },
+        "packet_sha256": "2d04a331f246c76d74eaa7c83b62c25dc8c156a04cb21a42c7d04d2225606938",
+        "claims_sha256": "8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d",
+        "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "decision_sha256": "61fe82ba9f49f8de979561af54dacebda5103039a7c8ca9c81b8bd3036f8f00c"
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "object_key": {
+          "kind": "candidate-decomposition",
+          "object_id": "decomposition-under-review"
+        },
+        "packet_sha256": "8847189780c24c2fee6583dc4d97d253aef6fde0cbd576be8cee43a647952b67",
+        "claims_sha256": "fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639",
+        "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "decision_sha256": "9b50a4b653c126428c1590a95c21faa7f364cbc258065afdc773411b5b765112"
+      },
+      "candidate-node::supervisor-boundary": {
+        "object_key": {
+          "kind": "candidate-node",
+          "node_id": "supervisor-boundary"
+        },
+        "packet_sha256": "d9af849fd50860bd1dca9e1f189f4407a1d67f40738c8c6cf7c93fbc9a73ca99",
+        "claims_sha256": "087601cc93645e72729f641133650a0c6620471f168b6a134f3a8d280aaea5fa",
+        "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "decision_sha256": "20bbad08103bd53774992203d1548d34ef9138b22b0fdf5507b836f2f13a3804"
+      },
+      "candidate-node::worker-entry": {
+        "object_key": {
+          "kind": "candidate-node",
+          "node_id": "worker-entry"
+        },
+        "packet_sha256": "d56324202be6f95226358abf02f8fc47fbe64bb6406909d7e1f8994216f284ba",
+        "claims_sha256": "90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601",
+        "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+        "reviewed_source_snapshot": {
+          "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+          "worktree_state": "clean"
+        },
+        "decision_sha256": "9b50a4b653c126428c1590a95c21faa7f364cbc258065afdc773411b5b765112"
+      }
+    },
+    "confirmation_sha256": "2539db73ff37845cc1aae51b38c2e044efaed21599e5e84164aa0e4f878dc66a"
+  },
+  "publication": {
+    "schema": "architecture-explorer.batch-comment-publication.v1",
+    "repository": "nnewlander/translate",
+    "issue_number": 79,
+    "issue_id": 6599421144,
+    "batch_sha256": "016d922acff598fa73e0e509e8482bd85d329c55d086ba47dcd9b9c967170ef3",
+    "first_confirmation_sha256": "2539db73ff37845cc1aae51b38c2e044efaed21599e5e84164aa0e4f878dc66a",
+    "objects": {
+      "candidate-collaboration::relationship-under-review": {
+        "publication_key": "4076b045b05d87080167e2aedd983f03dff831bef34c526faa8eb2df59d5d9d9",
+        "decision": {
+          "object_key": {
+            "kind": "candidate-collaboration",
+            "object_id": "relationship-under-review"
+          },
+          "result": "REJECTED",
+          "reason": "证据不足",
+          "packet_sha256": "2d04a331f246c76d74eaa7c83b62c25dc8c156a04cb21a42c7d04d2225606938",
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "inputs": {
+            "definition_sha256": "8f9b246d25fd81efbc32614835118703726cd31e8583099f9d613fa406214e4a",
+            "candidate_fact_sha256": "deda03bfa44572833f0893f925bf373e5b8e94f35190b17c643b12cc5dc8f427",
+            "endpoint_bindings_sha256": "0bea5bb0504d456c6965fb76be6f332aa01465038e98f5f86024eb62c5f00c41",
+            "claims_sha256": "8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364"
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-collaboration",
+                "object_id": "relationship-under-review"
+              },
+              "source": "relationship-review-definition.object-key"
+            },
+            {
+              "kind": "ENDPOINT_RESPONSIBILITIES",
+              "value": {
+                "source": {
+                  "node_id": "supervisor-boundary",
+                  "responsibility": "Prepare the bounded handoff."
+                },
+                "target": {
+                  "node_id": "worker-entry",
+                  "responsibility": "Validate the bounded handoff."
+                }
+              },
+              "source": "relationship-review-definition.endpoint-bindings"
+            },
+            {
+              "kind": "SEMANTICS_AND_DIRECTION",
+              "value": {
+                "family": "collaboration",
+                "direction": {
+                  "source_node_id": "supervisor-boundary",
+                  "target_node_id": "worker-entry"
+                }
+              },
+              "source": "relationship-review-definition.semantics"
+            },
+            {
+              "kind": "RELATIONSHIP_DESCRIPTION",
+              "value": {
+                "name": "Bounded handoff",
+                "professional_description": "Supervisor hands control to Worker.",
+                "plain_explanation": "One responsibility hands work to another."
+              },
+              "source": "candidate-relationship"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "relationship-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+                "retained_unknowns": [
+                  "Runtime reachability is not established."
+                ]
+              },
+              "source": "relationship-review-definition.dependencies-and-limits"
+            }
+          ]
+        },
+        "draft_body": "ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\nPublication-State: DRAFT\nPublication-Key: 4076b045b05d87080167e2aedd983f03dff831bef34c526faa8eb2df59d5d9d9\nObject-Key: candidate-collaboration::relationship-under-review\nResult: REJECTED\nOwner-Decision: {\"reason\":\"证据不足\",\"result\":\"REJECTED\"}\nPacket-SHA256: 2d04a331f246c76d74eaa7c83b62c25dc8c156a04cb21a42c7d04d2225606938\nClaims-SHA256: 8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d\nReviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86"
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "publication_key": "0982ac796c43fee6a61e6ea18ced0360e61b3ce48546a4036bec41d84bab962a",
+        "decision": {
+          "object_key": {
+            "kind": "candidate-decomposition",
+            "object_id": "decomposition-under-review"
+          },
+          "result": "APPROVED",
+          "reason": "认可完整静态范围",
+          "scope": "FULL_PACKET",
+          "packet_sha256": "8847189780c24c2fee6583dc4d97d253aef6fde0cbd576be8cee43a647952b67",
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "inputs": {
+            "definition_sha256": "9d65aa4f0984084494dba10d3b91ad58999cdc8d682fd667b3a5c1abc1254fb1",
+            "candidate_fact_sha256": "ee95b860214d994cc6b57eac32eb40efa624e628dd35d23d6fca30423ad92f91",
+            "endpoint_bindings_sha256": "0bea5bb0504d456c6965fb76be6f332aa01465038e98f5f86024eb62c5f00c41",
+            "claims_sha256": "fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364"
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-decomposition",
+                "object_id": "decomposition-under-review"
+              },
+              "source": "relationship-review-definition.object-key"
+            },
+            {
+              "kind": "ENDPOINT_RESPONSIBILITIES",
+              "value": {
+                "source": {
+                  "node_id": "supervisor-boundary",
+                  "responsibility": "Prepare the bounded handoff."
+                },
+                "target": {
+                  "node_id": "worker-entry",
+                  "responsibility": "Validate the bounded handoff."
+                }
+              },
+              "source": "relationship-review-definition.endpoint-bindings"
+            },
+            {
+              "kind": "SEMANTICS_AND_DIRECTION",
+              "value": {
+                "family": "decomposition",
+                "direction": {
+                  "source_node_id": "supervisor-boundary",
+                  "target_node_id": "worker-entry"
+                }
+              },
+              "source": "relationship-review-definition.semantics"
+            },
+            {
+              "kind": "RELATIONSHIP_DESCRIPTION",
+              "value": {
+                "name": "Bounded handoff",
+                "professional_description": "Supervisor hands control to Worker.",
+                "plain_explanation": "One responsibility hands work to another."
+              },
+              "source": "candidate-relationship"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "relationship-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+                "retained_unknowns": [
+                  "Runtime reachability is not established."
+                ]
+              },
+              "source": "relationship-review-definition.dependencies-and-limits"
+            }
+          ]
+        },
+        "draft_body": "ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\nPublication-State: DRAFT\nPublication-Key: 0982ac796c43fee6a61e6ea18ced0360e61b3ce48546a4036bec41d84bab962a\nObject-Key: candidate-decomposition::decomposition-under-review\nResult: APPROVED\nOwner-Decision: {\"reason\":\"认可完整静态范围\",\"result\":\"APPROVED\",\"scope\":\"FULL_PACKET\"}\nPacket-SHA256: 8847189780c24c2fee6583dc4d97d253aef6fde0cbd576be8cee43a647952b67\nClaims-SHA256: fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639\nReviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86"
+      },
+      "candidate-node::worker-entry": {
+        "publication_key": "9b4ef8e54d132d173a85889dd67e21cee2614d77298a9a53d26a2cdbafc611ec",
+        "decision": {
+          "object_key": {
+            "kind": "candidate-node",
+            "node_id": "worker-entry"
+          },
+          "result": "APPROVED",
+          "reason": "认可完整静态范围",
+          "scope": "FULL_PACKET",
+          "packet_sha256": "d56324202be6f95226358abf02f8fc47fbe64bb6406909d7e1f8994216f284ba",
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "inputs": {
+            "definition_sha256": "820d7c421d0363341faad214218e9993184fb19013ef94867cc1f7e49a7d58d3",
+            "candidate_fact_sha256": "0833eecd66da0eba069ad196fab38fa538ceb23a0d12eb6799f14114d6da7718",
+            "claims_sha256": "90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+            "dependency_evidence_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-node",
+                "node_id": "worker-entry"
+              },
+              "source": "candidate-fact.object-key"
+            },
+            {
+              "kind": "NAME",
+              "value": "Worker entry",
+              "source": "candidate-fact.name"
+            },
+            {
+              "kind": "CLASSIFICATION",
+              "value": {
+                "node_type": "responsibility",
+                "rationale": "The source supports this bounded responsibility."
+              },
+              "source": "node-review-definition.classification"
+            },
+            {
+              "kind": "RESPONSIBILITY",
+              "value": "Validate the bounded handoff.",
+              "source": "candidate-fact.responsibility"
+            },
+            {
+              "kind": "PLAIN_EXPLANATION",
+              "value": "Validates a bounded handoff.",
+              "source": "candidate-fact.plain-explanation"
+            },
+            {
+              "kind": "SOURCE_ASSIGNMENT",
+              "value": {
+                "status": "unverified",
+                "note": "Candidate Evidence only.",
+                "relationship_ids": [],
+                "evidence_ids": [
+                  "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+                ]
+              },
+              "source": "candidate-fact.source-assignment"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "node-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "No formal architecture dependency is required.",
+                "retained_unknowns": [
+                  "Runtime reachability remains unknown."
+                ]
+              },
+              "source": "node-review-definition.dependencies-and-limits"
+            }
+          ]
+        },
+        "draft_body": "ARCHITECTURE_EXPLORER_NODE_REVIEW_V2\nPublication-State: DRAFT\nPublication-Key: 9b4ef8e54d132d173a85889dd67e21cee2614d77298a9a53d26a2cdbafc611ec\nObject-Key: candidate-node::worker-entry\nResult: APPROVED\nOwner-Decision: {\"reason\":\"认可完整静态范围\",\"result\":\"APPROVED\",\"scope\":\"FULL_PACKET\"}\nPacket-SHA256: d56324202be6f95226358abf02f8fc47fbe64bb6406909d7e1f8994216f284ba\nClaims-SHA256: 90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601\nReviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86"
+      }
+    },
+    "publication_sha256": "863f9e6128e82552247f6d9fdd51a2bd84dbfe049ec8094869dadcf22b80dab6"
+  },
+  "receipts": {
+    "schema": "architecture-explorer.batch-comment-receipts.v1",
+    "publication_sha256": "863f9e6128e82552247f6d9fdd51a2bd84dbfe049ec8094869dadcf22b80dab6",
+    "batch_sha256": "016d922acff598fa73e0e509e8482bd85d329c55d086ba47dcd9b9c967170ef3",
+    "first_confirmation_sha256": "2539db73ff37845cc1aae51b38c2e044efaed21599e5e84164aa0e4f878dc66a",
+    "entries": {
+      "candidate-collaboration::relationship-under-review": {
+        "publication_key": "4076b045b05d87080167e2aedd983f03dff831bef34c526faa8eb2df59d5d9d9",
+        "first_decision_sha256": "61fe82ba9f49f8de979561af54dacebda5103039a7c8ca9c81b8bd3036f8f00c",
+        "decision": {
+          "object_key": {
+            "kind": "candidate-collaboration",
+            "object_id": "relationship-under-review"
+          },
+          "result": "REJECTED",
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "inputs": {
+            "definition_sha256": "8f9b246d25fd81efbc32614835118703726cd31e8583099f9d613fa406214e4a",
+            "candidate_fact_sha256": "deda03bfa44572833f0893f925bf373e5b8e94f35190b17c643b12cc5dc8f427",
+            "endpoint_bindings_sha256": "0bea5bb0504d456c6965fb76be6f332aa01465038e98f5f86024eb62c5f00c41",
+            "claims_sha256": "8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364"
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-collaboration",
+                "object_id": "relationship-under-review"
+              },
+              "source": "relationship-review-definition.object-key"
+            },
+            {
+              "kind": "ENDPOINT_RESPONSIBILITIES",
+              "value": {
+                "source": {
+                  "node_id": "supervisor-boundary",
+                  "responsibility": "Prepare the bounded handoff."
+                },
+                "target": {
+                  "node_id": "worker-entry",
+                  "responsibility": "Validate the bounded handoff."
+                }
+              },
+              "source": "relationship-review-definition.endpoint-bindings"
+            },
+            {
+              "kind": "SEMANTICS_AND_DIRECTION",
+              "value": {
+                "family": "collaboration",
+                "direction": {
+                  "source_node_id": "supervisor-boundary",
+                  "target_node_id": "worker-entry"
+                }
+              },
+              "source": "relationship-review-definition.semantics"
+            },
+            {
+              "kind": "RELATIONSHIP_DESCRIPTION",
+              "value": {
+                "name": "Bounded handoff",
+                "professional_description": "Supervisor hands control to Worker.",
+                "plain_explanation": "One responsibility hands work to another."
+              },
+              "source": "candidate-relationship"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "relationship-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+                "retained_unknowns": [
+                  "Runtime reachability is not established."
+                ]
+              },
+              "source": "relationship-review-definition.dependencies-and-limits"
+            }
+          ],
+          "schema": "architecture-explorer.relationship-review-decision.v1",
+          "decision_id": "github-comment:9001",
+          "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+          "source_receipt_sha256": "087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020",
+          "batch_publication_sha256": "4076b045b05d87080167e2aedd983f03dff831bef34c526faa8eb2df59d5d9d9"
+        },
+        "packet_sha256": "2d04a331f246c76d74eaa7c83b62c25dc8c156a04cb21a42c7d04d2225606938",
+        "comment_body_sha256": "1c6d976faf91ab8a498224d2a006389df39aabb02dbf4e46fee4846ac86976ca",
+        "source_receipt_sha256": "087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020",
+        "source": {
+          "schema": "architecture-explorer.github-review-source.v1",
+          "repository": {
+            "id": 1425303246,
+            "node_id": "repo-node",
+            "full_name": "nnewlander/translate",
+            "html_url": "https://github.com/nnewlander/translate",
+            "private": false,
+            "owner": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          },
+          "issue": {
+            "id": 6599421144,
+            "node_id": "issue-node",
+            "number": 79,
+            "html_url": "https://github.com/nnewlander/translate/issues/79",
+            "repository_url": "https://api.github.com/repos/nnewlander/translate",
+            "state": "open"
+          },
+          "comment": {
+            "id": 9001,
+            "node_id": "comment-9001",
+            "html_url": "https://github.com/nnewlander/translate/issues/79#issuecomment-9001",
+            "issue_url": "https://api.github.com/repos/nnewlander/translate/issues/79",
+            "author_association": "OWNER",
+            "created_at": "2026-11-26T10:00:00Z",
+            "updated_at": "2026-11-26T10:01:00Z",
+            "body": "ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\nDecision-ID: github-comment:9001\nResult: REJECTED\nObject-Key: candidate-collaboration + relationship-under-review\nClaims-SHA256: 8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d\nCandidate-Fact-SHA256: deda03bfa44572833f0893f925bf373e5b8e94f35190b17c643b12cc5dc8f427\nReviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86\nPublication-Key: 4076b045b05d87080167e2aedd983f03dff831bef34c526faa8eb2df59d5d9d9",
+            "user": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          },
+          "permission": {
+            "permission": "admin",
+            "role_name": "admin",
+            "user": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          }
+        }
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "publication_key": "0982ac796c43fee6a61e6ea18ced0360e61b3ce48546a4036bec41d84bab962a",
+        "first_decision_sha256": "9b50a4b653c126428c1590a95c21faa7f364cbc258065afdc773411b5b765112",
+        "decision": {
+          "object_key": {
+            "kind": "candidate-decomposition",
+            "object_id": "decomposition-under-review"
+          },
+          "result": "APPROVED",
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "inputs": {
+            "definition_sha256": "9d65aa4f0984084494dba10d3b91ad58999cdc8d682fd667b3a5c1abc1254fb1",
+            "candidate_fact_sha256": "ee95b860214d994cc6b57eac32eb40efa624e628dd35d23d6fca30423ad92f91",
+            "endpoint_bindings_sha256": "0bea5bb0504d456c6965fb76be6f332aa01465038e98f5f86024eb62c5f00c41",
+            "claims_sha256": "fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364"
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-decomposition",
+                "object_id": "decomposition-under-review"
+              },
+              "source": "relationship-review-definition.object-key"
+            },
+            {
+              "kind": "ENDPOINT_RESPONSIBILITIES",
+              "value": {
+                "source": {
+                  "node_id": "supervisor-boundary",
+                  "responsibility": "Prepare the bounded handoff."
+                },
+                "target": {
+                  "node_id": "worker-entry",
+                  "responsibility": "Validate the bounded handoff."
+                }
+              },
+              "source": "relationship-review-definition.endpoint-bindings"
+            },
+            {
+              "kind": "SEMANTICS_AND_DIRECTION",
+              "value": {
+                "family": "decomposition",
+                "direction": {
+                  "source_node_id": "supervisor-boundary",
+                  "target_node_id": "worker-entry"
+                }
+              },
+              "source": "relationship-review-definition.semantics"
+            },
+            {
+              "kind": "RELATIONSHIP_DESCRIPTION",
+              "value": {
+                "name": "Bounded handoff",
+                "professional_description": "Supervisor hands control to Worker.",
+                "plain_explanation": "One responsibility hands work to another."
+              },
+              "source": "candidate-relationship"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "relationship-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "The candidate relationship is reviewed from its own evidence.",
+                "retained_unknowns": [
+                  "Runtime reachability is not established."
+                ]
+              },
+              "source": "relationship-review-definition.dependencies-and-limits"
+            }
+          ],
+          "schema": "architecture-explorer.relationship-review-decision.v1",
+          "decision_id": "github-comment:9002",
+          "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+          "source_receipt_sha256": "aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b",
+          "batch_publication_sha256": "0982ac796c43fee6a61e6ea18ced0360e61b3ce48546a4036bec41d84bab962a"
+        },
+        "packet_sha256": "8847189780c24c2fee6583dc4d97d253aef6fde0cbd576be8cee43a647952b67",
+        "comment_body_sha256": "cdafae8ffd722400d2fa5fd73e13cd37d3fc54d637ac319936db04bef21fa596",
+        "source_receipt_sha256": "aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b",
+        "source": {
+          "schema": "architecture-explorer.github-review-source.v1",
+          "repository": {
+            "id": 1425303246,
+            "node_id": "repo-node",
+            "full_name": "nnewlander/translate",
+            "html_url": "https://github.com/nnewlander/translate",
+            "private": false,
+            "owner": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          },
+          "issue": {
+            "id": 6599421144,
+            "node_id": "issue-node",
+            "number": 79,
+            "html_url": "https://github.com/nnewlander/translate/issues/79",
+            "repository_url": "https://api.github.com/repos/nnewlander/translate",
+            "state": "open"
+          },
+          "comment": {
+            "id": 9002,
+            "node_id": "comment-9002",
+            "html_url": "https://github.com/nnewlander/translate/issues/79#issuecomment-9002",
+            "issue_url": "https://api.github.com/repos/nnewlander/translate/issues/79",
+            "author_association": "OWNER",
+            "created_at": "2026-11-26T10:00:00Z",
+            "updated_at": "2026-11-26T10:01:00Z",
+            "body": "ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\nDecision-ID: github-comment:9002\nResult: APPROVED\nObject-Key: candidate-decomposition + decomposition-under-review\nClaims-SHA256: fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639\nCandidate-Fact-SHA256: ee95b860214d994cc6b57eac32eb40efa624e628dd35d23d6fca30423ad92f91\nReviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86\nPublication-Key: 0982ac796c43fee6a61e6ea18ced0360e61b3ce48546a4036bec41d84bab962a",
+            "user": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          },
+          "permission": {
+            "permission": "admin",
+            "role_name": "admin",
+            "user": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          }
+        }
+      },
+      "candidate-node::worker-entry": {
+        "publication_key": "9b4ef8e54d132d173a85889dd67e21cee2614d77298a9a53d26a2cdbafc611ec",
+        "first_decision_sha256": "9b50a4b653c126428c1590a95c21faa7f364cbc258065afdc773411b5b765112",
+        "decision": {
+          "object_key": {
+            "kind": "candidate-node",
+            "node_id": "worker-entry"
+          },
+          "result": "APPROVED",
+          "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean"
+          },
+          "inputs": {
+            "definition_sha256": "820d7c421d0363341faad214218e9993184fb19013ef94867cc1f7e49a7d58d3",
+            "candidate_fact_sha256": "0833eecd66da0eba069ad196fab38fa538ceb23a0d12eb6799f14114d6da7718",
+            "claims_sha256": "90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601",
+            "candidate_evidence_sha256": "2883db6a4608632231aea1aa91e488acb3f388d2752138af3affdf4ab43c9364",
+            "dependency_evidence_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "claims": [
+            {
+              "kind": "IDENTITY",
+              "value": {
+                "kind": "candidate-node",
+                "node_id": "worker-entry"
+              },
+              "source": "candidate-fact.object-key"
+            },
+            {
+              "kind": "NAME",
+              "value": "Worker entry",
+              "source": "candidate-fact.name"
+            },
+            {
+              "kind": "CLASSIFICATION",
+              "value": {
+                "node_type": "responsibility",
+                "rationale": "The source supports this bounded responsibility."
+              },
+              "source": "node-review-definition.classification"
+            },
+            {
+              "kind": "RESPONSIBILITY",
+              "value": "Validate the bounded handoff.",
+              "source": "candidate-fact.responsibility"
+            },
+            {
+              "kind": "PLAIN_EXPLANATION",
+              "value": "Validates a bounded handoff.",
+              "source": "candidate-fact.plain-explanation"
+            },
+            {
+              "kind": "SOURCE_ASSIGNMENT",
+              "value": {
+                "status": "unverified",
+                "note": "Candidate Evidence only.",
+                "relationship_ids": [],
+                "evidence_ids": [
+                  "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64"
+                ]
+              },
+              "source": "candidate-fact.source-assignment"
+            },
+            {
+              "kind": "CANDIDATE_EVIDENCE",
+              "value": [
+                {
+                  "evidence_id": "evidence:sha256:5607a3fb96d7996ae021e1cb462fd421ae4f59a18310458e58f6ac4b7bb96e64",
+                  "role": "python_function_entry"
+                }
+              ],
+              "source": "node-review-definition.candidate-evidence-ids"
+            },
+            {
+              "kind": "DEPENDENCIES_AND_LIMITS",
+              "value": {
+                "dependencies": [],
+                "zero_dependency_reason": "No formal architecture dependency is required.",
+                "retained_unknowns": [
+                  "Runtime reachability remains unknown."
+                ]
+              },
+              "source": "node-review-definition.dependencies-and-limits"
+            }
+          ],
+          "schema": "architecture-explorer.node-review-decision.v2",
+          "decision_id": "github-comment:9003",
+          "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+          "source_receipt_sha256": "b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f",
+          "batch_publication_sha256": "9b4ef8e54d132d173a85889dd67e21cee2614d77298a9a53d26a2cdbafc611ec"
+        },
+        "packet_sha256": "d56324202be6f95226358abf02f8fc47fbe64bb6406909d7e1f8994216f284ba",
+        "comment_body_sha256": "444bceb6dc62d97d515095921a154f4869fd2e5d7441edbdfdac2ffc552a3a3c",
+        "source_receipt_sha256": "b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f",
+        "source": {
+          "schema": "architecture-explorer.github-review-source.v1",
+          "repository": {
+            "id": 1425303246,
+            "node_id": "repo-node",
+            "full_name": "nnewlander/translate",
+            "html_url": "https://github.com/nnewlander/translate",
+            "private": false,
+            "owner": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          },
+          "issue": {
+            "id": 6599421144,
+            "node_id": "issue-node",
+            "number": 79,
+            "html_url": "https://github.com/nnewlander/translate/issues/79",
+            "repository_url": "https://api.github.com/repos/nnewlander/translate",
+            "state": "open"
+          },
+          "comment": {
+            "id": 9003,
+            "node_id": "comment-9003",
+            "html_url": "https://github.com/nnewlander/translate/issues/79#issuecomment-9003",
+            "issue_url": "https://api.github.com/repos/nnewlander/translate/issues/79",
+            "author_association": "OWNER",
+            "created_at": "2026-11-26T10:00:00Z",
+            "updated_at": "2026-11-26T10:01:00Z",
+            "body": "ARCHITECTURE_EXPLORER_NODE_REVIEW_V2\nDecision-ID: github-comment:9003\nResult: APPROVED\nObject-Key: candidate-node + worker-entry\nClaims-SHA256: 90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601\nCandidate-Fact-SHA256: 0833eecd66da0eba069ad196fab38fa538ceb23a0d12eb6799f14114d6da7718\nReviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86\nPublication-Key: 9b4ef8e54d132d173a85889dd67e21cee2614d77298a9a53d26a2cdbafc611ec",
+            "user": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          },
+          "permission": {
+            "permission": "admin",
+            "role_name": "admin",
+            "user": {
+              "login": "nnewlander",
+              "id": 256049772,
+              "node_id": "owner-node",
+              "type": "User"
+            }
+          }
+        }
+      }
+    },
+    "receipts_sha256": "4a456dab4edb28c00bcb3e9f2a790f955c2e602516e7816f951721ad3bb93846"
+  },
+  "second_confirmation": {
+    "schema": "architecture-explorer.batch-anchor-confirmation.v1",
+    "candidate_sha256": "be7197f1215a15699354aeb72159b3e51a3f0c8d4067cd229e20228c0fca1bf1",
+    "batch_sha256": "016d922acff598fa73e0e509e8482bd85d329c55d086ba47dcd9b9c967170ef3",
+    "first_confirmation_sha256": "2539db73ff37845cc1aae51b38c2e044efaed21599e5e84164aa0e4f878dc66a",
+    "receipts_sha256": "4a456dab4edb28c00bcb3e9f2a790f955c2e602516e7816f951721ad3bb93846",
+    "object_keys": [
+      "candidate-collaboration::relationship-under-review",
+      "candidate-decomposition::decomposition-under-review",
+      "candidate-node::worker-entry"
+    ],
+    "anchors": {
+      "candidate-collaboration::relationship-under-review": {
+        "issue_id": 6599421144,
+        "issue_number": 79,
+        "comment_id": 9001,
+        "comment_created_at": "2026-11-26T10:00:00Z",
+        "comment_updated_at": "2026-11-26T10:01:00Z",
+        "source_receipt_sha256": "087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020"
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "issue_id": 6599421144,
+        "issue_number": 79,
+        "comment_id": 9002,
+        "comment_created_at": "2026-11-26T10:00:00Z",
+        "comment_updated_at": "2026-11-26T10:01:00Z",
+        "source_receipt_sha256": "aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b"
+      },
+      "candidate-node::worker-entry": {
+        "issue_id": 6599421144,
+        "issue_number": 79,
+        "comment_id": 9003,
+        "comment_created_at": "2026-11-26T10:00:00Z",
+        "comment_updated_at": "2026-11-26T10:01:00Z",
+        "source_receipt_sha256": "b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f"
+      }
+    },
+    "checklist_sha256": "be3e735d443191bba69a5b065ffcc62261bec3e923dcd658edfae4307bd18c31",
+    "second_confirmation_sha256": "90323afea37e05ac159fccbe2de18a1afbbfd92b9c5929ed65f6fbfaab2e09bf"
+  },
+  "installed_batch": {
+    "schema": "architecture-explorer.batch-anchor-installation.v1",
+    "status": "installed",
+    "batch_id": "90323afea37e05ac159fccbe2de18a1afbbfd92b9c5929ed65f6fbfaab2e09bf",
+    "batch_sha256": "016d922acff598fa73e0e509e8482bd85d329c55d086ba47dcd9b9c967170ef3",
+    "confirmation_sha256": "2539db73ff37845cc1aae51b38c2e044efaed21599e5e84164aa0e4f878dc66a",
+    "objects": {
+      "candidate-collaboration::relationship-under-review": {
+        "object_key": {
+          "kind": "candidate-collaboration",
+          "object_id": "relationship-under-review"
+        },
+        "decision_id": "github-comment:9001",
+        "decision_sha256": "4b3198c3374e48acd5fb2def58c7ea1282f5d723c8e02b88d8bc1bd9a33fd1ba",
+        "source_receipt_sha256": "087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020",
+        "anchor": {
+          "issue_id": 6599421144,
+          "issue_number": 79,
+          "comment_id": 9001,
+          "comment_created_at": "2026-11-26T10:00:00Z",
+          "comment_updated_at": "2026-11-26T10:01:00Z",
+          "source_receipt_sha256": "087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020"
+        }
+      },
+      "candidate-decomposition::decomposition-under-review": {
+        "object_key": {
+          "kind": "candidate-decomposition",
+          "object_id": "decomposition-under-review"
+        },
+        "decision_id": "github-comment:9002",
+        "decision_sha256": "f172385e060671d861023ff60d0b8ec7516c69d40ad626ac9edd191b24ffb599",
+        "source_receipt_sha256": "aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b",
+        "anchor": {
+          "issue_id": 6599421144,
+          "issue_number": 79,
+          "comment_id": 9002,
+          "comment_created_at": "2026-11-26T10:00:00Z",
+          "comment_updated_at": "2026-11-26T10:01:00Z",
+          "source_receipt_sha256": "aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b"
+        }
+      },
+      "candidate-node::worker-entry": {
+        "object_key": {
+          "kind": "candidate-node",
+          "node_id": "worker-entry"
+        },
+        "decision_id": "github-comment:9003",
+        "decision_sha256": "aef6f9e957ccc2da60440c9f3ef3edff1520d251973b6f8d2197db495be661c8",
+        "source_receipt_sha256": "b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f",
+        "anchor": {
+          "issue_id": 6599421144,
+          "issue_number": 79,
+          "comment_id": 9003,
+          "comment_created_at": "2026-11-26T10:00:00Z",
+          "comment_updated_at": "2026-11-26T10:01:00Z",
+          "source_receipt_sha256": "b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f"
+        }
+      }
+    },
+    "installation_sha256": "cfb9c87b3b2c69ca3b9719c68ab72f7ec02b1d3df5a9e58dcf168a6fe85134eb"
+  },
+  "checklist": "# 第二次确认：可信评论与精确 Anchor 清单\n\n> 评论发布和 Receipt 均不等于 Anchor 授权。请独立核对本批精确集合；本次确认不覆盖未来评论或其他对象。\n\n- 状态：**READY**\n- 首次确认：`2539db73ff37845cc1aae51b38c2e044efaed21599e5e84164aa0e4f878dc66a`\n- Receipt 批次：`4a456dab4edb28c00bcb3e9f2a790f955c2e602516e7816f951721ad3bb93846`\n\n## 1. 候选协作 — `candidate-collaboration::relationship-under-review`\n\n- 决定：**REJECTED**；理由：证据不足\n- 评论：`github-comment:9001`；https://github.com/nnewlander/translate/issues/79#issuecomment-9001\n- 作者：nnewlander（OWNER / admin）\n- 时间：创建 `2026-11-26T10:00:00Z`；更新 `2026-11-26T10:01:00Z`\n- Receipt：`087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020`\n- 评论正文 SHA-256：`1c6d976faf91ab8a498224d2a006389df39aabb02dbf4e46fee4846ac86976ca`\n> ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\n> Decision-ID: github-comment:9001\n> Result: REJECTED\n> Object-Key: candidate-collaboration + relationship-under-review\n> Claims-SHA256: 8eccad16a1be1ec04728b352fd17a83fa2d12022b9954967548f00c27691f93d\n> Candidate-Fact-SHA256: deda03bfa44572833f0893f925bf373e5b8e94f35190b17c643b12cc5dc8f427\n> Reviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86\n> Publication-Key: 4076b045b05d87080167e2aedd983f03dff831bef34c526faa8eb2df59d5d9d9\n- Anchor：`{\"comment_created_at\": \"2026-11-26T10:00:00Z\", \"comment_id\": 9001, \"comment_updated_at\": \"2026-11-26T10:01:00Z\", \"issue_id\": 6599421144, \"issue_number\": 79, \"source_receipt_sha256\": \"087af9eed049e39689df1134a65a27ed1c03ab7544f9fe77894c5abc32670020\"}`\n- 异常：无\n\n## 2. 候选分解 — `candidate-decomposition::decomposition-under-review`\n\n- 决定：**APPROVED**；理由：认可完整静态范围\n- 评论：`github-comment:9002`；https://github.com/nnewlander/translate/issues/79#issuecomment-9002\n- 作者：nnewlander（OWNER / admin）\n- 时间：创建 `2026-11-26T10:00:00Z`；更新 `2026-11-26T10:01:00Z`\n- Receipt：`aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b`\n- 评论正文 SHA-256：`cdafae8ffd722400d2fa5fd73e13cd37d3fc54d637ac319936db04bef21fa596`\n> ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\n> Decision-ID: github-comment:9002\n> Result: APPROVED\n> Object-Key: candidate-decomposition + decomposition-under-review\n> Claims-SHA256: fb7c44567776cf1ca549380afe730342b0b740c15ca60ff9d64fdc6861303639\n> Candidate-Fact-SHA256: ee95b860214d994cc6b57eac32eb40efa624e628dd35d23d6fca30423ad92f91\n> Reviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86\n> Publication-Key: 0982ac796c43fee6a61e6ea18ced0360e61b3ce48546a4036bec41d84bab962a\n- Anchor：`{\"comment_created_at\": \"2026-11-26T10:00:00Z\", \"comment_id\": 9002, \"comment_updated_at\": \"2026-11-26T10:01:00Z\", \"issue_id\": 6599421144, \"issue_number\": 79, \"source_receipt_sha256\": \"aacf262adc5558f44e3514f18cce4d5a7327cc77e0f5fc3e31d468709ce8923b\"}`\n- 异常：无\n\n## 3. Worker 入口 — `candidate-node::worker-entry`\n\n- 决定：**APPROVED**；理由：认可完整静态范围\n- 评论：`github-comment:9003`；https://github.com/nnewlander/translate/issues/79#issuecomment-9003\n- 作者：nnewlander（OWNER / admin）\n- 时间：创建 `2026-11-26T10:00:00Z`；更新 `2026-11-26T10:01:00Z`\n- Receipt：`b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f`\n- 评论正文 SHA-256：`444bceb6dc62d97d515095921a154f4869fd2e5d7441edbdfdac2ffc552a3a3c`\n> ARCHITECTURE_EXPLORER_NODE_REVIEW_V2\n> Decision-ID: github-comment:9003\n> Result: APPROVED\n> Object-Key: candidate-node + worker-entry\n> Claims-SHA256: 90049379d8e46a611390500027187f85269a0ec0a89e598f942d53fec71df601\n> Candidate-Fact-SHA256: 0833eecd66da0eba069ad196fab38fa538ceb23a0d12eb6799f14114d6da7718\n> Reviewed-Revision: 09aaf4a033123c7eca8d280fa8982e5b0e711b86\n> Publication-Key: 9b4ef8e54d132d173a85889dd67e21cee2614d77298a9a53d26a2cdbafc611ec\n- Anchor：`{\"comment_created_at\": \"2026-11-26T10:00:00Z\", \"comment_id\": 9003, \"comment_updated_at\": \"2026-11-26T10:01:00Z\", \"issue_id\": 6599421144, \"issue_number\": 79, \"source_receipt_sha256\": \"b73c625f0f8e1392d8c1b7a833aa84d9299b8ff51c49d3a0a844de0336ca348f\"}`\n- 异常：无\n\n## 本批精确授权集合\n\n本次授权仅覆盖以下 3 个 Anchor：\n\n- `candidate-collaboration::relationship-under-review` → `github-comment:9001`\n- `candidate-decomposition::decomposition-under-review` → `github-comment:9002`\n- `candidate-node::worker-entry` → `github-comment:9003`\n\n## 异常汇总\n\n异常：无\n\n请在核对无误后，一次确认授权宿主登记并安装本批精确 Anchor。该授权仅适用于此清单。\n"
+}

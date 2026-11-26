@@ -137,11 +137,11 @@ def _validate_owner_admin_receipt(source: dict[str, Any]) -> None:
             and owner.get("id") == TRUSTED_OWNER_ID
             and owner.get("type") == "User"
         ),
-        "issue.id": isinstance(issue.get("id"), int),
-        "issue.number": isinstance(issue_number, int) and issue_number > 0,
+        "issue.id": type(issue.get("id")) is int and issue["id"] > 0,
+        "issue.number": type(issue_number) is int and issue_number > 0,
         "issue.html_url": issue.get("html_url") == expected_issue_url,
         "issue.repository_url": issue.get("repository_url") == expected_repository_url,
-        "comment.id": isinstance(comment_id, int) and comment_id > 0,
+        "comment.id": type(comment_id) is int and comment_id > 0,
         "comment.html_url": comment.get("html_url") == expected_comment_url,
         "comment.issue_url": comment.get("issue_url") == f"{expected_repository_url}/issues/{issue_number}",
         "comment.author": (
@@ -168,6 +168,8 @@ def _validate_owner_admin_receipt(source: dict[str, Any]) -> None:
         updated = datetime.fromisoformat(comment["updated_at"].replace("Z", "+00:00"))
     except ValueError as error:
         raise ExplorerInputError("GitHub review source timestamps are invalid") from error
+    if created.utcoffset() is None or updated.utcoffset() is None:
+        raise ExplorerInputError("GitHub review source timestamps need a timezone")
     if updated < created:
         raise ExplorerInputError("GitHub review source update time precedes creation time")
 

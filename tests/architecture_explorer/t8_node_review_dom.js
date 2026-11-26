@@ -33,11 +33,9 @@
       assert(rowRect.right <= targetRect.right + 1, "review status row overflows the candidate card");
     }
 
-    const targetData = window.ARCHITECTURE_EXPLORER_DATA.navigation.drilldowns
-      .flatMap((item) => item.children)
-      .find((item) => item.id === "worker-launch-boundary");
-    const reviewObjects = window.ARCHITECTURE_EXPLORER_DATA.node_review_projection.objects;
-    const reviewData = reviewObjects["candidate-node::worker-launch-boundary"];
+    const targetData = window.ARCHITECTURE_EXPLORER_DATA.view_projection
+      .node_index["worker-launch-boundary"];
+    const reviewData = targetData.review_detail;
     const originalProjection = reviewData.projection;
     const presentationCases = [
       ["Pending Review", "待审核"],
@@ -152,8 +150,11 @@
 
     dialog.querySelector(".dialog-close").click();
     await nextPaint();
-    reviewObjects["candidate-node::state-and-control-decisions"] = structuredClone(reviewData);
-    reviewObjects["candidate-node::state-and-control-decisions"].object_key.node_id = "state-and-control-decisions";
+    const legacyNode = window.ARCHITECTURE_EXPLORER_DATA.view_projection
+      .node_index["state-and-control-decisions"];
+    const originalLegacyReview = legacyNode.review_detail;
+    legacyNode.review_detail = structuredClone(reviewData);
+    legacyNode.review_detail.object_key.node_id = "state-and-control-decisions";
     const legacyCard = card("state-and-control-decisions");
     legacyCard.dispatchEvent(new MouseEvent("contextmenu", {
       bubbles: true, cancelable: true, clientX: 48, clientY: 48,
@@ -169,7 +170,8 @@
     } else {
       assert(!Array.from(legacyDetail.querySelectorAll("h3")).some((heading) => heading.textContent.includes("Review Claims")), "pending non-target node fabricated Review Claims");
     }
-    delete reviewObjects["candidate-node::state-and-control-decisions"];
+    if (originalLegacyReview) legacyNode.review_detail = originalLegacyReview;
+    else delete legacyNode.review_detail;
 
     document.documentElement.dataset.t8NodeReview = "pass";
   } catch (error) {

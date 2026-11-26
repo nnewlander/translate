@@ -53,7 +53,10 @@ from .relationship_review import (
 )
 from .review_mapping import import_review_mapping, publish_reviewed_explorer
 from .source_scanner import attach_python_source_facts, scan_python_source_facts
-from .view_definitions import apply_view_definitions
+from .view_definitions import (
+    apply_view_definition_documents,
+    discover_view_definition_paths,
+)
 from .review_source import (
     TRUSTED_COMMENT_ID,
     TRUSTED_ISSUE_NUMBER,
@@ -295,7 +298,7 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--review-state", type=Path)
     build.add_argument("--navigation", type=Path)
     build.add_argument("--candidate-fragment", type=Path, action="append", default=[])
-    build.add_argument("--view-definition", type=Path)
+    build.add_argument("--view-definition", type=Path, action="append", default=[])
     build.add_argument("--node-review-decision", type=Path)
     build.add_argument("--node-review-source", type=Path)
     build.add_argument("--node-review-state", type=Path)
@@ -736,6 +739,9 @@ def _main(
             if args.node_review_state.is_absolute()
             else args.repository / args.node_review_state
         ).resolve()
+    view_definition_paths = tuple(args.view_definition) or discover_view_definition_paths(
+        args.repository
+    )
     output = validate_cli_output_path(
         args.repository, args.output_directory, directory=True,
         inputs=tuple(
@@ -748,7 +754,7 @@ def _main(
                  *args.node_review_material_directory,
                 args.relationship_review_definitions,
                 *args.relationship_review_material_directory,
-                args.view_definition,
+                *view_definition_paths,
                 *batch_directories,
                 *args.candidate_fragment
             ) if path is not None
@@ -845,12 +851,21 @@ def _main(
             }
             for path in args.candidate_fragment
         ]
-    if args.view_definition is not None:
-        data = apply_view_definitions(data, _object(args.view_definition))
-        data["generation_inputs"]["view_definitions"] = {
-            "path": args.view_definition.name,
-            "sha256": hashlib.sha256(args.view_definition.read_bytes()).hexdigest(),
-        }
+    if view_definition_paths:
+        data = apply_view_definition_documents(
+            data, [_object(path) for path in view_definition_paths]
+        )
+        data["generation_inputs"]["view_definitions"] = [
+            {
+                "path": (
+                    path.relative_to(args.repository).as_posix()
+                    if path.is_relative_to(args.repository)
+                    else path.name
+                ),
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+            for path in view_definition_paths
+        ]
     if args.node_review_definitions is not None:
         direct_material = None
         if args.node_review_decision is not None and args.node_review_source is not None:

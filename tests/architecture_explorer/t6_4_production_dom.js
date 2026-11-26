@@ -32,7 +32,7 @@
     card("production-control-adapters").click();
     detail = document.querySelector("#detail-content");
     assert(detail.querySelectorAll(".candidate-evidence-card").length === 2, "adapter evidence did not resolve");
-    assert(detail.textContent.includes("dot-source") && detail.textContent.includes("未审核候选"), "dot-source explanation missing");
+    assert(detail.textContent.includes("dot-source") && detail.textContent.includes("当前对象的证据调查"), "dot-source explanation missing");
     document.querySelector("#relationship-detail").close();
 
     const collaborations = Array.from(document.querySelectorAll("#candidate-collaborations .candidate-collaboration"));

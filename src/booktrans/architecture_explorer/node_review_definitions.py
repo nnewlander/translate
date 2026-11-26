@@ -407,6 +407,8 @@ def render_node_review_decision_body(decision: dict[str, Any]) -> str:
         lines.append(
             f"Rejection-Basis-SHA256: {_canonical_sha256(decision['rejection_basis'])}"
         )
+    if "batch_publication_sha256" in decision:
+        lines.append(f"Publication-Key: {decision['batch_publication_sha256']}")
     return "\n".join(lines)
 
 
@@ -490,7 +492,12 @@ def verify_node_review_v2_integrity(
         "inputs",
         "claims",
     }
-    actual_fields = set(decision)
+    actual_fields = set(decision) - {"batch_publication_sha256"}
+    publication = decision.get("batch_publication_sha256")
+    if "batch_publication_sha256" in decision and (
+        not isinstance(publication, str) or not re.fullmatch(r"[0-9a-f]{64}", publication)
+    ):
+        raise ExplorerInputError("Invalid Node Review batch publication binding")
     if (
         frozenset(actual_fields)
         not in {

@@ -5,7 +5,10 @@ from functools import lru_cache
 import json
 from pathlib import Path
 
+import pytest
+
 from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
+from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.navigation import apply_navigation
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
 from booktrans.architecture_explorer.source_scanner import (
@@ -83,7 +86,7 @@ def test_current_eight_views_are_projected_without_changing_authorities() -> Non
         "source_facts": projected["source_facts"],
     } == authoritative
     projection = projected["view_projection"]
-    assert projection["schema"] == "architecture-explorer.view-projection.v1"
+    assert projection["schema"] == "architecture-explorer.view-projection.v2"
     assert projection["root_view_id"] == "top-level"
     assert list(projection["view_index"]) == [
         "top-level",
@@ -126,29 +129,335 @@ def test_current_eight_views_are_projected_without_changing_authorities() -> Non
         ]
 
 
-def test_projection_indexes_reference_authoritative_records_without_copying_them() -> None:
+def test_projection_indexes_contain_complete_display_records_without_physical_locations() -> None:
     projected = apply_view_projection(_current_explorer())
     projection = projected["view_projection"]
 
-    assert projection["node_index"]["production-control"] == {
-        "record_source": "architecture.modules",
-        "record_index": 5,
+    assert projection["node_index"]["production-control"]["id"] == "production-control"
+    worker = projection["node_index"]["worker-launch-boundary"]
+    assert worker["name"] == "Worker 启动边界"
+    assert worker["object_key"] == {
+        "kind": "candidate-node",
+        "object_id": "worker-launch-boundary",
     }
-    assert projection["node_index"]["worker-launch-boundary"] == {
-        "record_source": "navigation.drilldowns.children",
-        "owner_view_id": "production-control",
-        "record_index": 1,
+    assert worker["review"] == {
+        "result": "Pending",
+        "state": "not-reviewed",
+        "approved_scope": [],
+        "reasons": ["trusted-review-decision:missing"],
     }
     formal_id = "relationship:production-control:launches:translation-execution"
-    assert projection["relationship_index"][formal_id] == {
-        "record_source": "architecture.relationships",
-        "record_index": 0,
-        "semantic_family": "formal-relationship",
+    formal = projection["relationship_index"][formal_id]
+    assert formal["semantic"] == "formal"
+    assert formal["provenance"] == {"kind": "formal-relationship"}
+    assert formal["source_node_id"] == "production-control"
+    assert formal["target_node_id"] == "translation-execution"
+    assert formal["review"] == {
+        "result": "APPROVED",
+        "state": "current",
+        "approved_scope": [
+            {"legacy_review_scope": "current-source-snapshot"}
+        ],
+        "reasons": [],
     }
     candidate_id = "candidate-collaboration:supervisor-to-worker-wrapper"
-    assert projection["relationship_index"][candidate_id] == {
-        "record_source": "navigation.drilldowns.collaborations",
-        "owner_view_id": "production-control",
-        "record_index": 1,
-        "semantic_family": "candidate-collaboration",
+    candidate = projection["relationship_index"][candidate_id]
+    assert candidate["semantic"] == "collaboration"
+    assert candidate["provenance"] == {"kind": "candidate-fragment"}
+    assert candidate["object_key"] == {
+        "kind": "candidate-collaboration",
+        "object_id": candidate_id,
     }
+    assert candidate["review"] == {
+        "result": "Pending",
+        "state": "not-reviewed",
+        "approved_scope": [],
+        "reasons": ["trusted-review-decision:missing"],
+    }
+    assert "semantic_family" not in candidate
+    assert "review_status" not in candidate
+    assert "record_source" not in json.dumps(projection)
+    assert "record_index" not in json.dumps(projection)
+
+
+def test_relationship_semantic_and_explicit_review_projection_are_orthogonal() -> None:
+    explorer = apply_candidate_fragments(
+        _current_explorer(),
+        [_json("architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json")],
+    )
+    first_collaboration = "candidate-collaboration:supervisor-to-worker-wrapper"
+    second_collaboration = (
+        "candidate-collaboration:worker-wrapper-to-production-entry-guard"
+    )
+    decomposition = (
+        "candidate-decomposition:worker-launch-boundary-to-worker-production-entry-guard"
+    )
+    approved_scope = {
+        "object_key": {
+            "kind": "candidate-collaboration",
+            "object_id": first_collaboration,
+        },
+        "reviewed_source_snapshot": {
+            "revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+            "worktree_state": "clean",
+        },
+        "claims_sha256": "1" * 64,
+        "evidence_ids": ["evidence:approved-collaboration"],
+        "decision_id": "github-comment:7601",
+    }
+    explorer["review_projection"] = {
+        "schema": "architecture-explorer.review-projection.v1",
+        "objects": {
+            f"candidate-collaboration::{first_collaboration}": {
+                "object_key": {
+                    "kind": "candidate-collaboration",
+                    "object_id": first_collaboration,
+                },
+                "semantics": {
+                    "family": "collaboration",
+                    "direction": {
+                        "source_node_id": "worker-launch-boundary",
+                        "target_node_id": "deterministic-worker-wrapper",
+                    },
+                },
+                "result": "APPROVED",
+                "state": "current",
+                "approved_scope": [approved_scope],
+                "reasons": [],
+            },
+            f"candidate-collaboration::{second_collaboration}": {
+                "object_key": {
+                    "kind": "candidate-collaboration",
+                    "object_id": second_collaboration,
+                },
+                "semantics": {
+                    "family": "collaboration",
+                    "direction": {
+                        "source_node_id": "deterministic-worker-wrapper",
+                        "target_node_id": "worker-production-entry-guard",
+                    },
+                },
+                "result": "REJECTED",
+                "state": "needs-review",
+                "approved_scope": [],
+                "reasons": ["candidate-evidence:material-change"],
+            },
+            f"candidate-decomposition::{decomposition}": {
+                "object_key": {
+                    "kind": "candidate-decomposition",
+                    "object_id": decomposition,
+                },
+                "semantics": {
+                    "family": "decomposition",
+                    "direction": {
+                        "source_node_id": "worker-launch-boundary",
+                        "target_node_id": "worker-production-entry-guard",
+                    },
+                },
+                "result": "APPROVED",
+                "state": "current",
+                "approved_scope": [{
+                    **approved_scope,
+                    "object_key": {
+                        "kind": "candidate-decomposition",
+                        "object_id": decomposition,
+                    },
+                }],
+                "reasons": [],
+            },
+        },
+    }
+
+    relationships = apply_view_projection(explorer)["view_projection"][
+        "relationship_index"
+    ]
+
+    assert relationships[first_collaboration]["semantic"] == "collaboration"
+    assert relationships[first_collaboration]["review"]["state"] == "current"
+    assert relationships[first_collaboration]["review"]["approved_scope"] == [approved_scope]
+    assert relationships[second_collaboration]["semantic"] == "collaboration"
+    assert relationships[second_collaboration]["review"]["state"] == "needs-review"
+    assert relationships[decomposition]["semantic"] == "decomposition"
+    assert relationships[decomposition]["review"]["result"] == "APPROVED"
+    assert relationships[decomposition]["review"]["state"] == "current"
+
+
+def test_legacy_node_review_projection_adapts_node_id_without_rewriting_authority() -> None:
+    explorer = _current_explorer()
+    explorer["node_review_projection"] = {
+        "schema": "architecture-explorer.node-review-projection.v1",
+        "objects": {
+            "candidate-node::worker-launch-boundary": {
+                "object_key": {
+                    "kind": "candidate-node",
+                    "node_id": "worker-launch-boundary",
+                },
+                "decision": {
+                    "result": "APPROVED",
+                    "claims": [{"kind": "RESPONSIBILITY"}],
+                },
+                "state": {"status": "current"},
+                "projection": "Current · Approved",
+            }
+        },
+    }
+    authoritative = deepcopy(explorer["node_review_projection"])
+
+    projected = apply_view_projection(explorer)
+
+    assert projected["node_review_projection"] == authoritative
+    worker = projected["view_projection"]["node_index"]["worker-launch-boundary"]
+    assert worker["object_key"] == {
+        "kind": "candidate-node",
+        "object_id": "worker-launch-boundary",
+    }
+    assert worker["review"] == {
+        "result": "APPROVED",
+        "state": "current",
+        "approved_scope": [{"legacy_claim_kind": "RESPONSIBILITY"}],
+        "reasons": [],
+    }
+
+
+def test_review_projection_rejects_an_unknown_canonical_object_key() -> None:
+    explorer = _current_explorer()
+    explorer["review_projection"] = {
+        "schema": "architecture-explorer.review-projection.v1",
+        "objects": {
+            "candidate-collaboration::missing": {
+                "object_key": {
+                    "kind": "candidate-collaboration",
+                    "object_id": "missing",
+                },
+                "semantics": {
+                    "family": "collaboration",
+                    "direction": {
+                        "source_node_id": "missing-source",
+                        "target_node_id": "missing-target",
+                    },
+                },
+                "result": "Pending",
+                "state": "not-reviewed",
+                "approved_scope": [],
+                "reasons": [],
+            }
+        },
+    }
+
+    with pytest.raises(ExplorerInputError, match="unknown object"):
+        apply_view_projection(explorer)
+
+
+def test_projection_contains_complete_source_trail_records() -> None:
+    projection = apply_view_projection(_current_explorer())["view_projection"]
+    evidence_id, record = next(
+        (evidence_id, record)
+        for evidence_id, record in projection["evidence_index"].items()
+        if record.get("source_trail_kind") == "definition"
+    )
+
+    assert record["definition"]["evidence"]["evidence_id"] == evidence_id
+    assert record["file_path"] == record["definition"]["evidence"]["path"]
+    assert projection["source_file_index"][record["file_path"]]["path"] == record[
+        "file_path"
+    ]
+    assert "record_source" not in json.dumps(record)
+    assert "record_index" not in json.dumps(record)
+
+
+def test_projection_exposes_one_validated_source_catalog_including_call_facts() -> None:
+    projection = apply_view_projection(_current_explorer())["view_projection"]
+    call_evidence_id, call_record = next(
+        (evidence_id, record)
+        for evidence_id, record in projection["evidence_index"].items()
+        if "call" in record
+    )
+    source_file = projection["source_file_index"][call_record["file_path"]]
+
+    assert projection["source_catalog"]["schema"] == (
+        "architecture-explorer.source-catalog.v1"
+    )
+    assert projection["source_catalog"]["file_paths"] == sorted(
+        projection["source_file_index"]
+    )
+    assert call_evidence_id in source_file["call_evidence_ids"]
+    assert "calls" not in source_file
+    assert "definitions" not in source_file
+    assert "direct_imports" not in source_file
+    app = (REPOSITORY / "architecture-explorer/web/app.js").read_text(
+        encoding="utf-8"
+    )
+    assert "data.source_facts" not in app
+
+
+def test_projection_rejects_conflicting_records_for_one_source_file_identity() -> None:
+    explorer = _current_explorer()
+    source_facts = explorer["source_facts"]
+    conflicting = deepcopy(source_facts["python_call_facts"]["files"][0])
+    conflicting["calls"] = []
+    conflicting["managed_content_sha256"] = "conflict"
+    source_facts["python_call_facts"]["files"].append(conflicting)
+
+    with pytest.raises(ExplorerInputError, match="duplicate Source file identity"):
+        apply_view_projection(explorer)
+
+
+def test_projection_allows_shared_evidence_reference_without_copying_identity() -> None:
+    explorer = _current_explorer()
+    children = explorer["navigation"]["drilldowns"][0]["children"]
+    shared_id = children[0]["source_assignment"]["evidence_ids"][0]
+    target = next(
+        child
+        for child in children[1:]
+        if shared_id not in child["source_assignment"]["evidence_ids"]
+    )
+    target["source_assignment"]["evidence_ids"].append(shared_id)
+
+    projection = apply_view_projection(explorer)["view_projection"]
+
+    assert shared_id in projection["node_index"][children[0]["id"]][
+        "source_assignment"
+    ]["evidence_ids"]
+    assert shared_id in projection["node_index"][target["id"]]["source_assignment"][
+        "evidence_ids"
+    ]
+    assert list(projection["evidence_index"]).count(shared_id) == 1
+
+
+def test_projection_accepts_v3_candidates_without_evidence_references() -> None:
+    explorer = _current_explorer()
+    for drilldown in explorer["navigation"]["drilldowns"]:
+        for child in drilldown["children"]:
+            child["source_assignment"].pop("evidence_ids")
+        for relationship in drilldown.get("collaborations", []):
+            relationship.pop("evidence_ids", None)
+
+    projection = apply_view_projection(explorer)["view_projection"]
+
+    candidate = projection["node_index"][
+        explorer["navigation"]["drilldowns"][0]["children"][0]["id"]
+    ]
+    assert candidate["review"] == {
+        "result": "Pending",
+        "state": "not-reviewed",
+        "approved_scope": [],
+        "reasons": ["trusted-review-decision:missing"],
+    }
+    assert projection["evidence_index"]
+
+
+def test_projection_rejects_missing_or_repeated_evidence_references() -> None:
+    missing = _current_explorer()
+    missing["navigation"]["drilldowns"][0]["children"][0]["source_assignment"][
+        "evidence_ids"
+    ] = ["evidence:missing"]
+    with pytest.raises(ExplorerInputError, match="unknown Evidence reference"):
+        apply_view_projection(missing)
+
+    repeated = _current_explorer()
+    evidence_ids = repeated["navigation"]["drilldowns"][0]["children"][0][
+        "source_assignment"
+    ]["evidence_ids"]
+    evidence_ids.append(evidence_ids[0])
+    with pytest.raises(ExplorerInputError, match="repeats Evidence reference"):
+        apply_view_projection(repeated)

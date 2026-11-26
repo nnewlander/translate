@@ -117,9 +117,9 @@
   const viewStatus = document.querySelector("#view-status");
   assert(
     viewStatus && !viewStatus.hidden
-      && viewStatus.textContent.includes("Candidate")
-      && viewStatus.textContent.includes("Pending Review"),
-    "Candidate/Pending Review was not exposed as independent View status",
+      && viewStatus.textContent.includes("对象可信状态：")
+      && viewStatus.textContent.includes("未审核"),
+    "the explicit Pending Review projection was not exposed as independent View status",
   );
   const scope = card("translation-provider-adapters");
   assert(

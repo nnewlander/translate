@@ -329,8 +329,9 @@ def review_commands(producer_batch, output_root, monkeypatch):
     base["navigation"]["root"] = {"id": "top-level", "name": "Root"}
     base["navigation"]["drilldowns"][0].update(name="Control", coverage_note="Fixture")
     facts = base["source_facts"]
+    fact = facts.pop("fixture")
     facts.update(
-        modules=[{"direct_imports": [], "entries": [facts.pop("fixture")]}],
+        modules=[{"path": fact["evidence"]["path"], "direct_imports": [], "entries": [fact]}],
         powershell_scripts=[], python_definition_index={"files": []},
         python_call_facts={"files": []},
     )
