@@ -1,0 +1,25 @@
+{
+  "schema": "architecture-explorer.relationship-review-state.v1",
+  "object_key": {
+    "kind": "candidate-decomposition",
+    "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+  },
+  "decision_id": "github-comment:7192137877",
+  "state": "current",
+  "continuity": "exact-match",
+  "evaluated_source_snapshot": {
+    "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+    "worktree_state": "clean",
+    "source_facts_sha256": "3d777b7ccf03884ddd6cf4709e402c78bc926d05e36511566413e639178522b9"
+  },
+  "assessed_at": "2026-11-26T12:42:52+00:00",
+  "reasons": [],
+  "current_evidence_locations": [
+    {
+      "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+      "path": "scripts/production/production_campaign_supervisor.ps1",
+      "line_start": 224,
+      "line_end": 291
+    }
+  ]
+}

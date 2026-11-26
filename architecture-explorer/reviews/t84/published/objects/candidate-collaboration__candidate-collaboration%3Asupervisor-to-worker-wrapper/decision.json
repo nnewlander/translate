@@ -1,0 +1,93 @@
+{
+  "batch_publication_sha256": "07083f6acf094b2a401254abe267e91c786a3f22766e3a07b0eac38518cb1f11",
+  "claims": [
+    {
+      "kind": "IDENTITY",
+      "source": "relationship-review-definition.object-key",
+      "value": {
+        "kind": "candidate-collaboration",
+        "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+      }
+    },
+    {
+      "kind": "ENDPOINT_RESPONSIBILITIES",
+      "source": "relationship-review-definition.endpoint-bindings",
+      "value": {
+        "source": {
+          "node_id": "worker-launch-boundary",
+          "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+        },
+        "target": {
+          "node_id": "deterministic-worker-wrapper",
+          "responsibility": "候选组件：把 Supervisor 的明确脚本绑定连接到 Python Worker 的受控包装入口。"
+        }
+      }
+    },
+    {
+      "kind": "SEMANTICS_AND_DIRECTION",
+      "source": "relationship-review-definition.semantics",
+      "value": {
+        "direction": {
+          "source_node_id": "worker-launch-boundary",
+          "target_node_id": "deterministic-worker-wrapper"
+        },
+        "family": "collaboration"
+      }
+    },
+    {
+      "kind": "RELATIONSHIP_DESCRIPTION",
+      "source": "candidate-relationship",
+      "value": {
+        "name": "启动边界指向 Worker 包装入口",
+        "plain_explanation": "像发车闸门旁的目的地标签明确写着确定性 Worker 入口。这是未审核的脚本绑定候选，不替代或扩张唯一正式 Supervisor→Worker 关系。",
+        "professional_description": "候选协作：Supervisor 的明确脚本绑定指向确定性 Python Worker 包装入口。"
+      }
+    },
+    {
+      "kind": "CANDIDATE_EVIDENCE",
+      "source": "relationship-review-definition.candidate-evidence-ids",
+      "value": [
+        {
+          "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+          "role": "powershell_script_binding"
+        },
+        {
+          "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+          "role": "deterministic_worker_wrapper"
+        }
+      ]
+    },
+    {
+      "kind": "DEPENDENCIES_AND_LIMITS",
+      "source": "relationship-review-definition.dependencies-and-limits",
+      "value": {
+        "dependencies": [],
+        "retained_unknowns": [
+          "实际生产请求是否进入此确定性路径及包装器是否成功运行。",
+          "其他 Worker 启动路径是否采用同一包装器。"
+        ],
+        "zero_dependency_reason": "脚本路径绑定及包装器 main 入口直接支撑这条候选协作，两端职责另由 Packet 精确绑定。"
+      }
+    }
+  ],
+  "decision_id": "github-comment:7192133892",
+  "inputs": {
+    "candidate_evidence_sha256": "17bac80096d4474d91dcf0b9e538db08a27b104b16abddedee5704091d2e990b",
+    "candidate_fact_sha256": "54b560c3d0c0a626ddafff3ab51cc0eb82981526502e402ea7517cd632d41265",
+    "claims_sha256": "9cda7faa9dbff8fd11f6ce2ad1cd1d2faf7925eafa2f37abb1385288afc71771",
+    "definition_sha256": "ebef40ea36522fc3a0053220898185010b85390426398b99751a86b722f2887b",
+    "endpoint_bindings_sha256": "c263618c319442ba5f9c7ef221c31d6f77260cf0cd7396706987160f29118384"
+  },
+  "object_key": {
+    "kind": "candidate-collaboration",
+    "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+  },
+  "result": "APPROVED",
+  "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+  "reviewed_source_snapshot": {
+    "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+    "worktree_state": "clean"
+  },
+  "schema": "architecture-explorer.relationship-review-decision.v1",
+  "source_receipt_sha256": "66a9e0bcd40516b6b5400adb7012789614227629e83b5b75033b212aba12df73"
+}

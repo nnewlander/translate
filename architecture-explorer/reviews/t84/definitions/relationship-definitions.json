@@ -1,0 +1,98 @@
+{
+  "schema": "architecture-explorer.relationship-review-definitions.v1",
+  "definitions": [
+    {
+      "object_key": {
+        "kind": "candidate-collaboration",
+        "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+      },
+      "reviewed_source_snapshot": {
+        "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+        "worktree_state": "clean"
+      },
+      "endpoint_bindings": {
+        "source": {
+          "node_id": "worker-launch-boundary",
+          "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+        },
+        "target": {
+          "node_id": "deterministic-worker-wrapper",
+          "responsibility": "候选组件：把 Supervisor 的明确脚本绑定连接到 Python Worker 的受控包装入口。"
+        }
+      },
+      "semantics": {
+        "family": "collaboration",
+        "direction": {
+          "source_node_id": "worker-launch-boundary",
+          "target_node_id": "deterministic-worker-wrapper"
+        }
+      },
+      "claim_kinds": [
+        "IDENTITY",
+        "ENDPOINT_RESPONSIBILITIES",
+        "SEMANTICS_AND_DIRECTION",
+        "RELATIONSHIP_DESCRIPTION",
+        "CANDIDATE_EVIDENCE",
+        "DEPENDENCIES_AND_LIMITS"
+      ],
+      "candidate_evidence_ids": [
+        "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+        "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+      ],
+      "dependencies_and_limits": {
+        "dependencies": [],
+        "zero_dependency_reason": "脚本路径绑定及包装器 main 入口直接支撑这条候选协作，两端职责另由 Packet 精确绑定。",
+        "retained_unknowns": [
+          "实际生产请求是否进入此确定性路径及包装器是否成功运行。",
+          "其他 Worker 启动路径是否采用同一包装器。"
+        ]
+      }
+    },
+    {
+      "object_key": {
+        "kind": "candidate-decomposition",
+        "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+      },
+      "reviewed_source_snapshot": {
+        "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+        "worktree_state": "clean"
+      },
+      "endpoint_bindings": {
+        "source": {
+          "node_id": "worker-launch-boundary",
+          "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+        },
+        "target": {
+          "node_id": "supervisor-process-launch-construction",
+          "responsibility": "构造确定性 Worker 子进程的参数、工作目录、输出重定向、规范化环境和启动结果处理。"
+        }
+      },
+      "semantics": {
+        "family": "decomposition",
+        "direction": {
+          "source_node_id": "worker-launch-boundary",
+          "target_node_id": "supervisor-process-launch-construction"
+        }
+      },
+      "claim_kinds": [
+        "IDENTITY",
+        "ENDPOINT_RESPONSIBILITIES",
+        "SEMANTICS_AND_DIRECTION",
+        "RELATIONSHIP_DESCRIPTION",
+        "CANDIDATE_EVIDENCE",
+        "DEPENDENCIES_AND_LIMITS"
+      ],
+      "candidate_evidence_ids": [
+        "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a"
+      ],
+      "dependencies_and_limits": {
+        "dependencies": [],
+        "zero_dependency_reason": "子进程构造函数的静态实现直接支撑此项分解解释，两端职责另由 Packet 精确绑定。",
+        "retained_unknowns": [
+          "启动边界的完整子职责和全部启动路径。",
+          "源码排他归属以及某次实际启动和退出结果。"
+        ]
+      }
+    }
+  ]
+}

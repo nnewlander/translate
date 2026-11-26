@@ -1,0 +1,3 @@
+# Preserve the archived review bytes across checkout platforms.
+*.json -text
+*.md -text

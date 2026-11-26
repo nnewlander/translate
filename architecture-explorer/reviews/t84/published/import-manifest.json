@@ -1,0 +1,32 @@
+{
+  "schema": "architecture-explorer.batch-import.v1",
+  "batch_id": "3903260e9883125046a9ac1be0d5c53c14fd26d9410a6add710cadb06df31992",
+  "batch_sha256": "c75368ea309bfba5c3d5c97729795318518e5747abf4ecdc9533ec29b8f6afc1",
+  "confirmation_sha256": "fea0a1c3d17707de2edc964b8b52dc0d4be29061f016a00b3cf4630789f409ef",
+  "installation_sha256": "1041dab86073f3ea4aea04a9b492d27e4310566b203ac360f858275780a10a08",
+  "assessed_at": "2026-11-26T12:42:52+00:00",
+  "imported_objects": [
+    "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper",
+    "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction",
+    "candidate-node::worker-launch-boundary"
+  ],
+  "pending_objects": [],
+  "objects": {
+    "candidate-node::worker-launch-boundary": {
+      "decision_sha256": "77f5881f678db2fedccbb719862aec5b887b6df813df2359891787257bea1471",
+      "source_receipt_sha256": "6e7daa7d4dd2455f6f417f6db7a73f97f222e380df182073aadfe1e35f9e8841",
+      "state_sha256": "cf592f6bb3e49db4fe85c169a38bf70bda8e57ceb93fada9fad1ec2d792410a4"
+    },
+    "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper": {
+      "decision_sha256": "ea1bf6540d19e26eed5a43594f32156c3e04c64285676cab3faab91de3d991d2",
+      "source_receipt_sha256": "66a9e0bcd40516b6b5400adb7012789614227629e83b5b75033b212aba12df73",
+      "state_sha256": "b4c5486a86df168508e2f3a79b95d55728464e2fc25e8682939a3b1dad2bcd61"
+    },
+    "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction": {
+      "decision_sha256": "2b3c81875b62d2265ebe57afd356ccb3c7fd5a9b19dbba949d6f76a090988de2",
+      "source_receipt_sha256": "b6f4634b1efc9ff4d0187c17839ab0a75f7ad7baa59311fcb34b2e02d7124dae",
+      "state_sha256": "8d8f3e1c464a71f48e035b83f8c792f441b3c3ca29fd6a0bf2a2c007262756ab"
+    }
+  },
+  "import_sha256": "4281f05cff9e3fee8a709e94ece433aaf8634738e11b856c50423e9b0f2e842a"
+}

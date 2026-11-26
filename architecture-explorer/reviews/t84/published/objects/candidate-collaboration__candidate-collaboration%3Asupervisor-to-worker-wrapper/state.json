@@ -1,0 +1,31 @@
+{
+  "schema": "architecture-explorer.relationship-review-state.v1",
+  "object_key": {
+    "kind": "candidate-collaboration",
+    "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+  },
+  "decision_id": "github-comment:7192133892",
+  "state": "current",
+  "continuity": "exact-match",
+  "evaluated_source_snapshot": {
+    "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+    "worktree_state": "clean",
+    "source_facts_sha256": "3d777b7ccf03884ddd6cf4709e402c78bc926d05e36511566413e639178522b9"
+  },
+  "assessed_at": "2026-11-26T12:42:52+00:00",
+  "reasons": [],
+  "current_evidence_locations": [
+    {
+      "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+      "path": "scripts/production/production_campaign_supervisor.ps1",
+      "line_start": 52,
+      "line_end": 52
+    },
+    {
+      "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+      "path": "scripts/production/run_qwen_deterministic_worker.py",
+      "line_start": 14,
+      "line_end": 15
+    }
+  ]
+}

@@ -964,6 +964,16 @@ def project_relationship_reviews(
             for evidence_id in evidence_scope
         ):
             raise ExplorerInputError(f"Relationship Review approval scope is invalid: {key}")
+        limits = next(
+            claim["value"]
+            for claim in decision["claims"]
+            if claim["kind"] == "DEPENDENCIES_AND_LIMITS"
+        )
+        unknowns = limits.get("retained_unknowns") if isinstance(limits, dict) else None
+        if not isinstance(unknowns, list) or not all(
+            isinstance(item, str) and item for item in unknowns
+        ):
+            raise ExplorerInputError(f"Relationship Review limits are invalid: {key}")
         objects[key] = {
             "object_key": deepcopy(definition["object_key"]),
             "semantics": deepcopy(definition["semantics"]),
@@ -977,13 +987,16 @@ def project_relationship_reviews(
                 "decision_id": decision["decision_id"],
             }] if decision["result"] == "APPROVED" else [],
             "reasons": deepcopy(assessment["reasons"]),
+            "retained_unknowns": deepcopy(unknowns),
             "source": {
                 "status": "trusted-owner-admin",
                 "sha256": review_source_sha256(source),
                 "repository": source.get("repository", {}).get("full_name"),
                 "comment_url": source.get("comment", {}).get("html_url"),
                 "author": source.get("comment", {}).get("user", {}).get("login"),
+                "author_association": source.get("comment", {}).get("author_association"),
                 "permission": source.get("permission", {}).get("permission"),
+                "decision_id": decision["decision_id"],
             },
         }
     result = deepcopy(explorer)
