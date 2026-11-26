@@ -499,7 +499,7 @@ def write_relationship_review_packets(
 def render_relationship_review_decision_body(decision: dict[str, Any]) -> str:
     object_key = decision.get("object_key", {})
     inputs = decision.get("inputs", {})
-    return "\n".join(
+    body = "\n".join(
         (
             "ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1",
             f"Decision-ID: {decision.get('decision_id')}",
@@ -510,6 +510,9 @@ def render_relationship_review_decision_body(decision: dict[str, Any]) -> str:
             f"Reviewed-Revision: {decision.get('reviewed_source_snapshot', {}).get('revision')}",
         )
     )
+    if "batch_publication_sha256" in decision:
+        body += f"\nPublication-Key: {decision['batch_publication_sha256']}"
+    return body
 
 
 def _matching_anchor(
@@ -543,10 +546,15 @@ def verify_relationship_review_integrity(
     }
     if (
         not isinstance(decision, dict)
-        or set(decision) != expected_fields
+        or set(decision) - {"batch_publication_sha256"} != expected_fields
         or decision.get("schema") != RELATIONSHIP_REVIEW_DECISION_SCHEMA
     ):
         raise ExplorerInputError("Relationship Review Decision must use the closed schema")
+    publication = decision.get("batch_publication_sha256")
+    if "batch_publication_sha256" in decision and (
+        not isinstance(publication, str) or not re.fullmatch(r"[0-9a-f]{64}", publication)
+    ):
+        raise ExplorerInputError("Invalid Relationship Review batch publication binding")
     key = stable_review_object_key(definition["object_key"])
     if decision.get("object_key") != definition["object_key"]:
         raise ExplorerInputError(f"Relationship Review Decision object mismatch: {key}")
