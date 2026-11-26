@@ -10,6 +10,27 @@ Worktree:      D:\translate\worktrees\architecture-explorer-v4-ticket-08
 
 Issue #75 和 #76 在 GitHub 均为 closed/completed。开工及第一轮组合构建时，GitHub 将集成分支解析到 Bstart。T1 的 #87 合并及 T2 的 #89 合并均是其祖先。B0 用于内容对比，Bstart 用于审查本票工作树。Spec #74 仍处于 proposed，现行合同为 v3。[Spec #74](https://github.com/nnewlander/translate/issues/74) · [Ticket #82](https://github.com/nnewlander/translate/issues/82) · [七模块覆盖审计](../architecture-explorer-v4-ticket-01.md) · [T2 接口](v4-ticket-02-interface-contract.md)
 
+## Draft #94 的 Windows / Chrome 预验证修复
+
+旧 [预验证 Run 45824813090 / Job 139926165117](https://github.com/nnewlander/translate/actions/runs/45824813090/job/139926165117) 对 `14bd742518a689314616f39bd9e389c113b4cd30` 报告 723 passed、18 failed、2 skipped。18 项均属于六种历史 Node Review 状态在 1440、1280、960px 的矩阵。旧探针在浏览器内改写投影，再通过普通节点激活要求重绘卡片。详情打开时保留卡片，以便恢复焦点。旧运行没有 Chrome 超时或 T8 新功能测试失败。
+
+同步 Merge Commit `a6027587e5f5a6e347dff9653da9e9dfeacf208c` 的两个父提交是原 Draft Head `14bd742518a689314616f39bd9e389c113b4cd30` 与 T7 已审查修复 `a821bed7b100914bb7f1976e590fcca0e98db803`。T8 功能提交 `3a95e1bf94a7b670eee343c87bd3f677e7240405` 仍在祖先链上。同步的文件仅为 T7 交接和历史 Node Review DOM 探针。生成页面的六种状态仍各自启动 Chrome 并验证中文标签、技术状态不会泄漏、卡片没有溢出、Evidence、可信边界及详情。T8 专属功能文件、产品 renderer、导航、审核逻辑、共享发现测试及历史 fixture 与上一个 Draft Head 比对一致。
+
+本地使用工作树项目解释器和 Chrome，从旧 CI 日志提取并与 JUnit 逐项核对原 18 个 node ID。原矩阵 **18 passed**（72.08s），额外聚焦 **8 passed**（57.78s），涵盖 T8 正式生成和 Chrome 导航、共享发现、v3 固定 inventory 及历史审核状态在同页缩放下的展示。证据保存在 `output/architecture-explorer/v4-ticket-08/parallel/ci-retry/`。
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path src).Path
+$env:PYTHONUTF8 = '1'
+$env:ARCHITECTURE_EXPLORER_BROWSER = 'chrome'
+$python = (Resolve-Path '.venv\Scripts\python.exe').Path
+$proof = 'output/architecture-explorer/v4-ticket-08/parallel/ci-retry'
+$cases = @(Get-Content "$proof/failed-nodeids.txt")
+& $python -m pytest -q --tb=short -p no:cacheprovider --basetemp output/t8-ci-retry-exact --junitxml "$proof/original18.xml" @cases
+& $python -m pytest -q --tb=short -p no:cacheprovider --basetemp output/t8-ci-retry-focused --junitxml "$proof/focused.xml" tests/architecture_explorer/test_v4_checkpoint_release_content.py tests/architecture_explorer/test_recursive_views.py::test_cli_build_discovers_authoritative_view_documents_without_an_option tests/architecture_explorer/test_v3_ticket_06_integration.py::test_ticket_06_dynamic_inventory_and_review_boundaries_are_exact tests/architecture_explorer/test_t8_node_review_continuity.py::test_real_chrome_preserves_historical_node_review_during_resize_round_trip
+```
+
+新 Draft Head 继续用于 Windows / Chrome 预验证。T7 正式合并后再同步实际集成 Head、调整 PR Base，并满足最终正式 CI 门槛。两项 P2 已关闭，独立双 PASS 及 Owner 产品验收继续适用于保留的 T8 功能提交。
+
 ## 两项 P2 的聚焦修订
 
 本轮依据「审查v4 T8」的 Standards PASS / Spec FAIL 记录，修订三个 Candidate Node 和四条 Candidate Relationship 的表述及 Evidence。对上一轮组合产物逐项比对，63 个 Node 身份、66 条关系身份、31 个 View 的完整记录、导航以及正式架构与相关审核状态一致。两项修订涉及的 Evidence 均可进入 Definition Source Trail。
