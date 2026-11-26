@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 import shutil
 import subprocess
@@ -542,13 +543,21 @@ def test_cli_build_discovers_authoritative_view_documents_without_an_option(
     assert review_main(build_args) == 0
     generated = _json(str(site.relative_to(REPOSITORY) / "explorer-data.json"))
 
-    assert "worker-launch-boundary-internal" in generated["view_projection"]["view_index"]
     generation_inputs = generated["generation_inputs"]["view_definitions"]
-    assert [item["path"] for item in generation_inputs] == sorted(
+    view_paths = sorted(
         path.relative_to(REPOSITORY).as_posix()
-        for path in (REPOSITORY / "architecture-explorer/views").rglob("*.json")
+        for path in (REPOSITORY / "architecture-explorer" / "views").rglob("*.json")
     )
-    assert all(len(item["sha256"]) == 64 for item in generation_inputs)
+    assert "architecture-explorer/views/recursive-views.v1.json" in view_paths
+    assert generation_inputs == [
+        {"path": path, "sha256": sha256((REPOSITORY / path).read_bytes()).hexdigest()}
+        for path in view_paths
+    ]
+    expected_views = {"top-level"}
+    expected_views.update(module["id"] for module in _json("architecture-explorer/modules.json")["modules"])
+    for path in view_paths:
+        expected_views.update(view["id"] for view in _json(path)["views"])
+    assert generated["view_projection"]["view_index"].keys() == expected_views
 
 
 @pytest.mark.parametrize("viewport_width", [1440, 1280, 960])
@@ -689,15 +698,53 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
             "scope_node_id": "supervisor-process-launch-construction",
             "coverage_note": "受控测试数据；不属于生产架构。",
             "appearances": [
-                {"node_id": "supervisor-process-launch-construction"},
+                {
+                    "node_id": "supervisor-process-launch-construction",
+                    "primary_action": {
+                        "kind": "open-view",
+                        "target_view_id": "test-only-depth-four-perspective",
+                        "transition_kind": "perspective",
+                        "destination_label": "查看测试专用组件视角",
+                    },
+                },
                 {"node_id": "test-only-depth-four"},
+            ],
+            "relationship_ids": ["candidate-decomposition:test-only-depth-four"],
+        }
+    )
+    definitions["views"].append(
+        {
+            "id": "test-only-depth-four-perspective",
+            "display_name": "测试专用组件视角",
+            "perspective": "component",
+            "scope_node_id": "supervisor-process-launch-construction",
+            "coverage_note": "受控测试数据；不属于生产架构。",
+            "appearances": [
+                {
+                    "node_id": "supervisor-process-launch-construction",
+                    "primary_action": {
+                        "kind": "open-view",
+                        "target_view_id": "test-only-depth-four-view",
+                        "transition_kind": "perspective",
+                        "destination_label": "返回测试专用第四层",
+                    },
+                },
+                {
+                    "node_id": "test-only-depth-four",
+                    "primary_action": {
+                        "kind": "open-view",
+                        "target_view_id": "test-only-depth-four-perspective",
+                        "transition_kind": "cross-node",
+                        "destination_label": "查看当前组件视角",
+                    },
+                },
             ],
             "relationship_ids": ["candidate-decomposition:test-only-depth-four"],
         }
     )
     explorer = apply_view_definitions(explorer, definitions)
     projection = apply_view_projection(explorer)["view_projection"]
-    assert len(projection["view_index"]) == 13
+    assert len(projection["view_index"]) == 14
 
     browser_name, browser = _desktop_browser()
     site = tmp_path / "site"
@@ -800,6 +847,11 @@ def test_real_browser_displays_call_evidence_and_opens_its_source_trail(
         "kind": "open-source-trail",
         "target_evidence_id": call_id,
         "destination_label": "查看入口调用源码",
+    }
+    definitions["views"][0]["appearances"][0]["primary_action"] = {
+        "kind": "open-source-trail",
+        "target_evidence_id": call_id,
+        "destination_label": "查看当前范围的源码调用",
     }
     explorer = apply_view_definitions(explorer, definitions)
 

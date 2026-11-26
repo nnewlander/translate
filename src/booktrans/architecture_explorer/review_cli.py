@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from .batch_import import PublishedReview, read_published_review_batch
 from .generator import ExplorerInputError, validate_cli_output_path, write_json, write_site
 from .candidate_fragments import apply_candidate_fragments
 from .continuity import update_review_state
@@ -66,7 +67,7 @@ from .review_source import (
     _gh_api,
     _gh_preflight,
 )
-from .review_trust import production_relationship_review_trust_policy
+from .review_trust import ReviewTrustPolicy, production_relationship_review_trust_policy
 
 
 def _object(path: Path) -> dict[str, Any]:
@@ -79,6 +80,38 @@ def _object(path: Path) -> dict[str, Any]:
     return value
 
 
+def _review_material(
+    decision_path: Path, source_path: Path, batch: PublishedReview | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if batch is not None:
+        return batch.decision, batch.source
+    decision = _object(decision_path)
+    if "batch_publication_sha256" in decision:
+        raise ExplorerInputError("Batch-bound Review Decision requires --review-batch-directory")
+    return decision, _object(source_path)
+
+
+def _state_material_paths(args, records, decision, source, state, *, kind):
+    if args.review_object_key is None:
+        if None in (decision, source, state):
+            raise ExplorerInputError("State update requires Decision, source and State paths")
+        state_path = (args.repository / state).resolve()
+        if any((parent / "import-manifest.json").exists() for parent in state_path.parents):
+            raise ExplorerInputError("Batch State update requires --review-batch-directory")
+        return decision, source, state, None
+    if any(path is not None for path in (decision, source, state)):
+        raise ExplorerInputError("Batch State update selects an object key without individual paths")
+    key = args.review_object_key
+    if key not in records or key.startswith("candidate-node::") != (kind == "node"):
+        raise ExplorerInputError("State update requires a matching --review-object-key")
+    record = records[key]
+    try:
+        relative_state = (record.directory / "state.json").relative_to(args.repository.resolve())
+    except ValueError as error:
+        raise ExplorerInputError("Batch State must be inside the repository output directory") from error
+    return record.directory / "decision.json", record.directory / "source.json", relative_state, record
+
+
 def _project_node_review_inputs(
     explorer: dict[str, Any],
     definitions_path: Path,
@@ -86,13 +119,14 @@ def _project_node_review_inputs(
     *,
     trust_policy: _NodeReviewTrustPolicy,
     direct_material: tuple[Path, Path, Path | None] | None = None,
+    batch_materials: dict[Path, PublishedReview] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """Load, validate, and project authoritative Node Review materials."""
 
     definitions = validate_node_review_definitions(_object(definitions_path))
-    material_inputs: list[tuple[Path, Path, Path | None]] = []
+    material_inputs: list[tuple[Path, Path, Path | None, PublishedReview | None]] = []
     if direct_material is not None:
-        material_inputs.append(direct_material)
+        material_inputs.append((*direct_material, None))
     for directory in material_directories:
         decision_path = directory / "decision.json"
         source_path = directory / "source.json"
@@ -102,13 +136,16 @@ def _project_node_review_inputs(
                 f"Node Review material directory is incomplete: {directory}"
             )
         material_inputs.append(
-            (decision_path, source_path, state_path if state_path.is_file() else None)
+            (decision_path, source_path, state_path if state_path.is_file() else None, None)
         )
+    for directory, record in (batch_materials or {}).items():
+        material_inputs.append((
+            directory / "decision.json", directory / "source.json", directory / "state.json", record,
+        ))
     materials_by_key: dict[str, dict[str, Any]] = {}
     generation_inputs: dict[str, dict[str, Any]] = {}
-    for decision_path, source_path, state_path in material_inputs:
-        decision = _object(decision_path)
-        source = _object(source_path)
+    for decision_path, source_path, state_path, record in material_inputs:
+        decision, source = _review_material(decision_path, source_path, record)
         key = stable_node_review_key(
             {
                 "kind": decision.get("object_key", {}).get("kind"),
@@ -229,9 +266,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     node_state.add_argument("--repository", type=Path, required=True)
     node_state.add_argument("--explorer-data", type=Path, required=True)
-    node_state.add_argument("--node-review-decision", type=Path, required=True)
-    node_state.add_argument("--node-review-source", type=Path, required=True)
-    node_state.add_argument("--node-review-state", type=Path, required=True)
+    node_state.add_argument("--node-review-decision", type=Path)
+    node_state.add_argument("--node-review-source", type=Path)
+    node_state.add_argument("--node-review-state", type=Path)
     node_state.add_argument("--assessed-at", required=True)
     node_state.add_argument("--node-review-definition", type=Path)
     relationship_state = commands.add_parser(
@@ -241,9 +278,9 @@ def _parser() -> argparse.ArgumentParser:
     relationship_state.add_argument("--repository", type=Path, required=True)
     relationship_state.add_argument("--explorer-data", type=Path, required=True)
     relationship_state.add_argument("--review-definition", type=Path, required=True)
-    relationship_state.add_argument("--review-decision", type=Path, required=True)
-    relationship_state.add_argument("--review-source", type=Path, required=True)
-    relationship_state.add_argument("--review-state", type=Path, required=True)
+    relationship_state.add_argument("--review-decision", type=Path)
+    relationship_state.add_argument("--review-source", type=Path)
+    relationship_state.add_argument("--review-state", type=Path)
     relationship_state.add_argument(
         "--node-review-definitions", type=Path, required=True
     )
@@ -283,6 +320,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     build.add_argument("--web-assets", type=Path, required=True)
     build.add_argument("--output-directory", type=Path, required=True)
+    for command in (build, node_state, relationship_state):
+        command.add_argument("--review-batch-directory", type=Path, action="append", default=[])
+    for command in (node_state, relationship_state):
+        command.add_argument("--review-object-key")
     return parser
 
 
@@ -312,6 +353,28 @@ def _main(
     relationship_review_trust_policy = (
         relationship_review_trust_policy or node_review_trust_policy
     )
+    batch_records: dict[str, PublishedReview] = {}
+    batch_directories = getattr(args, "review_batch_directory", [])
+    batch_anchors = ()
+    for directory in batch_directories:
+        records, policy = read_published_review_batch(directory.absolute())
+        if batch_records.keys() & records.keys():
+            raise ExplorerInputError("Duplicate object across published Review batches")
+        batch_records.update(records)
+        batch_anchors += policy.anchors
+    node_batch = {
+        record.directory: record for key, record in batch_records.items()
+        if key.startswith("candidate-node::")
+    }
+    relationship_batch = {
+        record.directory: record for key, record in batch_records.items()
+        if not key.startswith("candidate-node::")
+    }
+    if batch_anchors:
+        node_review_trust_policy = ReviewTrustPolicy(node_review_trust_policy.anchors + batch_anchors)
+        relationship_review_trust_policy = ReviewTrustPolicy(
+            relationship_review_trust_policy.anchors + batch_anchors
+        )
     if args.command == "prepare-relationship-reviews":
         definitions = validate_relationship_review_definitions(
             _object(args.review_definitions)
@@ -540,14 +603,18 @@ def _main(
         print(f"source_continuity={state['continuity_status']}")
         return 0
     if args.command == "update-node-review-state":
+        decision_path, source_path, requested_state, record = _state_material_paths(
+            args, batch_records, args.node_review_decision, args.node_review_source,
+            args.node_review_state, kind="node",
+        )
         state_path = validate_cli_output_path(
             args.repository,
-            args.node_review_state,
+            requested_state,
             directory=False,
             inputs=tuple(path for path in (
                 args.explorer_data,
-                args.node_review_decision,
-                args.node_review_source,
+                decision_path,
+                source_path,
                 args.node_review_definition,
             ) if path is not None),
         )
@@ -558,8 +625,7 @@ def _main(
             explorer["_node_review_scan_error"] = (
                 "missing" if "missing" in str(error).lower() else "parse-failure"
             )
-        decision_input = _object(args.node_review_decision)
-        source_input = _object(args.node_review_source)
+        decision_input, source_input = _review_material(decision_path, source_path, record)
         if decision_input.get("schema") == "architecture-explorer.node-review-decision.v2":
             if args.node_review_definition is None:
                 raise ExplorerInputError(
@@ -601,15 +667,19 @@ def _main(
         print(f"node_review_continuity={state['continuity']}")
         return 0
     if args.command == "update-relationship-review-state":
+        decision_path, source_path, requested_state, record = _state_material_paths(
+            args, batch_records, args.review_decision, args.review_source,
+            args.review_state, kind="relationship",
+        )
         state_path = validate_cli_output_path(
             args.repository,
-            args.review_state,
+            requested_state,
             directory=False,
             inputs=(
                 args.explorer_data,
                 args.review_definition,
-                args.review_decision,
-                args.review_source,
+                decision_path,
+                source_path,
                 args.node_review_definitions,
                 *args.node_review_material_directory,
             ),
@@ -621,7 +691,7 @@ def _main(
             explorer["_relationship_review_scan_error"] = (
                 "missing" if "missing" in str(error).lower() else "parse-failure"
             )
-        decision = _object(args.review_decision)
+        decision, source = _review_material(decision_path, source_path, record)
         definitions = validate_relationship_review_definitions(
             _object(args.review_definition)
         )
@@ -640,12 +710,13 @@ def _main(
             args.node_review_definitions,
             args.node_review_material_directory,
             trust_policy=node_review_trust_policy,
+            batch_materials=node_batch,
         )
         state = update_relationship_review_state(
             explorer,
             matches[0],
             decision,
-            _object(args.review_source),
+            source,
             state_path,
             assessed_at=args.assessed_at,
             trust_policy=relationship_review_trust_policy,
@@ -684,6 +755,7 @@ def _main(
                 args.relationship_review_definitions,
                 *args.relationship_review_material_directory,
                 *view_definition_paths,
+                *batch_directories,
                 *args.candidate_fragment
             ) if path is not None
         ),
@@ -695,7 +767,7 @@ def _main(
         )
     if (
         args.relationship_review_definitions is None
-        and args.relationship_review_material_directory
+        and (args.relationship_review_material_directory or relationship_batch)
     ):
         raise ExplorerInputError(
             "Relationship Review material directories require Review Definitions"
@@ -708,7 +780,7 @@ def _main(
             "Relationship Review requires Node Review Definitions for both endpoints"
         )
     if args.node_review_definitions is None:
-        if args.node_review_material_directory:
+        if args.node_review_material_directory or node_batch:
             raise ExplorerInputError(
                 "Node Review material directories require Review Definitions"
             )
@@ -806,6 +878,7 @@ def _main(
             args.node_review_material_directory,
             trust_policy=node_review_trust_policy,
             direct_material=direct_material,
+            batch_materials=node_batch,
         )
         data["generation_inputs"]["node_review_definitions"] = {
             "path": args.node_review_definitions.name,
@@ -819,8 +892,7 @@ def _main(
         node_review_state = None
         if args.node_review_decision is not None and args.node_review_source is not None:
             decision, review_source = _verify_node_review_material_integrity(
-                _object(args.node_review_decision),
-                _object(args.node_review_source),
+                *_review_material(args.node_review_decision, args.node_review_source),
                 trust_policy=node_review_trust_policy,
             )
             node_review_state = _evaluate_node_review_state(
@@ -865,7 +937,10 @@ def _main(
         )
         materials_by_key: dict[str, dict[str, Any]] = {}
         material_generation_inputs: dict[str, dict[str, Any]] = {}
-        for directory in args.relationship_review_material_directory:
+        for directory, batch_material in [
+            *((directory, None) for directory in args.relationship_review_material_directory),
+            *relationship_batch.items(),
+        ]:
             decision_path = directory / "decision.json"
             source_path = directory / "source.json"
             state_path = directory / "state.json"
@@ -873,7 +948,7 @@ def _main(
                 raise ExplorerInputError(
                     f"Relationship Review material directory is incomplete: {directory}"
                 )
-            decision = _object(decision_path)
+            decision, source = _review_material(decision_path, source_path, batch_material)
             key = stable_review_object_key(decision.get("object_key", {}))
             if key in materials_by_key:
                 raise ExplorerInputError(
@@ -881,7 +956,7 @@ def _main(
                 )
             materials_by_key[key] = {
                 "decision": decision,
-                "source": _object(source_path),
+                "source": source,
                 "state": evaluate_relationship_review_state(
                     decision, state_path if state_path.is_file() else None
                 ),

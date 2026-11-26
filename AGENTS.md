@@ -46,6 +46,12 @@ Continue through checkpoints and batches unless an immutable-artifact validation
 
 ## Agent skills
 
+### Architecture Explorer navigation
+
+Before changing Appearance actions, the shared renderer or navigation tests,
+read [Interaction invariants](docs/architecture-explorer-t4.md#交互不变量).
+Verify navigation through the shared browser seam.
+
 ### Issue tracker
 
 Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
