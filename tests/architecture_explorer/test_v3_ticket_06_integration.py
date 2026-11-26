@@ -29,7 +29,8 @@ def _json(path: Path) -> dict:
 
 
 def _combined_projection() -> tuple[dict, dict]:
-    fragments = [_json(path) for path in sorted(FRAGMENTS.glob("*.json"))]
+    v3_fragments = ("worker-launch-boundary.v2.json", *FIRST_BATCH_FRAGMENTS)
+    fragments = [_json(FRAGMENTS / name) for name in sorted(v3_fragments)]
     explorer = apply_candidate_fragments(_published_explorer(), fragments)
     explorer = apply_view_definitions(explorer, _json(VIEW_DEFINITIONS))
     return explorer, apply_view_projection(explorer)["view_projection"]

@@ -1,0 +1,75 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "document-package-extraction",
+  "nodes": [
+    {
+      "id": "v4-t07-docx-story-parts",
+      "node_type": "responsibility",
+      "name": "识别 DOCX 内容部件",
+      "professional_description": "按只读 DOCX 包中的 Word XML 提取正文、脚注、尾注、批注和页眉页脚等受支持的 story，记录无法解析的部件。",
+      "plain_explanation": "系统先找出哪些 XML 部件可能包含书稿内容，并把无法解析的部件记入诊断。实际书稿的覆盖完整性仍未知。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:98730706893dbe28d51b89a51d5e682aeeaa7af9a323f14124b9f165899c12ea",
+        "evidence:sha256:2a8df7afd35a536ee8f79faf69b82539ec0add54a93cba1981cd9687cc6a2502",
+        "evidence:sha256:cd046a44e41f305fae0cf09acf19cbf85bfedd4bab455432c1d366afd33267ba"
+      ]
+    },
+    {
+      "id": "v4-t07-located-document-ir",
+      "node_type": "responsibility",
+      "name": "构造带定位的文档 IR",
+      "professional_description": "将 story 下的段落和文本映射为 BlockIR、SpanIR 及部件内 SourceLocator。块 unit_uid 绑定文档摘要、部件、段落 XML 路径和原文摘要。",
+      "plain_explanation": "每段文字都带着它在原 DOCX 部件中的地址，供下游重新找到原文。地址依赖这一源文档快照。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b3b097bb30d4f16b1b91a3935f18a209efaa49f8244861ecd4eb5aa368ea38aa",
+        "evidence:sha256:c2f5d38c4be94db31f08460efa6c9d377b36d187182d12817a4925053e166d10"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:v4-t07-extraction-to-story-parts",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "document-package-extraction",
+      "target_node_id": "v4-t07-docx-story-parts",
+      "name": "提取包含部件识别",
+      "professional_description": "DocumentExtractor.extract 枚举可解析部件并按 story 处理。",
+      "plain_explanation": "这条分解边从提取总职责指向部件识别。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:98730706893dbe28d51b89a51d5e682aeeaa7af9a323f14124b9f165899c12ea",
+        "evidence:sha256:cd046a44e41f305fae0cf09acf19cbf85bfedd4bab455432c1d366afd33267ba"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:v4-t07-extraction-to-located-ir",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "document-package-extraction",
+      "target_node_id": "v4-t07-located-document-ir",
+      "name": "提取包含 IR 定位",
+      "professional_description": "DocumentExtractor.extract 将各部件的 block 装入 DocumentStoryIR，再汇入 DocumentIR。",
+      "plain_explanation": "这条分解边从提取总职责指向段落与文本定位。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:98730706893dbe28d51b89a51d5e682aeeaa7af9a323f14124b9f165899c12ea",
+        "evidence:sha256:b3b097bb30d4f16b1b91a3935f18a209efaa49f8244861ecd4eb5aa368ea38aa"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:v4-t07-story-parts-to-located-ir",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "v4-t07-docx-story-parts",
+      "target_node_id": "v4-t07-located-document-ir",
+      "name": "内容部件进入定位",
+      "professional_description": "extract 把选中部件的 XML 根、部件名和 story 传给 _blocks_for_part。",
+      "plain_explanation": "箭头从部件识别指向构造定位。每个部件的解析结果为段落地址提供上下文。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:98730706893dbe28d51b89a51d5e682aeeaa7af9a323f14124b9f165899c12ea",
+        "evidence:sha256:b3b097bb30d4f16b1b91a3935f18a209efaa49f8244861ecd4eb5aa368ea38aa"
+      ]
+    }
+  ]
+}

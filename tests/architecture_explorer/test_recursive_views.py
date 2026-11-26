@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 import shutil
 import subprocess
@@ -45,18 +46,22 @@ def _semantic_routing_fragment() -> dict:
     )
 
 
-def _real_recursive_fragments() -> list[dict]:
+def _v3_recursive_fragments() -> list[dict]:
+    # These inputs belong to recursive-views.v1.json and its fixed inventory.
     return [
-        json.loads(path.read_text(encoding="utf-8"))
-        for path in sorted(
-            (REPOSITORY / "architecture-explorer/recursive-candidates").glob("*.json")
+        _json(f"architecture-explorer/recursive-candidates/{name}")
+        for name in (
+            "quality-semantic-review-and-repair.v2.json",
+            "qwen-provider-adapters.v2.json",
+            "translation-routing-and-acquisition.v2.json",
+            "worker-launch-boundary.v2.json",
         )
     ]
 
 
 def _recursive_explorer(fragment: dict | None = None) -> dict:
     return apply_candidate_fragments(
-        _current_explorer(), [fragment] if fragment is not None else _real_recursive_fragments()
+        _current_explorer(), [fragment] if fragment is not None else _v3_recursive_fragments()
     )
 
 
@@ -535,12 +540,21 @@ def test_cli_build_discovers_authoritative_view_documents_without_an_option(
     assert review_main(build_args) == 0
     generated = _json(str(site.relative_to(REPOSITORY) / "explorer-data.json"))
 
-    assert len(generated["view_projection"]["view_index"]) == 12
     generation_inputs = generated["generation_inputs"]["view_definitions"]
-    assert [item["path"] for item in generation_inputs] == [
-        "architecture-explorer/views/recursive-views.v1.json"
+    view_paths = sorted(
+        path.relative_to(REPOSITORY).as_posix()
+        for path in (REPOSITORY / "architecture-explorer" / "views").rglob("*.json")
+    )
+    assert "architecture-explorer/views/recursive-views.v1.json" in view_paths
+    assert generation_inputs == [
+        {"path": path, "sha256": sha256((REPOSITORY / path).read_bytes()).hexdigest()}
+        for path in view_paths
     ]
-    assert len(generation_inputs[0]["sha256"]) == 64
+    expected_views = {"top-level"}
+    expected_views.update(module["id"] for module in _json("architecture-explorer/modules.json")["modules"])
+    for path in view_paths:
+        expected_views.update(view["id"] for view in _json(path)["views"])
+    assert generated["view_projection"]["view_index"].keys() == expected_views
 
 
 @pytest.mark.parametrize("viewport_width", [1440, 1280, 960])
@@ -660,7 +674,7 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
     }
     explorer = apply_candidate_fragments(
         _current_explorer(),
-        [*_real_recursive_fragments(), test_fragment],
+        [*_v3_recursive_fragments(), test_fragment],
     )
     definitions = _json("architecture-explorer/views/recursive-views.v1.json")
     definitions["entry_actions"].append(
@@ -683,15 +697,53 @@ def test_controlled_data_recurses_beyond_three_views_through_the_same_renderer(
             "scope_node_id": "supervisor-process-launch-construction",
             "coverage_note": "受控测试数据；不属于生产架构。",
             "appearances": [
-                {"node_id": "supervisor-process-launch-construction"},
+                {
+                    "node_id": "supervisor-process-launch-construction",
+                    "primary_action": {
+                        "kind": "open-view",
+                        "target_view_id": "test-only-depth-four-perspective",
+                        "transition_kind": "perspective",
+                        "destination_label": "查看测试专用组件视角",
+                    },
+                },
                 {"node_id": "test-only-depth-four"},
+            ],
+            "relationship_ids": ["candidate-decomposition:test-only-depth-four"],
+        }
+    )
+    definitions["views"].append(
+        {
+            "id": "test-only-depth-four-perspective",
+            "display_name": "测试专用组件视角",
+            "perspective": "component",
+            "scope_node_id": "supervisor-process-launch-construction",
+            "coverage_note": "受控测试数据；不属于生产架构。",
+            "appearances": [
+                {
+                    "node_id": "supervisor-process-launch-construction",
+                    "primary_action": {
+                        "kind": "open-view",
+                        "target_view_id": "test-only-depth-four-view",
+                        "transition_kind": "perspective",
+                        "destination_label": "返回测试专用第四层",
+                    },
+                },
+                {
+                    "node_id": "test-only-depth-four",
+                    "primary_action": {
+                        "kind": "open-view",
+                        "target_view_id": "test-only-depth-four-perspective",
+                        "transition_kind": "cross-node",
+                        "destination_label": "查看当前组件视角",
+                    },
+                },
             ],
             "relationship_ids": ["candidate-decomposition:test-only-depth-four"],
         }
     )
     explorer = apply_view_definitions(explorer, definitions)
     projection = apply_view_projection(explorer)["view_projection"]
-    assert len(projection["view_index"]) == 13
+    assert len(projection["view_index"]) == 14
 
     browser_name, browser = _desktop_browser()
     site = tmp_path / "site"
@@ -794,6 +846,11 @@ def test_real_browser_displays_call_evidence_and_opens_its_source_trail(
         "kind": "open-source-trail",
         "target_evidence_id": call_id,
         "destination_label": "查看入口调用源码",
+    }
+    definitions["views"][0]["appearances"][0]["primary_action"] = {
+        "kind": "open-source-trail",
+        "target_evidence_id": call_id,
+        "destination_label": "查看当前范围的源码调用",
     }
     explorer = apply_view_definitions(explorer, definitions)
 

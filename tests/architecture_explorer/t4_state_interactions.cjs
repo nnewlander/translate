@@ -61,7 +61,25 @@ const returned = reduce(state, {
   nodeId: "return-to-root",
   primaryAction: { kind: "open-view", target_view_id: "top-level" },
 });
-assert.deepEqual(returned.navigationPath.map((frame) => frame.viewId), ["top-level"], "a legal return transition truncates to the existing View frame");
+assert.deepEqual(returned.navigationPath, state.navigationPath, "ordinary activation keeps the current path when the target is an ancestor");
+assert.equal(returned.detailModuleId, "return-to-root");
+
+const selfTarget = reduce(state, {
+  type: "APPEARANCE_PRIMARY",
+  nodeId: "same-view",
+  primaryAction: { kind: "open-view", target_view_id: state.levelId },
+});
+assert.deepEqual(selfTarget.navigationPath, state.navigationPath);
+assert.equal(selfTarget.detailModuleId, "same-view");
+
+const scope = reduce(state, {
+  type: "APPEARANCE_PRIMARY",
+  nodeId: "scope",
+  isScopeNode: true,
+  primaryAction: { kind: "open-view", target_view_id: "new-view" },
+});
+assert.deepEqual(scope.navigationPath, state.navigationPath);
+assert.equal(scope.detailModuleId, "scope");
 
 const relationshipId = "relationship:production-control:launches:translation-execution";
 state = reduce(initialState(), { type: "CONTEXT_OPEN", moduleId: "production-control", x: 12, y: 18 });

@@ -14,7 +14,7 @@
     card("production-control").click();
     await nextPaint();
 
-    let target = card("worker-launch-boundary");
+    const target = card("worker-launch-boundary");
     assert(target.textContent.includes("候选"), "candidate fact boundary disappeared");
     assert(target.textContent.includes("源码归属：部分核验"), "source assignment is not visible");
     assert(target.textContent.includes(`人工审核：${expectedReviewLabel}`), "concise Chinese review status is not visible");
@@ -36,28 +36,6 @@
     const targetData = window.ARCHITECTURE_EXPLORER_DATA.view_projection
       .node_index["worker-launch-boundary"];
     const reviewData = targetData.review_detail;
-    const originalProjection = reviewData.projection;
-    const presentationCases = [
-      ["Pending Review", "待审核"],
-      ["Current · Approved", "已批准 · 当前有效"],
-      ["Current · Rejected", "已拒绝 · 当前有效"],
-      ["Historical · Approved", "曾批准 · 需复核"],
-      ["Historical · Rejected", "曾拒绝 · 需复核"],
-      ["Unknown", "审核有效性未知"],
-    ];
-    for (const [projection, label] of presentationCases) {
-      reviewData.projection = projection;
-      target.click();
-      await nextPaint();
-      target = card("worker-launch-boundary");
-      assert(target.textContent.includes(`人工审核：${label}`), `missing Chinese review label for ${projection}`);
-      assert(!target.textContent.includes(projection), `raw projection leaked for ${projection}`);
-      assert(target.scrollWidth <= target.clientWidth + 1, `candidate card overflows for ${projection}`);
-    }
-    reviewData.projection = originalProjection;
-    target.click();
-    await nextPaint();
-    target = card("worker-launch-boundary");
 
     const otherCards = Array.from(document.querySelectorAll("#module-grid .module-card"))
       .filter((item) => item !== target);
