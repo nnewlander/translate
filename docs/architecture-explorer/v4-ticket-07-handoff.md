@@ -1,5 +1,22 @@
 # Architecture Explorer v4 Ticket 07 本地审查交接
 
+## PR #93 正式 CI 增量
+
+- 本轮复审基线为 PR Head `a5f794636ad40d084af09a071492afb24f5a8e5d`。Windows / Chrome 正式 CI 报告 718 passed、18 failed、2 skipped。18 项失败集中在两个节点审核浏览器测试的 1440、1280、960 三档矩阵。[CI Run 45817738052 / Job 139901720845](https://github.com/nnewlander/translate/actions/runs/45817738052/job/139901720845)
+- Red 在原 Head 上选取 1440 宽度的 Pending、Approved、Rejected 三例，3 failed、58 deselected（21.51s）。三例均已通过生成页面首次绘制的中文状态检查，随后在旧探针改写 `review_detail.projection` 并点击卡片时报告 `missing Chinese review label`。同一 View 内的普通激活打开详情并保留卡片 DOM，用于关闭详情时恢复焦点。旧探针依赖该点击重绘整张卡片，生成页面的审核状态显示无此问题。Red 日志为 `output/t7-ci-red.log`。
+- 代码差异仅移除 `tests/architecture_explorer/t8_node_review_dom.js` 中的投影改写和点击重绘循环。两个既有参数化测试各自通过 `write_site` 在 Chrome 启动前生成相应状态，覆盖 Pending、当前批准、当前拒绝、历史批准、历史拒绝和 Unknown。保留中文标签、卡片布局、Evidence、审核可信边界与详情断言，也保留原有通用详情兼容探针。该探针仍为另一节点临时注入测试数据，仅检查通用详情，不要求重绘卡片。产品 renderer、导航 reducer、审核逻辑和交互规范均无本轮差异。
+- Green 复跑正式 CI 失败的全部 18 例，18 passed、70 deselected（76.33s），日志为 `output/t7-ci-green.log`。导航聚焦回归 16 passed、34 deselected（57.57s），涵盖普通节点激活、显式跨 View 和 Perspective、Back/Home、Source Trail、焦点恢复及合法协作环，日志为 `output/t7-ci-nav.log`。两次均使用本 Worktree 的项目解释器与真实 Chrome。
+- 本轮仅交接以上增量。历史 Owner 验收和 Standards / Spec 双 PASS 见下文。增量尚待独立复审，正式 CI 未重新运行。
+
+  ```powershell
+  & .\scripts\architecture_explorer\prepare_worktree.ps1
+  $python = (Resolve-Path '.venv\Scripts\python.exe').Path
+  $env:ARCHITECTURE_EXPLORER_BROWSER = 'chrome'
+  $env:PYTHONUTF8 = '1'
+  & $python -m pytest -q tests/architecture_explorer/test_t8_node_review.py tests/architecture_explorer/test_t8_node_review_continuity.py -k 'test_real_browser_reuses_candidate_card_and_context_evidence_detail or test_real_browser_renders_historical_and_unknown_node_review_states' --tb=short --basetemp=output/t7-ci-green
+  & $python -m pytest -q tests/architecture_explorer/test_v4_ticket_07.py tests/architecture_explorer/test_recursive_views.py tests/architecture_explorer/test_t4_navigation.py -k 'ticket_07 or controlled_data_recurses or collaboration_cycles or decomposition_cycle or explicit_perspective_return_transition or source_trail or interaction_state_suite or browser_dom_order' --tb=short --basetemp=output/t7-ci-nav
+  ```
+
 ## 固定点与范围
 
 - Base、HEAD、Bstart 均为 `72864310175049a34e0c8ed789e096ead9c73a65`，2026-11-26 开工时核实为 `experiment/matt-skills` 的集成 Head，包含 T1 `c43e62a` 与 T2 `dad00a7`。
