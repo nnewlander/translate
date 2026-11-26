@@ -357,9 +357,9 @@
     } else {
       showCandidateRelationship(returnContext.collaboration);
     }
-    window.setTimeout(() => {
-      detailContent.querySelector(`.browse-definitions[data-evidence-id="${CSS.escape(returnEvidenceId)}"]`)?.focus();
-    }, 0);
+    const focusSelector = returnContext.returnFocusSelector
+      ?? `.browse-definitions[data-evidence-id="${CSS.escape(returnEvidenceId)}"]`;
+    window.setTimeout(() => detailContent.querySelector(focusSelector)?.focus(), 0);
   };
 
   const sourceTrailCrumbs = (entries) => entries.map((entry) => {
@@ -968,6 +968,28 @@
     detailContent.replaceChildren(); clearDefinitionFileState(); delete detailContent.dataset.relationshipId; delete detailContent.dataset.collaborationId; delete detailContent.dataset.evidenceId;
     const title = text("h2", module.name, "detail-title"); title.id = "detail-title";
     detailContent.append(text("p", isCandidate ? `候选${candidateKind}` : "模块详情", "eyebrow"), title, text("p", module.responsibility, "relationship-summary"));
+    const view = currentView();
+    const declared = view.appearances.find(({ node_id }) => node_id === module.id)?.primary_action;
+    const primary = stateApi.appearancePrimaryAction(state, declared, view.scope_node_id === module.id);
+    const opensOtherView = declared?.kind === "open-view" && declared.target_view_id !== view.id;
+    if (!primary && (opensOtherView || declared?.kind === "open-source-trail")) {
+      const button = text("button", declared.destination_label, "evidence-link view-navigation-link");
+      button.type = "button";
+      button.addEventListener("click", () => {
+        if (declared.kind === "open-source-trail") {
+          showSourceTrailEvidence(declared.target_evidence_id, {
+            kind: "candidate-node",
+            module,
+            returnFocusSelector: ".view-navigation-link",
+          });
+          return;
+        }
+        closeDetailDialog();
+        dispatch({ type: "APPEARANCE_EXPLICIT_VIEW", nodeId: module.id, targetViewId: declared.target_view_id });
+        render();
+      });
+      detailContent.append(button);
+    }
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
     const nodeReview = nodeReviewFor(module);
@@ -1462,7 +1484,7 @@
       article.classList.add("scope-node-card");
       article.append(text("span", "当前范围 · 父节点", "scope-node-label"));
     }
-    const primaryAction = appearance.primary_action;
+    const primaryAction = stateApi.appearancePrimaryAction(state, appearance.primary_action, isScopeNode);
     const opensView = primaryAction?.kind === "open-view";
     const expanded = state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
@@ -1486,11 +1508,22 @@
     else statuses.append(text("span", "逻辑定义：已批准", "status approved"), text("span", coverageLabels[module.source_coverage.status] || "源码覆盖：未知", `status coverage-${module.source_coverage.status}`));
     article.append(statuses);
     const activate = () => {
+      const wasMenuOpen = Boolean(state.contextMenu);
+      const previousViewId = state.levelId;
+      dispatch({ type: "APPEARANCE_PRIMARY", nodeId: module.id, primaryAction: appearance.primary_action, isScopeNode });
+      if (state.levelId !== previousViewId) {
+        render();
+        return;
+      }
+      if (wasMenuOpen) {
+        renderContextMenu();
+        return;
+      }
       dialogOpener = article;
-      dispatch({ type: "APPEARANCE_PRIMARY", nodeId: module.id, primaryAction }); render();
-      if (state.detailModuleId) showModuleDetail(moduleById[state.detailModuleId]);
       if (primaryAction?.kind === "open-source-trail") {
         showSourceTrailEvidence(primaryAction.target_evidence_id, { kind: "candidate-node", module });
+      } else if (state.detailModuleId) {
+        showModuleDetail(moduleById[state.detailModuleId]);
       }
     };
     article.addEventListener("click", activate);
@@ -1637,12 +1670,15 @@
     dispatch({ type: "DETAIL_CLOSED" });
     restoreDialogOpener();
   };
-  dialog.addEventListener("close", finishDialogClose);
-  dialog.querySelector(".dialog-close")?.addEventListener("click", (event) => {
-    event.preventDefault();
+  const closeDetailDialog = () => {
     if (typeof dialog.close === "function") dialog.close();
     else dialog.removeAttribute("open");
     finishDialogClose();
+  };
+  dialog.addEventListener("close", finishDialogClose);
+  dialog.querySelector(".dialog-close")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeDetailDialog();
   });
   window.addEventListener("resize", scheduleRelationshipGraph);
   window.addEventListener("scroll", scheduleRelationshipGraph, { passive: true });

@@ -31,6 +31,24 @@
     };
   };
 
+  const appearancePrimaryAction = (state, primaryAction, isScopeNode) => {
+    if (isScopeNode || (
+      primaryAction?.kind === "open-view"
+      && state.navigationPath.some(({ viewId }) => viewId === primaryAction.target_view_id)
+    )) return null;
+    return primaryAction;
+  };
+
+  const returnToFrame = (state, index) => ({
+    ...navigationState(state, state.navigationPath.slice(0, index + 1)),
+    focusNodeId: state.navigationPath[index + 1].originNodeId,
+  });
+
+  const enterView = (state, targetViewId, originNodeId) => navigationState(state, [
+    ...state.navigationPath,
+    { viewId: targetViewId, originNodeId },
+  ]);
+
   const reduce = (state, action) => {
     if (action.type === "NODE_DETAIL_TOGGLE") {
       const expanded = state.expandedNodeIds.includes(action.moduleId)
@@ -47,33 +65,22 @@
     }
     if (action.type === "APPEARANCE_PRIMARY") {
       if (state.contextMenu) return { ...state, contextMenu: null };
-      const primaryAction = action.primaryAction;
+      const primaryAction = appearancePrimaryAction(state, action.primaryAction, action.isScopeNode);
       if (primaryAction?.kind === "open-view") {
-        const targetViewId = primaryAction.target_view_id;
-        let existingIndex = -1;
-        for (let index = state.navigationPath.length - 1; index >= 0; index -= 1) {
-          if (state.navigationPath[index].viewId === targetViewId) {
-            existingIndex = index;
-            break;
-          }
-        }
-        if (existingIndex >= 0) {
-          return navigationState(state, state.navigationPath.slice(0, existingIndex + 1));
-        }
-        return navigationState(state, [
-          ...state.navigationPath,
-          { viewId: targetViewId, originNodeId: action.nodeId },
-        ]);
+        return enterView(state, primaryAction.target_view_id, action.nodeId);
       }
       return { ...state, detailModuleId: action.nodeId, relationshipId: null };
     }
+    if (action.type === "APPEARANCE_EXPLICIT_VIEW") {
+      if (action.targetViewId === state.levelId) return state;
+      const index = state.navigationPath.findIndex(({ viewId }) => viewId === action.targetViewId);
+      return index < 0
+        ? enterView(state, action.targetViewId, action.nodeId)
+        : returnToFrame(state, index);
+    }
     if (action.type === "BACK") {
       if (state.navigationPath.length <= 1) return navigationState(state, initialState().navigationPath);
-      const departed = state.navigationPath[state.navigationPath.length - 1];
-      return {
-        ...navigationState(state, state.navigationPath.slice(0, -1)),
-        focusNodeId: departed.originNodeId,
-      };
+      return returnToFrame(state, state.navigationPath.length - 2);
     }
     if (action.type === "HOME") return navigationState(state, initialState().navigationPath);
     if (action.type === "FOCUS_RESTORED") return { ...state, focusNodeId: null };
@@ -94,5 +101,5 @@
     return !open;
   };
 
-  return { initialState, nextSnapshotOpen, reduce };
+  return { appearancePrimaryAction, initialState, nextSnapshotOpen, reduce };
 });
