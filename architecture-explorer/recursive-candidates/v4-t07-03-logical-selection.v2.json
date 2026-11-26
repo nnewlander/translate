@@ -1,0 +1,62 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "scope-logical-work-order-selection",
+  "nodes": [
+    {
+      "id": "v4-t07-logical-work-order-projection",
+      "node_type": "responsibility",
+      "name": "形成逻辑工作单元",
+      "professional_description": "范围脚本从已有 TranslationView 的 display_id 匹配 BlockIR，按物理顺序取成员，再让已确定的复合组替换其物理成员。",
+      "plain_explanation": "一个普通块对应一单，已确定的复合组按整组记一单。实际选了哪些内容由冻结产物决定。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:7bb35c4d00aa78aa8e9039e1a8fbc70a28b4b270b44a10105568b42fa03f35a8",
+        "evidence:sha256:c13ef8e241db1091b4ce32ec1d3a6c827597ab5ddd302ab67af0328cebdb1e7a",
+        "evidence:sha256:4fb48282c26a37d2582c33c237e19e4008dbb68f8b44b5c9686d8dbf4063f60f"
+      ]
+    },
+    {
+      "id": "v4-t07-frozen-checkpoint-slice",
+      "node_type": "responsibility",
+      "name": "读取冻结 Checkpoint 切片",
+      "professional_description": "按 Checkpoint 编号取冻结 selection 中对应的顺序切片，通常为 25 个逻辑 ID。只有末片允许比 25 少，生产入口校验与 manifest 目标一致。",
+      "plain_explanation": "按已定顺序取本次工单。批次的实际成员及使用的 reconciled selector 仍需核查当时的产物。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b362815697032dcb4d29bc9c7ce8b3781503dac2e3b49c5fa7435fa32e456fa7",
+        "evidence:sha256:a24581f87ec92ab615bdd66f0ecdac06d4acf6483f359084caefd6a92dcc1058",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:v4-t07-selection-to-logical-orders",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "scope-logical-work-order-selection",
+      "target_node_id": "v4-t07-logical-work-order-projection",
+      "name": "选择包含逻辑单元投影",
+      "professional_description": "全书 scope 构造将排序后的物理成员映射到普通或复合逻辑身份。",
+      "plain_explanation": "父职责指向生成逻辑工单。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:7bb35c4d00aa78aa8e9039e1a8fbc70a28b4b270b44a10105568b42fa03f35a8",
+        "evidence:sha256:4fb48282c26a37d2582c33c237e19e4008dbb68f8b44b5c9686d8dbf4063f60f"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:v4-t07-selection-to-checkpoint-slice",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "scope-logical-work-order-selection",
+      "target_node_id": "v4-t07-frozen-checkpoint-slice",
+      "name": "选择包含冻结范围切片",
+      "professional_description": "worker 根据不可变 selection 读取 Checkpoint 的固定逻辑 ID 子序列。",
+      "plain_explanation": "父职责指向消费冻结范围。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b362815697032dcb4d29bc9c7ce8b3781503dac2e3b49c5fa7435fa32e456fa7",
+        "evidence:sha256:9671dbed1250acc107e0fb6457c69e0e4b8ee023dce7dafa3a9ae153dd5b4056"
+      ]
+    }
+  ]
+}

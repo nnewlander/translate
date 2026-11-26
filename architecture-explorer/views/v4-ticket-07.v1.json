@@ -1,0 +1,281 @@
+{
+  "schema": "architecture-explorer.view-definitions.v1",
+  "entry_actions": [
+    {
+      "view_id": "document-understanding",
+      "node_id": "document-package-extraction",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "v4-t07-docx-extraction",
+        "transition_kind": "decomposition",
+        "destination_label": "查看 DOCX 部件与 IR 定位"
+      }
+    },
+    {
+      "view_id": "document-understanding",
+      "node_id": "document-translation-view",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "v4-t07-view-construction",
+        "transition_kind": "decomposition",
+        "destination_label": "查看回找与翻译片段投影"
+      }
+    },
+    {
+      "view_id": "scope-and-request",
+      "node_id": "scope-logical-work-order-selection",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "v4-t07-logical-selection",
+        "transition_kind": "decomposition",
+        "destination_label": "查看逻辑工单与冻结顺序"
+      }
+    },
+    {
+      "view_id": "scope-and-request",
+      "node_id": "scope-request-context-assembly",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "v4-t07-request-context",
+        "transition_kind": "decomposition",
+        "destination_label": "查看请求字段与脚注依据"
+      }
+    }
+  ],
+  "views": [
+    {
+      "id": "v4-t07-docx-extraction",
+      "display_name": "DOCX 如何成为带定位的 IR？",
+      "perspective": "responsibility",
+      "scope_node_id": "document-package-extraction",
+      "coverage_note": "分解边由提取职责指向内部职责，协作箭头显示解析结果的交接方向。源码支持静态数据交接，真实书稿的覆盖完整性和解析结果仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "document-package-extraction"
+        },
+        {
+          "node_id": "v4-t07-docx-story-parts"
+        },
+        {
+          "node_id": "v4-t07-located-document-ir",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-view-construction",
+            "transition_kind": "cross-node",
+            "destination_label": "查看 IR 地址如何用于构造翻译视图"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:v4-t07-extraction-to-story-parts",
+        "candidate-decomposition:v4-t07-extraction-to-located-ir",
+        "candidate-collaboration:v4-t07-story-parts-to-located-ir"
+      ]
+    },
+    {
+      "id": "v4-t07-view-construction",
+      "display_name": "IR 地址如何成为翻译视图？",
+      "perspective": "responsibility",
+      "scope_node_id": "document-translation-view",
+      "coverage_note": "分解边从视图职责指向内部步骤，协作边从带定位的 IR 指向 XML 回找，再指向片段投影。解析覆盖、运行时是否重建视图仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "document-translation-view"
+        },
+        {
+          "node_id": "v4-t07-translation-segments",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-document-to-scope",
+            "transition_kind": "cross-node",
+            "destination_label": "沿翻译视图追踪范围与请求"
+          }
+        },
+        {
+          "node_id": "v4-t07-located-document-ir",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-docx-extraction",
+            "transition_kind": "cross-node",
+            "destination_label": "回看 DOCX 定位的来源"
+          }
+        },
+        {
+          "node_id": "v4-t07-resolve-docx-locators"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:v4-t07-view-to-locator-resolution",
+        "candidate-decomposition:v4-t07-view-to-translation-segments",
+        "candidate-collaboration:v4-t07-located-ir-to-locator-resolution",
+        "candidate-collaboration:v4-t07-locator-resolution-to-translation-segments"
+      ]
+    },
+    {
+      "id": "v4-t07-document-to-scope",
+      "display_name": "翻译视图如何进入范围与请求？",
+      "perspective": "responsibility",
+      "scope_node_id": "v4-t07-translation-segments",
+      "coverage_note": "两个协作箭头都从 TranslationView 出发。范围脚本读取视图的身份集合，worker 读取冻结 ID 所对应的视图内容。两条边分别描述静态数据使用，具体批次与模型调用仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "v4-t07-translation-segments",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-view-construction",
+            "transition_kind": "cross-node",
+            "destination_label": "回看翻译视图构造"
+          }
+        },
+        {
+          "node_id": "v4-t07-logical-work-order-projection",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-logical-selection",
+            "transition_kind": "cross-node",
+            "destination_label": "查看工单范围"
+          }
+        },
+        {
+          "node_id": "v4-t07-calibration-request",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-request-context",
+            "transition_kind": "cross-node",
+            "destination_label": "查看请求组装"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-collaboration:v4-t07-translation-view-to-logical-order",
+        "candidate-collaboration:v4-t07-translation-view-to-calibration-request"
+      ]
+    },
+    {
+      "id": "v4-t07-logical-selection",
+      "display_name": "物理内容如何划入冻结范围？",
+      "perspective": "responsibility",
+      "scope_node_id": "scope-logical-work-order-selection",
+      "coverage_note": "两条分解边表示上游逻辑范围投影与下游冻结切片两项职责。选择器的实际运行、当前批次成员和已核对的冻结产物仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "scope-logical-work-order-selection"
+        },
+        {
+          "node_id": "v4-t07-logical-work-order-projection",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-document-to-scope",
+            "transition_kind": "cross-node",
+            "destination_label": "查看文档身份怎样进入工单范围"
+          }
+        },
+        {
+          "node_id": "v4-t07-frozen-checkpoint-slice",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-checkpoint-to-request",
+            "transition_kind": "cross-node",
+            "destination_label": "查看冻结工单怎样进入请求"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:v4-t07-selection-to-logical-orders",
+        "candidate-decomposition:v4-t07-selection-to-checkpoint-slice"
+      ]
+    },
+    {
+      "id": "v4-t07-checkpoint-to-request",
+      "display_name": "冻结顺序如何约束请求？",
+      "perspective": "responsibility",
+      "scope_node_id": "v4-t07-frozen-checkpoint-slice",
+      "coverage_note": "候选协作从冻结顺序指向请求组装。运行路径按冻结 ID 查找素材，真实 selection 和请求执行结果仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "v4-t07-frozen-checkpoint-slice",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-logical-selection",
+            "transition_kind": "cross-node",
+            "destination_label": "回看冻结范围"
+          }
+        },
+        {
+          "node_id": "v4-t07-calibration-request",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-request-context",
+            "transition_kind": "cross-node",
+            "destination_label": "查看请求字段与 D050 证据"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-collaboration:v4-t07-frozen-order-to-request"
+      ]
+    },
+    {
+      "id": "v4-t07-request-context",
+      "display_name": "请求字段与脚注依据来自哪里？",
+      "perspective": "responsibility",
+      "scope_node_id": "scope-request-context-assembly",
+      "coverage_note": "分解边从请求上下文指向字段投影与脚注精确匹配。进入精确匹配可继续查看上游核验记录如何流入请求。具体脚注匹配和发送结果仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "scope-request-context-assembly"
+        },
+        {
+          "node_id": "v4-t07-d050-exact-binding",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-d050-binding",
+            "transition_kind": "cross-node",
+            "destination_label": "查看 D050 证据如何流入请求"
+          }
+        },
+        {
+          "node_id": "v4-t07-calibration-request"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:v4-t07-context-to-calibration-request",
+        "candidate-decomposition:v4-t07-context-to-d050-exact-binding"
+      ]
+    },
+    {
+      "id": "v4-t07-d050-binding",
+      "display_name": "D050 证据如何绑定到这张请求？",
+      "perspective": "responsibility",
+      "scope_node_id": "v4-t07-d050-exact-binding",
+      "coverage_note": "协作箭头沿注册表与双键匹配流向请求。这里描述默认生产载入分支的静态合同，真实 PDF 页关联与具体绑定结果仍属 Unknown。",
+      "appearances": [
+        {
+          "node_id": "v4-t07-d050-preflight"
+        },
+        {
+          "node_id": "v4-t07-d050-exact-binding",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-request-context",
+            "transition_kind": "cross-node",
+            "destination_label": "回到请求上下文"
+          }
+        },
+        {
+          "node_id": "v4-t07-calibration-request",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "v4-t07-checkpoint-to-request",
+            "transition_kind": "cross-node",
+            "destination_label": "查看工单的冻结顺序"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-collaboration:v4-t07-d050-preflight-to-exact-binding",
+        "candidate-collaboration:v4-t07-d050-exact-binding-to-request"
+      ]
+    }
+  ]
+}

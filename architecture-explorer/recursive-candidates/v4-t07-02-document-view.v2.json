@@ -1,0 +1,91 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "document-translation-view",
+  "nodes": [
+    {
+      "id": "v4-t07-resolve-docx-locators",
+      "node_type": "responsibility",
+      "name": "回找 DOCX 原文位置",
+      "professional_description": "按部件和段落／文本序号解析 SourceLocator。转换器在单次构建中复用已解析 XML 部件及 RootLocatorIndex。",
+      "plain_explanation": "用 IR 里的地址在原 DOCX 里找到段落和文字。实际地址是否可以解析取决于源快照，支持范围外的路径会失败。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b31fcccc56f731444d27555823d70e6b56cac15438f8eb534ee7492725049a92",
+        "evidence:sha256:ddb82b54f43d83fd8cb18a92dfea07322afefdd419e553e2e205ddc71c7ac786",
+        "evidence:sha256:f0b0cea9e3aa1fe24d28af4f6c8508a68108db346e06379aba5083f025e4b3bf"
+      ]
+    },
+    {
+      "id": "v4-t07-translation-segments",
+      "node_type": "responsibility",
+      "name": "投影片段与格式锚点",
+      "professional_description": "按可翻译块投影 TranslationView，沿用 unit_uid 和 display_id，组织片段、保护内容、格式与结构锚点、可编辑岛和邻文。",
+      "plain_explanation": "翻译视图保留原段落身份，同时交代哪些文字可编辑、格式如何绑定、前后文在哪里。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:da57fd65dbea8d1300e028919b3ff6e1e298c2763dc7a7cb00fb83555ef79192",
+        "evidence:sha256:bcc9d9627b3d1c2474d3cec5c5bb203d7cb7cd5194eaf3669d790760c8fc54f8"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:v4-t07-view-to-locator-resolution",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "document-translation-view",
+      "target_node_id": "v4-t07-resolve-docx-locators",
+      "name": "视图包含原文回找",
+      "professional_description": "构造视图时按 BlockIR 和 SpanIR 的定位信息读取原 DOCX。",
+      "plain_explanation": "父职责指向定位解析。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:da57fd65dbea8d1300e028919b3ff6e1e298c2763dc7a7cb00fb83555ef79192",
+        "evidence:sha256:b31fcccc56f731444d27555823d70e6b56cac15438f8eb534ee7492725049a92"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:v4-t07-view-to-translation-segments",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "document-translation-view",
+      "target_node_id": "v4-t07-translation-segments",
+      "name": "视图包含片段投影",
+      "professional_description": "视图构造对可翻译块返回带段落身份与结构信息的 TranslationView。",
+      "plain_explanation": "父职责指向翻译片段与锚点投影。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:da57fd65dbea8d1300e028919b3ff6e1e298c2763dc7a7cb00fb83555ef79192"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:v4-t07-located-ir-to-locator-resolution",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "v4-t07-located-document-ir",
+      "target_node_id": "v4-t07-resolve-docx-locators",
+      "name": "IR 地址交给解析",
+      "professional_description": "TranslationViewBuilder.build 将 IR 的段落、span 与 source_run_locators 传给 _resolve。",
+      "plain_explanation": "IR 提供地址，解析在原 DOCX 中找回对应 XML 内容。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b3b097bb30d4f16b1b91a3935f18a209efaa49f8244861ecd4eb5aa368ea38aa",
+        "evidence:sha256:c2f5d38c4be94db31f08460efa6c9d377b36d187182d12817a4925053e166d10",
+        "evidence:sha256:da57fd65dbea8d1300e028919b3ff6e1e298c2763dc7a7cb00fb83555ef79192",
+        "evidence:sha256:b31fcccc56f731444d27555823d70e6b56cac15438f8eb534ee7492725049a92",
+        "evidence:sha256:8d0f09c86356a5a2fc115b6706c984108a45a1b4eff409ee574ae1873053751f"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:v4-t07-locator-resolution-to-translation-segments",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "v4-t07-resolve-docx-locators",
+      "target_node_id": "v4-t07-translation-segments",
+      "name": "原文位置支撑片段",
+      "professional_description": "build 使用 _resolve 的段落结果检查结构，并读取每个定位到的文本节点以分组并创建片段和锚点。",
+      "plain_explanation": "解析提供实际 XML 段落和文本，视图由它们及 IR 分类形成。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:da57fd65dbea8d1300e028919b3ff6e1e298c2763dc7a7cb00fb83555ef79192",
+        "evidence:sha256:b31fcccc56f731444d27555823d70e6b56cac15438f8eb534ee7492725049a92"
+      ]
+    }
+  ]
+}
