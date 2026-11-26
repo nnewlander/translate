@@ -8,6 +8,7 @@ against an independently configured approval anchor.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .generator import ExplorerInputError
@@ -37,6 +38,14 @@ class ReviewTrustPolicy:
 PRODUCTION_RELATIONSHIP_REVIEW_APPROVAL_ANCHORS: tuple[
     ReviewApprovalAnchor, ...
 ] = ()
+
+# Host configuration records the exact installation digest authorized by the
+# Owner's second confirmation. A repository passed to a CLI cannot set this.
+PRODUCTION_BATCH_INSTALLATION_DIGESTS: frozenset[str] = frozenset()
+
+# Per-owner host state shared by every local Worktree. Neither the selected
+# repository nor its temporary directory controls this location.
+HOST_REVIEW_STATE_DIRECTORY = Path.home() / ".booktrans" / "architecture-explorer"
 
 
 def production_relationship_review_trust_policy() -> ReviewTrustPolicy:
