@@ -10,7 +10,12 @@ import pytest
 
 from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
 from booktrans.architecture_explorer.generator import ExplorerInputError
-from booktrans.architecture_explorer.view_definitions import apply_view_definitions
+from booktrans.architecture_explorer.view_definitions import (
+    apply_view_definition_documents,
+    apply_view_definitions,
+    authoritative_view_definition_paths,
+    discover_view_definition_paths,
+)
 from booktrans.architecture_explorer.view_projection import apply_view_projection
 from booktrans.architecture_explorer.generator import write_site
 from booktrans.architecture_explorer.review_cli import main as review_main
@@ -73,13 +78,13 @@ def test_real_recursive_candidate_input_projects_the_approved_internal_view() ->
 
     assert len(projection["view_index"]) == 12
     assert len(projection["node_index"]) == 34  # seven modules plus twenty-seven candidates
-    semantic_families = [
-        reference["semantic_family"]
-        for reference in projection["relationship_index"].values()
+    semantics = [
+        relationship["semantic"]
+        for relationship in projection["relationship_index"].values()
     ]
-    assert semantic_families.count("formal-relationship") == 1
-    assert semantic_families.count("candidate-collaboration") == 12
-    assert semantic_families.count("candidate-decomposition") == 9
+    assert semantics.count("formal") == 1
+    assert semantics.count("collaboration") == 12
+    assert semantics.count("decomposition") == 9
 
     internal = projection["view_index"]["worker-launch-boundary-internal"]
     assert internal["scope_node_id"] == "worker-launch-boundary"
@@ -285,6 +290,70 @@ def test_view_projection_allows_an_explicit_perspective_return_transition() -> N
     ][0]["primary_action"]["target_view_id"] == "production-control"
 
 
+def test_view_definition_documents_compose_into_one_projection() -> None:
+    definitions = _json("architecture-explorer/views/recursive-views.v1.json")
+    first = {
+        "schema": definitions["schema"],
+        "views": definitions["views"][:2],
+        "entry_actions": [],
+    }
+    second = {
+        "schema": definitions["schema"],
+        "views": definitions["views"][2:],
+        "entry_actions": [],
+    }
+    actions = {
+        "schema": definitions["schema"],
+        "views": [],
+        "entry_actions": definitions["entry_actions"],
+    }
+
+    explorer = apply_view_definition_documents(
+        _recursive_explorer(), [first, second, actions]
+    )
+    projection = apply_view_projection(explorer)["view_projection"]
+
+    assert set(view["id"] for view in definitions["views"]) <= set(
+        projection["view_index"]
+    )
+    assert len(explorer["view_definition_inputs"]) == 3
+
+
+def test_view_definition_discovery_is_shared_sorted_and_recursive(
+    tmp_path: Path,
+) -> None:
+    views = tmp_path / "architecture-explorer" / "views"
+    nested = views / "composed"
+    nested.mkdir(parents=True)
+    (views / "z.json").write_text("{}", encoding="utf-8")
+    (views / "ignore.md").write_text("not a View definition", encoding="utf-8")
+    (nested / "a.json").write_text("{}", encoding="utf-8")
+
+    discovered = discover_view_definition_paths(tmp_path)
+
+    assert [path.relative_to(tmp_path).as_posix() for path in discovered] == [
+        "architecture-explorer/views/composed/a.json",
+        "architecture-explorer/views/z.json",
+    ]
+    assert authoritative_view_definition_paths(
+        [
+            "outside.json",
+            "architecture-explorer/views/z.json",
+            "architecture-explorer/views/composed/a.json",
+        ]
+    ) == tuple(path.relative_to(tmp_path).as_posix() for path in discovered)
+
+
+def test_view_definition_discovery_rejects_duplicate_input_identity() -> None:
+    with pytest.raises(ExplorerInputError, match="Duplicate View Definition path"):
+        authoritative_view_definition_paths(
+            [
+                "architecture-explorer/views/a.json",
+                "architecture-explorer/views/a.json",
+            ]
+        )
+
+
 def test_view_projection_rejects_a_missing_destination_label() -> None:
     definitions = _json("architecture-explorer/views/recursive-views.v1.json")
     del definitions["entry_actions"][0]["primary_action"]["destination_label"]
@@ -407,6 +476,22 @@ def test_renderer_has_no_recursive_depth_or_new_view_special_case() -> None:
     assert "worker-launch-boundary-internal" not in styles
     assert "third-level" not in app
     assert "fourth-level" not in app
+    assert "semantic_family" not in app
+    assert 'startsWith("candidate-' not in app
+    assert "architecture.modules" not in app
+    assert "navigation.drilldowns.children" not in app
+    assert "recursive_candidate_fragments.nodes" not in app
+    assert "architecture.relationships" not in app
+    assert "Candidate · Pending Review" not in app
+    assert "，未经审核" not in app
+    assert "data.source_facts" not in app
+    index = (REPOSITORY / "architecture-explorer/web/index.html").read_text(
+        encoding="utf-8"
+    )
+    assert "正式可信关系" in index
+    assert "其他关系" in index
+    assert "review-rejected-arrowhead" not in index
+    assert "review-needs-review-arrowhead" not in index
 
 
 @pytest.fixture(scope="module")
@@ -417,6 +502,45 @@ def recursive_explorer_data() -> dict:
         _json("architecture-explorer/views/recursive-views.v1.json"),
     )
     return apply_view_projection(explorer)
+
+
+def test_cli_build_discovers_authoritative_view_documents_without_an_option(
+    tmp_path: Path,
+) -> None:
+    site = REPOSITORY / "output/architecture-explorer/ticket-76-tests" / tmp_path.name
+    build_args = [
+        "build",
+        "--repository", str(REPOSITORY),
+        "--snapshot", str(REPOSITORY / "output/architecture-explorer/t1-delivery-4be1c19/snapshot.json"),
+        "--mapping", str(REPOSITORY / "architecture-explorer/modules.json"),
+        "--candidate", str(REPOSITORY / "architecture-explorer/review-inputs/supervisor-worker-857a4b8.json"),
+        "--review-mapping", str(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.v1.json"),
+        "--review-source", str(REPOSITORY / "architecture-explorer/reviews/supervisor-worker.source.v1.json"),
+        "--review-state", str(REPOSITORY / "output/architecture-explorer/t5-lite/review-state.v1.json"),
+        "--navigation", str(REPOSITORY / "architecture-explorer/navigation.v1.json"),
+    ]
+    for directory in ("candidates", "recursive-candidates"):
+        for candidate in sorted(
+            (REPOSITORY / "architecture-explorer" / directory).glob("*.json")
+        ):
+            build_args.extend(("--candidate-fragment", str(candidate)))
+    build_args.extend(
+        (
+            "--legacy-node-review-v1",
+            "--web-assets", str(REPOSITORY / "architecture-explorer/web"),
+            "--output-directory", str(site.relative_to(REPOSITORY)),
+        )
+    )
+
+    assert review_main(build_args) == 0
+    generated = _json(str(site.relative_to(REPOSITORY) / "explorer-data.json"))
+
+    assert len(generated["view_projection"]["view_index"]) == 12
+    generation_inputs = generated["generation_inputs"]["view_definitions"]
+    assert [item["path"] for item in generation_inputs] == [
+        "architecture-explorer/views/recursive-views.v1.json"
+    ]
+    assert len(generation_inputs[0]["sha256"]) == 64
 
 
 @pytest.mark.parametrize("viewport_width", [1440, 1280, 960])

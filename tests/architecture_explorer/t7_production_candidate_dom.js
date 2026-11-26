@@ -133,7 +133,7 @@
       assert(group.dataset.sourceNodeId === source, `${id} source changed`);
       assert(group.dataset.targetNodeId === target, `${id} target changed`);
       const edge = group.querySelector(".graph-edge.candidate");
-      assert(edge.getAttribute("marker-end") === "url(#candidate-arrowhead)", `${id} lacks directed arrowhead`);
+      assert(edge.getAttribute("marker-end") === "url(#candidate-arrowhead)", `${id} lacks the non-current-trust arrowhead`);
       assert(getComputedStyle(edge).strokeDasharray !== "none", `${id} is not dashed`);
       const points = coordinates(edge);
       assert(Math.hypot(points.end.x - points.start.x, points.end.y - points.start.y) >= 48, `${id} is too short to show a clear dashed line`);
@@ -141,7 +141,10 @@
       assert(label?.textContent === name, `${id} does not prioritize its existing collaboration name`);
       assert(!label.textContent.includes("候选·未审核"), `${id} still uses trust state as its main label`);
     }
-    assert(document.querySelector("#graph-legend")?.textContent.includes("候选关系·未经审核"), "candidate graph lacks a concise unreviewed legend");
+    const legendText = document.querySelector("#graph-legend")?.textContent || "";
+    assert(legendText.includes("正式可信关系"), "graph legend omits the trusted solid-line meaning");
+    assert(legendText.includes("其他关系"), "graph legend omits the non-current dashed-line meaning");
+    assert(!legendText.includes("未审核"), "graph legend duplicates the exact review state instead of leaving it to relationship detail");
     assertCandidateLabelGeometry();
 
     const candidateStroke = getComputedStyle(edges[0]).stroke;
