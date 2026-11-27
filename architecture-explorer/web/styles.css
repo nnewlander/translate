@@ -55,7 +55,6 @@ main {
   transform: translateY(-50%);
   border: 1px solid #d6a1b4;
   background: #fff4f7;
-  color: #99546d;
   box-shadow: 0 5px 15px rgba(153, 84, 109, 0.08);
   pointer-events: auto;
 }
@@ -144,6 +143,9 @@ h1.internal-view-title {
 }
 
 .view-navigation-link + .view-destination { margin-top: 8px; }
+
+.floating-navigation button,
+.module-card .view-destination { color: #99546d; }
 
 .module-card .view-destination {
   margin-bottom: 8px;
