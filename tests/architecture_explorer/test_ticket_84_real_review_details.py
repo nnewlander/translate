@@ -126,6 +126,12 @@ def test_real_chrome_shows_independent_review_limits(tmp_path: Path) -> None:
     card(node).dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: 40, clientY: 40}));
     document.querySelector("#context-evidence").click();
     checkSource(node);
+    const allowedComments = Object.values(expected).map(item => item.comment_url);
+    expect([...document.querySelectorAll("a[href]")].every(link =>
+      link.protocol === "file:" || allowedComments.includes(link.href)),
+      "unexpected or unsafe link in offline review detail");
+    expect(performance.getEntriesByType("resource").every(entry => new URL(entry.name).protocol === "file:"),
+      "offline review opened a remote resource");
     document.body.dataset.t84Review = "pass";
   } catch (error) {
     document.body.dataset.t84Review = error.message;
