@@ -1,5 +1,26 @@
 # Architecture Explorer v4 Ticket 09 实施交接
 
+## 重复 Chrome 超时与增量审查
+
+第二轮 [Draft Windows / Chrome](https://github.com/nnewlander/translate/actions/runs/45834005433/job/139957908909) 在 `764501d0d3d8830f11e7dd14233a5539b0cac89e` 上得到 739 通过、1 失败、2 跳过。原 18 项历史审核用例与递归 View 用例已经通过。两轮 CI 均记录 `test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typography[1280-900]` 在 Chrome `--dump-dom` 调用上抛出 `TimeoutExpired`，达到 30 秒墙钟限制。
+
+[正式集成 Head](https://github.com/nnewlander/translate/commit/acdb484b8d97b9d7b4a8a8d572d0fa121aeaeb82) 已通过本地 Merge Commit `cdf1085a2685679d58ec560e4d1bc6073ca7f020` 同步。父提交分别为 `764501d0d3d8830f11e7dd14233a5539b0cac89e`、`acdb484b8d97b9d7b4a8a8d572d0fa121aeaeb82`，tree 为 `b59dfeb26f4972d2134806058bcb0f4ed0c2ecb0`。唯一冲突是共享测试的固定 v3 Fragment 组织方式，保留已经验证的 T9 blob。已审查功能提交 `c8eead17fdf0b6a474d50ca77072d381301c9e9f` 仍在历史中，组合运行只用本 Worktree 的正式集成输入。
+
+### 定位与变更依据
+
+- `write_site` 在启动浏览器之前写完 Projection、静态数据、renderer 和样式。历史用例以独立 profile 打开本地 `file:` 页面，依次加载生产、文档与范围、翻译与质量、生产证据与发布四份 DOM 脚本。四份脚本使用有限的 DOM 交互和布局断言来验证页面，各自写出通过或错误标记。
+- `--virtual-time-budget=2000` 是 Chrome 的页面虚拟时钟。Python 的 30 秒约束覆盖浏览器启动、页面处理和 stdout/stderr 收取。达到该约束时，`subprocess.run` 终止其直接启动的进程并抛出异常，后续退出码及四份 DOM 标记断言没有执行。旧 CI 日志没有这次 Chrome 调用的完成 DOM，也没有可区分启动、渲染和输出收取耗时的记录。Runner 上的触发条件和子进程状态仍未确定。
+- Windows Chrome `158.0.8127.38` 的原预算测量保留 30 秒。原 1280 × 900 用例整体耗时 13.40 秒，Chrome 调用耗时 1.765 秒，退出码 0，stdout 52,013 字节，stderr 为空，四个标记齐全。包含 T7、T8、T9 的正式构建中，T9 1440 × 900 导航用例的 viewport 探针耗时 0.785 秒，页面 Chrome 进程耗时 1.469 秒，退出码 0，stdout 54,336 字节，stderr 为空。两个 pytest 用例共通过，完成后按本轮专属 profile 路径检查，匹配的 Chrome 进程数为 0。
+- 基于重复的 Runner 进程超时和本地实际探针结果，测试函数的单一 Chrome 调用预算从 30 秒调到 60 秒，适用于该函数的三组视口。四份探针、断言、命令行、虚拟时钟、进程清理及重试行为保持原样。本地旧预算也通过，因此 CI 日志是失败证据，本地 A/B 是聚焦回归与测量，尚未证明 Runner 在 60 秒内完成。
+
+### 聚焦回归与交付门槛
+
+- 60 秒预算下，历史用例三个视口的 Chrome 进程耗时依次为 1.551、1.644、1.696 秒。三个进程退出码均为 0，stderr 为空，每份 DOM 都有四个通过标记。原 1280 × 900 的整个测试调用耗时 13.21 秒。
+- 用 `--basetemp=D:/translate/t9time60` 执行该历史用例的三组参数、`test_v4_ticket_09_quality.py`、`test_recursive_views.py` 及 `test_v4_checkpoint_release_content.py`，共 41 通过，用时 127.48 秒。正式入口自动发现 T7、T8、T9 的 View Definition，组合 Projection 为 31 个 View、63 个 Node、66 条 Relationship。T9 1440 与 500 CSS px 的 Chrome 页面调用分别耗时 1.470、1.520 秒。完成后本轮专属 profile 匹配的 Chrome 进程数为 0。
+- 计时包装器原样传递 `subprocess.run` 的参数和结果，发生超时时从原异常退出。两轮记录及 JUnit 位于 `output/architecture-explorer/ticket-09-timeout/`。本轮未运行全量 CI。
+
+增量审查固定点为 `cdf1085a2685679d58ec560e4d1bc6073ca7f020`。从此固定点核对 `tests/architecture_explorer/test_candidate_fragments.py` 的一行预算变更及本节证据。双 PASS 后按授权调整 Draft PR #95 Base、推送并运行最终正式 Windows / Chrome CI。
+
 ## Draft PR #95 预验证跟进
 
 [预验证 Windows / Chrome](https://github.com/nnewlander/translate/actions/runs/45825103412/job/139927117084) 在远端 Head `8686a1c60bff5f80deda1ef37f74c2708538f217` 上得到 720 通过、20 失败、2 跳过。18 项历史 Node Review 用例依赖旧测试探针改写投影后点击卡片重绘。另有两项 30 秒超时，分别发生在 Chrome 页面 DOM 抓取和 viewport 探针启动。
