@@ -347,12 +347,9 @@ def _checked_out_commit(repository: Path, revision: str):
 
     scratch_parent = Path(__file__).resolve().parents[3] / "output"
     scratch_parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(
-        prefix="architecture-explorer-content-",
-        dir=scratch_parent,
-    ) as directory:
-        checkout = Path(directory) / "repository"
-        checkout.mkdir()
+    # Keep the checkout root short so Windows can materialize deep Git paths.
+    with tempfile.TemporaryDirectory(prefix="ae-", dir=scratch_parent) as directory:
+        checkout = Path(directory)
         read_git(checkout, "init", "-q")
         object_directory = Path(
             str(read_git(repository, "rev-parse", "--git-path", "objects")).strip()
