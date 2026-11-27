@@ -89,7 +89,7 @@ def _validated_static_evidence_record(
     )
     if column_fields <= location.keys():
         column_start, column_end = location["column_start"], location["column_end"]
-        snippet_lines = raw["snippet"].split("\n")
+        snippet_lines = raw["snippet"].replace("\r\n", "\n").replace("\r", "\n").split("\n")
         expected_end = len(snippet_lines[-1].encode("utf-8"))
         if line_start == line_end:
             expected_end += column_start

@@ -25,11 +25,13 @@ from booktrans.architecture_explorer.node_review_continuity import (
 )
 from booktrans.architecture_explorer.review_cli import main as review_main
 from booktrans.architecture_explorer.review_source import review_source_sha256
+from booktrans.architecture_explorer.source_scanner import scan_python_source_facts
 from booktrans.architecture_explorer.node_review_v2_continuity import (
     evaluate_node_review_v2_state,
     update_node_review_v2_state,
 )
 from test_t8_node_review import _fixture_materials, _fixture_policy
+from test_python_call_facts import _repository as _python_call_repository
 from test_t9_review_packet import _published_explorer
 
 
@@ -75,8 +77,19 @@ def _projected_reviews(explorer: dict) -> dict:
     return projection["objects"]
 
 
-def test_public_packet_preserves_python_definition_and_call_evidence_coordinates() -> None:
+@pytest.mark.parametrize("legacy_newlines", [False, True], ids=["project-source", "cr-only-source"])
+def test_public_packet_preserves_python_definition_and_call_evidence_coordinates(
+    tmp_path: Path, legacy_newlines: bool
+) -> None:
     explorer = _published_explorer()
+    if legacy_newlines:
+        fixture = _python_call_repository(
+            tmp_path,
+            "from booktrans.providers.router import route\r\r"
+            "def process_unit(request):\r"
+            "    return route('汉')\r",
+        )
+        explorer["source_facts"] = scan_python_source_facts(fixture)
     facts = explorer["source_facts"]
     path = "src/booktrans/production_worker/pipeline.py"
     definition_file = next(
