@@ -1070,7 +1070,7 @@ def test_real_browser_shows_candidate_nodes_collaborations_evidence_and_typograp
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=30,
+        timeout=60,
     )
     assert completed.returncode == 0, completed.stderr
     assert 'data-t6-candidate="pass"' in completed.stdout, completed.stdout

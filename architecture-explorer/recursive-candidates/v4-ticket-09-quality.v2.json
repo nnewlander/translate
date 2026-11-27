@@ -1,0 +1,246 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "quality-deterministic-qa",
+  "nodes": [
+    {
+      "id": "quality-format-anchor-validation",
+      "node_type": "responsibility",
+      "name": "格式锚点与文本岛校验",
+      "professional_description": "FormatAnchorQA.validate 按源 TranslationView 校验候选单元、文本岛顺序和集合、锚点引用及出现次数，以及保护锚点的类型和原文，随后合并确定性文本诊断。",
+      "plain_explanation": "按原顺序核对可编辑文本岛，逐个检查格式锚点及其受保护的原文。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4ff4c980e62fff31b10e16c0cbd439781d896b469a53b6fcfb9022a48a2229b0",
+        "evidence:sha256:c63e88b83b0baaaba6b8b07ac6e219c1ac309d40c43967d3f25a9670d72bde6b"
+      ]
+    },
+    {
+      "id": "quality-qa-record",
+      "node_type": "responsibility",
+      "name": "单元 QA 记录",
+      "professional_description": "生产 harness_qa_record 从响应段构造带标签的候选，调用 FormatAnchorQA，并输出 unit_uid、display_id、passed 与 diagnostics。qa_codes 从诊断提取代码。",
+      "plain_explanation": "把检查结果绑定到具体单元，给后续处置提供通过标志和问题代码。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:58573ef1e15d8d158545f416fbc5f2c1d71e1dcbd21ba19ba103513eb5191d48",
+        "evidence:sha256:be71205ffa12c4f88c1dbcb0b7f0dee38fac19dd222bc5ccb2bbb9eda28af92b"
+      ]
+    },
+    {
+      "id": "quality-deterministic-token-validation",
+      "node_type": "responsibility",
+      "name": "确定性文本诊断",
+      "professional_description": "DeterministicCandidateQA.validate 检查数字、URL、邮箱、DOI、ISBN 与受保护文本，并汇集数字锚点归属诊断。规则比较固定输入，语义相近程度由语义审核判断。",
+      "plain_explanation": "从文本里核对应保留的字面信息，例如 DOI 和编号，并报告具体缺失或意外的数字。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:2d1340025a9cb30c0bc79222a23986ac24279129f01007e82c9c9f05c9592902",
+        "evidence:sha256:22c207ca1957b38591f6dab7878a0c5de1d44c2c5590046f980ebd1cc00df92e"
+      ]
+    },
+    {
+      "id": "quality-numeric-anchor-ownership",
+      "node_type": "responsibility",
+      "name": "数字锚点归属检查",
+      "professional_description": "仅当源段中某数字具有唯一的独立锚点，且对应目标段仍以同一锚点和文本岛精确保留一次时，检查其他目标段是否额外出现该数字。重复源数字与混合文本不进入该判定。",
+      "plain_explanation": "如果一个数字在源文只属于一个锚点，且译文的对应位置已经保留它，再检查是否被复制到了其他段。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:22c207ca1957b38591f6dab7878a0c5de1d44c2c5590046f980ebd1cc00df92e"
+      ]
+    },
+    {
+      "id": "quality-evidence-bound-numeric-tokens",
+      "node_type": "responsibility",
+      "name": "精确数字证据匹配",
+      "professional_description": "D050 只消费当前 unit_uid 的唯一精确脚注标记绑定。D051 按单元、唯一源片段、数字序列、批准表示和合同检查处理显式等价。源片段外仍有同值数字时，D051 源端处理拒绝替换。",
+      "plain_explanation": "脚注数字和已批准的数字写法由精确凭证解释，其他数字继续接受普通规则。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:2d1340025a9cb30c0bc79222a23986ac24279129f01007e82c9c9f05c9592902",
+        "evidence:sha256:6a635a40e8bc1f3ccc6f4d8b2d4b63cafc51ceb8947974ae9394cdb767cc5959",
+        "evidence:sha256:403f48a8cf7029ef78f500e88fc19f43d2d3c759b1f78d32b8fe0291b769e7d7",
+        "evidence:sha256:95bd2cfbfdad44d920c9d2a3bce7083b8094397797cb3343f2b58e015ce00752"
+      ]
+    },
+    {
+      "id": "quality-canonical-qa-failure",
+      "node_type": "responsibility",
+      "name": "QA 失败证据归一",
+      "professional_description": "生产恢复证据构建脚本收集 Checkpoint 阶段报告及来源校验结果，在确定性 QA 分支调用 canonicalize_qa_failure。归一函数核对阶段、失败范围和报告一致性，再产出诊断码、失败数量和密度。",
+      "plain_explanation": "先从报告核对哪些单元失败，以及记录能否组成一份一致的失败证据。此步骤不选择恢复策略。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:f4bdfb00b7566422a05d563ce26d6842313e1bf5ca63984b8fad81fe48addc7f",
+        "evidence:sha256:b183b2498afdf785797da8046f1dae61e60a578d790fa0a654c27037daf65fb4"
+      ]
+    },
+    {
+      "id": "quality-numeric-recovery-eligibility",
+      "node_type": "responsibility",
+      "name": "生产数值恢复资格判定",
+      "professional_description": "正式生产 Supervisor 的 Get-AutoRecoveryPolicy 先调用恢复证据脚本，再把输出交给策略注册表入口。对数值失败，证据构建会检查范围、来源、稀疏程度和精确诊断码。注册表返回资格、策略及适用时的处理方式和合同。",
+      "plain_explanation": "Supervisor 先收集和校验失败证据，再向策略注册表查询是否有匹配的恢复合同。实际执行及结果仍待核实。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:d2b5c8a38a7c98c892a06003fee65d5be4ecb926e9b00d9b2acfe9feee7a5692",
+        "evidence:sha256:46f966d166706f57fe5b339f3e19f9942c891ad909ecf16ba26400f97232b5e9",
+        "evidence:sha256:35c39b8202cd9c4039cf95df4e1e222285fff83389c3d0439f50cd352f7d0eac",
+        "evidence:sha256:ec39273eaca46aa7618e91c880a2b3f28da776c9e89f06d0fa1a46fdc48e1000",
+        "evidence:sha256:e1fad8229d64d973b4953afd04fcb06ba8a95644e039996b08deb30c274805f5"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:quality-deterministic-qa-to-quality-format-anchor-validation",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-deterministic-qa",
+      "target_node_id": "quality-format-anchor-validation",
+      "name": "校验格式结构",
+      "professional_description": "候选分解：结构 QA 包含以源 TranslationView 为边界的锚点与文本岛检查。",
+      "plain_explanation": "从整项结构检查下钻到格式约束。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4ff4c980e62fff31b10e16c0cbd439781d896b469a53b6fcfb9022a48a2229b0"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:quality-deterministic-qa-to-quality-qa-record",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-deterministic-qa",
+      "target_node_id": "quality-qa-record",
+      "name": "输出记录",
+      "professional_description": "候选分解：结构 QA 包含把候选段与验证结果转换为带单元身份的记录。",
+      "plain_explanation": "从整项结构检查下钻到它交出的结果。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:58573ef1e15d8d158545f416fbc5f2c1d71e1dcbd21ba19ba103513eb5191d48"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:translation-routing-and-acquisition-to-quality-qa-record",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "translation-routing-and-acquisition",
+      "target_node_id": "quality-qa-record",
+      "name": "提交 RAW",
+      "professional_description": "process_unit 将新取得或显式提供的 RAW 交给注入的 qa_fn。省略 qa_fn 时直接返回 TRANSLATED。生产 Harness 适配器从响应段构造验证输入。",
+      "plain_explanation": "先有候选译文，配置了 QA 才会产生检查记录。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1330bb40914dc1def7813d5192e5543a35f76d203a505ea8193c09b403976925",
+        "evidence:sha256:326d7f9ec550c147e347710d216ccb36599f224427358602bc16b554b6b9117c",
+        "evidence:sha256:26351ce0e1f2ced02afb61e9c3ef914293ce5a2da9f1b79572bbb018050da3a3",
+        "evidence:sha256:58573ef1e15d8d158545f416fbc5f2c1d71e1dcbd21ba19ba103513eb5191d48"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:quality-qa-record-to-semantic-review-contract-boundary",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "quality-qa-record",
+      "target_node_id": "semantic-review-contract-boundary",
+      "name": "提供 QA 摘要",
+      "professional_description": "process_unit 到达语义审核调用时传入确定性 QA 摘要。审核由 reviewer 合同处理。满足 DIRECT_CORE_PASS 的 v2 快速路径可以跳过此次审核调用。",
+      "plain_explanation": "语义审核可参考检查单来判断译文含义。检查单记录固定规则的结果。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1330bb40914dc1def7813d5192e5543a35f76d203a505ea8193c09b403976925",
+        "evidence:sha256:21bdd7d118512a9003b58a70c49bed4c10f42a27df0ef5a88614b4f5e363b8e5",
+        "evidence:sha256:fb6927f10564c9c02c296502861b6e10148849dc6470f19a3653a05a4a7b6dfd"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:quality-qa-record-to-repair-authorization-gate",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "quality-qa-record",
+      "target_node_id": "repair-authorization-gate",
+      "name": "提交失败码",
+      "professional_description": "process_unit 的确定性失败分支以 QA 代码、注册表证据及适用的段索引请求门禁，review=None。门禁拒绝时，单元以 DETERMINISTIC_QA_FAILED 结束并标记需要人工处理。",
+      "plain_explanation": "确定性失败可以申请受限返修，失败代码本身不赋予修改权限。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:1330bb40914dc1def7813d5192e5543a35f76d203a505ea8193c09b403976925",
+        "evidence:sha256:6300fae69405c7af369a9a2dd20908e62b776f34e098930d299faa6f62916777",
+        "evidence:sha256:45b8a224b80b5ad5eb199b427202dbf82982995c7c4ac4ac9abc8130bede8ab4",
+        "evidence:sha256:c4b4ffa893088a9463f196276d23df2e240683e0f2899783b2f248c5e6552dfd"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:quality-format-anchor-validation-to-quality-deterministic-token-validation",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-format-anchor-validation",
+      "target_node_id": "quality-deterministic-token-validation",
+      "name": "委托文本诊断",
+      "professional_description": "FormatAnchorQA.validate 委托 DeterministicCandidateQA 并合并诊断。外层继续承担文本岛和格式锚点检查。",
+      "plain_explanation": "展开格式结构校验后，可以区分外层的结构比较和被调用的文本检查。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:4ff4c980e62fff31b10e16c0cbd439781d896b469a53b6fcfb9022a48a2229b0",
+        "evidence:sha256:2d1340025a9cb30c0bc79222a23986ac24279129f01007e82c9c9f05c9592902"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:quality-deterministic-token-validation-to-quality-evidence-bound-numeric-tokens",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-deterministic-token-validation",
+      "target_node_id": "quality-evidence-bound-numeric-tokens",
+      "name": "匹配数字证据",
+      "professional_description": "数字保留分支调用 D050 与 D051 检查，只对已绑定的源范围或指定的目标数字表示应用对应规则。",
+      "plain_explanation": "解释同样是数字，为什么只有带精确凭证的特定表示会走例外处理。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:2d1340025a9cb30c0bc79222a23986ac24279129f01007e82c9c9f05c9592902",
+        "evidence:sha256:6a635a40e8bc1f3ccc6f4d8b2d4b63cafc51ceb8947974ae9394cdb767cc5959",
+        "evidence:sha256:403f48a8cf7029ef78f500e88fc19f43d2d3c759b1f78d32b8fe0291b769e7d7",
+        "evidence:sha256:95bd2cfbfdad44d920c9d2a3bce7083b8094397797cb3343f2b58e015ce00752"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:quality-deterministic-token-validation-to-quality-numeric-anchor-ownership",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "quality-deterministic-token-validation",
+      "target_node_id": "quality-numeric-anchor-ownership",
+      "name": "检查锚点归属",
+      "professional_description": "文本诊断在通用 token 检查之外，将独立锚点上的重复归属诊断合并到同一个结果。",
+      "plain_explanation": "数字整体存在之后，还可以在证据充分时判断它有没有被复制到别处。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:2d1340025a9cb30c0bc79222a23986ac24279129f01007e82c9c9f05c9592902",
+        "evidence:sha256:22c207ca1957b38591f6dab7878a0c5de1d44c2c5590046f980ebd1cc00df92e"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:quality-qa-record-to-quality-canonical-qa-failure",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "quality-qa-record",
+      "target_node_id": "quality-canonical-qa-failure",
+      "name": "汇总失败记录",
+      "professional_description": "Checkpoint 的 QA 报告持有单元记录。Supervisor 调用的生产恢复证据脚本读取可用阶段报告，再将报告、handoff 和来源校验结果交给归一函数核对失败范围。",
+      "plain_explanation": "从保存的检查单汇总失败记录，报告缺失或相互冲突时无法确认恢复范围。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b183b2498afdf785797da8046f1dae61e60a578d790fa0a654c27037daf65fb4",
+        "evidence:sha256:f4bdfb00b7566422a05d563ce26d6842313e1bf5ca63984b8fad81fe48addc7f",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:quality-canonical-qa-failure-to-quality-numeric-recovery-eligibility",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "quality-canonical-qa-failure",
+      "target_node_id": "quality-numeric-recovery-eligibility",
+      "name": "提供归一事实",
+      "professional_description": "生产证据脚本依据归一后的有效性、密度、数量和精确诊断码进行分诊。build_recovery_evidence 将分诊和校验结果组装为注册表输入，由 Supervisor 交给策略注册表决定资格。",
+      "plain_explanation": "失败代码相同也需要范围和证据合格，资格结论仍只是后续动作的输入。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:f4bdfb00b7566422a05d563ce26d6842313e1bf5ca63984b8fad81fe48addc7f",
+        "evidence:sha256:b183b2498afdf785797da8046f1dae61e60a578d790fa0a654c27037daf65fb4",
+        "evidence:sha256:6f6d341152592dba8262af869156d076726eac51524c2920044b450fa4f0f4a6",
+        "evidence:sha256:a7aa3ef28a3d7fa217bdf1b8b7e974b799a48f824780f9d9303414bd9c17343a",
+        "evidence:sha256:d2b5c8a38a7c98c892a06003fee65d5be4ecb926e9b00d9b2acfe9feee7a5692",
+        "evidence:sha256:ec39273eaca46aa7618e91c880a2b3f28da776c9e89f06d0fa1a46fdc48e1000"
+      ]
+    }
+  ]
+}
