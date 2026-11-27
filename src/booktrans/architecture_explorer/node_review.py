@@ -279,8 +279,10 @@ def _source_evidence(
     found: dict[str, dict[str, Any]] = {}
     expected = set(candidate_ids)
 
-    def visit(value: Any) -> None:
+    def visit(value: Any, source_file: dict[str, Any] | None = None) -> None:
         if isinstance(value, dict):
+            if "path" in value and "file_sha256" in value:
+                source_file = value
             evidence = value.get("evidence")
             evidence_id = evidence.get("evidence_id") if isinstance(evidence, dict) else None
             if isinstance(evidence_id, str) and evidence_id in expected:
@@ -288,12 +290,20 @@ def _source_evidence(
                     raise ExplorerInputError(
                         f"Node review Candidate Evidence is duplicate or ambiguous: {evidence_id}"
                     )
+                if evidence.get("evidence_kind") in {"python_definition", "python_call"} and (
+                    source_file is None
+                    or evidence.get("path") != source_file["path"]
+                    or evidence.get("file_sha256") != source_file["file_sha256"]
+                ):
+                    raise ExplorerInputError(
+                        f"Node review Candidate Evidence source file hash mismatch: {evidence_id}"
+                    )
                 found[evidence_id] = evidence
             for nested in value.values():
-                visit(nested)
+                visit(nested, source_file)
         elif isinstance(value, list):
             for nested in value:
-                visit(nested)
+                visit(nested, source_file)
 
     visit(explorer.get("source_facts", {}))
     return found

@@ -75,6 +75,62 @@ def _projected_reviews(explorer: dict) -> dict:
     return projection["objects"]
 
 
+def test_public_packet_preserves_python_definition_and_call_evidence_coordinates() -> None:
+    explorer = _published_explorer()
+    facts = explorer["source_facts"]
+    path = "src/booktrans/production_worker/pipeline.py"
+    definition_file = next(
+        file for file in facts["python_definition_index"]["files"] if file["path"] == path
+    )
+    call_file = next(file for file in facts["python_call_facts"]["files"] if file["path"] == path)
+    node_id = "translation-routing-and-acquisition"
+    evidence = [
+        next(item["evidence"] for item in definition_file["definitions"]
+             if item["qualified_symbol"].endswith(".process_unit")),
+        next(item["evidence"] for item in call_file["calls"]
+             if item["evidence"]["current_location"]["line_start"]
+             == item["evidence"]["current_location"]["line_end"]),
+    ]
+    definitions = _definitions()
+    definition = next(item for item in definitions["definitions"] if item["object_key"]["node_id"] == node_id)
+    definitions["definitions"] = [definition]
+    evidence_ids = [item["evidence_id"] for item in evidence]
+    definition["candidate_evidence_ids"] = evidence_ids
+    target = next(
+        node for drilldown in explorer["navigation"]["drilldowns"]
+        for node in drilldown["children"] if node["id"] == node_id
+    )
+    target["source_assignment"]["evidence_ids"] = evidence_ids
+    validated = validate_node_review_definitions(definitions)
+
+    packet = build_node_review_packets(explorer, validated)[f"candidate-node::{node_id}"]
+
+    assert [item["evidence_kind"] for item in packet["candidate_evidence"]] == [
+        "python_definition", "python_call",
+    ]
+    assert packet["candidate_evidence"] == evidence
+    call = evidence[1]
+    location = call["current_location"]
+    for invalid in (
+        {key: value for key, value in location.items() if key != "column_end"},
+        {**location, "column_start": True},
+        {**location, "column_start": -1},
+        {**location, "line_start": 0},
+        {**location, "line_end": location["line_start"] - 1},
+        {**location, "column_end": location["column_start"]},
+    ):
+        call["current_location"] = invalid
+        with pytest.raises(ExplorerInputError, match="location"):
+            build_node_review_packets(explorer, validated)
+    call["current_location"] = location
+    for field in ("normalized_snippet_sha256", "file_sha256"):
+        original = call[field]
+        call[field] = "0" * 64
+        with pytest.raises(ExplorerInputError, match="hash mismatch"):
+            build_node_review_packets(explorer, validated)
+        call[field] = original
+
+
 def test_two_real_review_definitions_build_order_independent_neutral_packets() -> None:
     explorer = _published_explorer()
     definitions = validate_node_review_definitions(_definitions())
