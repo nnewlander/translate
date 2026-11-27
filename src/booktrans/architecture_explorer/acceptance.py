@@ -11,6 +11,7 @@ from typing import Any
 
 from .content_delta import (
     FIXED_BASE_REVISION,
+    V4_FIXED_BASE_REVISION,
     ManifestValidationResult,
     read_git,
     validate_content_delta_manifest,
@@ -32,6 +33,25 @@ APPROVED_PROPOSED_V3_METADATA = {
     "inherits": "architecture-explorer/v2",
     "activation": "candidate-head-acceptance-then-contract-status-only-switch",
     "content_delta_manifest_schema": "architecture-explorer.content-delta-manifest.v1",
+}
+
+
+PROPOSED_V4_METADATA = {
+    "contract_family": CONTRACT_FAMILY,
+    "contract_version": "4",
+    "contract_ref": "architecture-explorer/v4",
+    "status": "proposed",
+    "runtime_authority": "false",
+    "authority_issue": "https://github.com/nnewlander/translate/issues/74",
+    "implementation_issue": "https://github.com/nnewlander/translate/issues/85",
+    "fixed_starting_baseline": V4_FIXED_BASE_REVISION,
+    "proposed_spec_sha256": "c1ddcc9bca93b6584936da14e08eb88efabf212a379c66acfbdf00033804efec",
+    "inherits": "architecture-explorer/v3",
+    "activation": "candidate-head-acceptance-then-contract-status-only-switch",
+    "content_delta_manifest_schema": "architecture-explorer.content-delta-manifest.v1",
+}
+PROPOSED_CONTRACT_METADATA = {
+    entry["contract_ref"]: entry for entry in (APPROVED_PROPOSED_V3_METADATA, PROPOSED_V4_METADATA)
 }
 
 
@@ -73,42 +93,44 @@ def _frontmatter(path: Path) -> dict[str, str]:
     return _frontmatter_text(path.read_text(encoding="utf-8"), str(path))
 
 
-def _validate_proposed_v3_status_surface(text: str) -> None:
+def _validate_proposed_status_surface(text: str, metadata: dict[str, str]) -> None:
     lines = text.splitlines()
     h1 = [line[2:].strip() for line in lines if line.startswith("# ")]
-    expected_title = "Architecture Explorer v3 proposed acceptance contract"
+    version = f"v{metadata['contract_version']}"
+    expected_title = f"Architecture Explorer {version} proposed acceptance contract"
+    invalid_status = f"Proposed {version} has an invalid structured status surface"
     if h1 != [expected_title]:
-        raise ExplorerInputError("Proposed v3 has an invalid structured status surface")
+        raise ExplorerInputError(invalid_status)
 
     if lines.count("## Contract status") != 1:
-        raise ExplorerInputError("Proposed v3 has an invalid structured status surface")
+        raise ExplorerInputError(invalid_status)
     try:
         frontmatter_end = lines.index("---", 1)
         normative_start = lines.index("## Inheritance and Delta", frontmatter_end + 1)
     except ValueError as error:
-        raise ExplorerInputError("Proposed v3 has an invalid structured status surface") from error
+        raise ExplorerInputError(invalid_status) from error
     status_region = [
         line
         for line in lines[frontmatter_end + 1 : normative_start]
         if line.strip()
     ]
     if status_region[:2] != [f"# {expected_title}", "## Contract status"]:
-        raise ExplorerInputError("Proposed v3 has an invalid structured status surface")
+        raise ExplorerInputError(invalid_status)
     status: dict[str, str] = {}
     for line in status_region[2:]:
         if not line.startswith("- "):
-            raise ExplorerInputError("Proposed v3 has an invalid structured status surface")
+            raise ExplorerInputError(invalid_status)
         key, separator, value = line[2:].partition(":")
         if not separator or not key.strip() or not value.strip() or key.strip() in status:
-            raise ExplorerInputError("Proposed v3 has an invalid structured status surface")
+            raise ExplorerInputError(invalid_status)
         status[key.strip()] = value.strip()
     if status != {
-        "current_contract": "architecture-explorer/v2",
-        "target_contract": "architecture-explorer/v3",
+        "current_contract": metadata["inherits"],
+        "target_contract": metadata["contract_ref"],
         "target_status": "proposed",
         "effective_baseline": "absent",
     }:
-        raise ExplorerInputError("Proposed v3 has an invalid structured status surface")
+        raise ExplorerInputError(invalid_status)
 
 
 def _contract_metadata(repository: Path, revision: str | None) -> dict[str, dict[str, str]]:
@@ -187,48 +209,47 @@ def validate_acceptance_target(
     target_contract: str,
     manifest_path: str,
 ) -> CandidateAcceptance:
-    """Validate an explicit proposed-v3 target entirely from candidate Head inputs."""
+    """Validate an explicit supported proposed target entirely from Git objects."""
 
     repository = repository.resolve()
     selection = select_acceptance_contract(
-        repository,
-        target_contract=target_contract,
-        revision=head_revision,
+        repository, target_contract=target_contract, revision=head_revision,
     )
-    if selection.current_contract != "architecture-explorer/v2":
-        raise ExplorerInputError("Candidate acceptance requires v2 to remain the sole current contract")
-    if selection.target_contract != "architecture-explorer/v3" or selection.target_status != "proposed":
-        raise ExplorerInputError("Candidate acceptance requires proposed architecture-explorer/v3")
+    metadata = PROPOSED_CONTRACT_METADATA.get(target_contract)
+    if metadata is None or selection.target_status != "proposed":
+        raise ExplorerInputError(
+            f"Candidate acceptance requires a supported proposed contract: {target_contract}"
+        )
+    current_contract = metadata["inherits"]
+    current_version = current_contract.rsplit("/", 1)[-1]
+    if selection.current_contract != current_contract:
+        raise ExplorerInputError(
+            f"Candidate acceptance requires {current_version} to remain the sole current contract"
+        )
     forbidden_proposed_fields = {"effective_baseline", "superseded_by"}
     conflicting_fields = sorted(forbidden_proposed_fields & selection.target_metadata.keys())
     if conflicting_fields:
         raise ExplorerInputError(
-            "Proposed architecture-explorer/v3 cannot have status field: "
-            + ", ".join(conflicting_fields)
+            f"Proposed {target_contract} cannot have status field: " + ", ".join(conflicting_fields)
         )
-    if selection.target_metadata != APPROVED_PROPOSED_V3_METADATA:
+    if selection.target_metadata != metadata:
         raise ExplorerInputError(
-            "Proposed architecture-explorer/v3 does not match its approved trusted metadata"
+            f"Proposed {target_contract} does not match its approved trusted metadata"
         )
-    v2_path = "docs/architecture-explorer-acceptance-v2.md"
-    if read_git(repository, "show", f"{head_revision}:{v2_path}", text=False) != read_git(
-        repository,
-        "show",
-        f"{FIXED_BASE_REVISION}:{v2_path}",
-        text=False,
+    base_revision = metadata["fixed_starting_baseline"]
+    current_path = f"docs/architecture-explorer-acceptance-{current_version}.md"
+    if read_git(repository, "show", f"{head_revision}:{current_path}", text=False) != read_git(
+        repository, "show", f"{base_revision}:{current_path}", text=False,
     ):
         raise ExplorerInputError(
-            "Candidate Head must preserve the complete current v2 contract from the fixed Base"
+            f"Candidate Head must preserve the complete current {current_version} contract from the fixed Base"
         )
-    v3_text = bytes(
-        read_git(
-            repository,
-            "show",
-            f"{head_revision}:docs/architecture-explorer-acceptance-v3.md",
-            text=False,
-        )
+    proposed_version = target_contract.rsplit("/", 1)[-1]
+    proposed_path = f"docs/architecture-explorer-acceptance-{proposed_version}.md"
+    proposed_text = bytes(
+        read_git(repository, "show", f"{head_revision}:{proposed_path}", text=False)
     ).decode("utf-8")
-    _validate_proposed_v3_status_surface(v3_text)
+    _validate_proposed_status_surface(proposed_text, metadata)
     path = Path(manifest_path)
     if (
         path.is_absolute()
@@ -247,6 +268,7 @@ def validate_acceptance_target(
         repository,
         head_revision=head_revision,
         manifest=manifest,
+        target_contract=target_contract,
     )
     return CandidateAcceptance(selection, result)
 

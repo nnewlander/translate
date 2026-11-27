@@ -18,7 +18,7 @@ import time
 from typing import Iterator, Protocol
 from xml.etree import ElementTree
 
-from .acceptance import APPROVED_PROPOSED_V3_METADATA, validate_acceptance_target
+from .acceptance import PROPOSED_CONTRACT_METADATA, validate_acceptance_target
 from .content_delta import read_git
 
 
@@ -1325,8 +1325,10 @@ def write_candidate_acceptance_record(
     manifest = acceptance.manifest
     if manifest.head_revision != head_revision:
         raise ValueError("Manifest validation returned a different candidate Head")
-    spec_issue = int(
-        APPROVED_PROPOSED_V3_METADATA["authority_issue"].rsplit("/", 1)[-1]
+    metadata = PROPOSED_CONTRACT_METADATA[target_contract]
+    spec_issue = int(metadata["authority_issue"].rsplit("/", 1)[-1])
+    spec_digest_field = (
+        "approved_spec_sha256" if "approved_spec_sha256" in metadata else "proposed_spec_sha256"
     )
     not_run_stages = tuple(
         stage for stage in report.stages if stage.status is ValidationStatus.NOT_RUN
@@ -1341,9 +1343,7 @@ def write_candidate_acceptance_record(
         "base_revision": manifest.base_revision,
         "spec": {
             "issue": spec_issue,
-            "approved_sha256": APPROVED_PROPOSED_V3_METADATA[
-                "approved_spec_sha256"
-            ],
+            spec_digest_field.replace("_spec", ""): metadata[spec_digest_field],
         },
         "target_contract": target_contract,
         "manifest_path": manifest_path,

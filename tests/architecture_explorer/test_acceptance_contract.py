@@ -7,7 +7,10 @@ import subprocess
 
 import pytest
 
+from booktrans.architecture_explorer.acceptance import select_acceptance_contract
 from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
+from booktrans.architecture_explorer.content_delta import validate_content_delta_manifest
+from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.navigation import apply_navigation
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
 from booktrans.architecture_explorer.source_scanner import (
@@ -29,6 +32,35 @@ V1_NORMATIVE_BODY_SHA256 = (
 CANDIDATE_FRAGMENTS = tuple(
     sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json"))
 )
+
+
+def test_v4_proposed_acceptance_keeps_v3_current_and_binds_manifest_to_b0() -> None:
+    target = "architecture-explorer/v4"
+    selection = select_acceptance_contract(REPOSITORY, target_contract=target)
+    assert select_acceptance_contract(REPOSITORY).target_contract == "architecture-explorer/v3"
+    assert selection.current_contract == "architecture-explorer/v3"
+    assert selection.target_status == "proposed"
+    assert selection.target_metadata["runtime_authority"] == "false"
+
+    path = REPOSITORY / "architecture-explorer/manifests/v4-ticket-11.v1.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    assert manifest["base_revision"] == "09aaf4a033123c7eca8d280fa8982e5b0e711b86"
+    with pytest.raises(ExplorerInputError, match="wrong fixed Base revision"):
+        validate_content_delta_manifest(
+            REPOSITORY,
+            head_revision="unused",
+            manifest={**manifest, "base_revision": "0" * 40},
+            target_contract=target,
+        )
+    with pytest.raises(ExplorerInputError, match="must target architecture-explorer/v4"):
+        validate_content_delta_manifest(
+            REPOSITORY,
+            head_revision="unused",
+            manifest={**manifest, "target_contract": "architecture-explorer/v3"},
+            target_contract=target,
+        )
+
+
 NORMATIVE_CLAUSES = {
     "AE-NODE-DETAIL": "responsibility+plain-explanation+required-trust-state",
     "AE-EVIDENCE-ENTRY": "context-menu-detail-only",
