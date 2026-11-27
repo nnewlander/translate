@@ -1,0 +1,171 @@
+{
+  "schema": "architecture-explorer.view-definitions.v1",
+  "entry_actions": [
+    {
+      "view_id": "quality-and-repair",
+      "node_id": "quality-deterministic-qa",
+      "primary_action": {
+        "kind": "open-view",
+        "target_view_id": "quality-deterministic-qa-internal",
+        "transition_kind": "decomposition",
+        "destination_label": "查看确定性结构 QA 内部职责"
+      }
+    }
+  ],
+  "views": [
+    {
+      "id": "quality-deterministic-qa-internal",
+      "display_name": "确定性结构 QA 内部职责",
+      "perspective": "responsibility",
+      "scope_node_id": "quality-deterministic-qa",
+      "coverage_note": "结构 QA 内部有哪些职责？箭头从整体职责指向内部职责。源码支持候选解释，运行结果与完整源码归属未验证。",
+      "appearances": [
+        {
+          "node_id": "quality-deterministic-qa",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "quality-candidate-disposition",
+            "transition_kind": "perspective",
+            "destination_label": "切换到候选结果处置"
+          }
+        },
+        {
+          "node_id": "quality-format-anchor-validation",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "quality-format-anchor-validation-internal",
+            "transition_kind": "decomposition",
+            "destination_label": "查看格式结构校验"
+          }
+        },
+        {
+          "node_id": "quality-qa-record",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "quality-checkpoint-recovery-inputs",
+            "transition_kind": "perspective",
+            "destination_label": "查看 Checkpoint 恢复依据"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:quality-deterministic-qa-to-quality-format-anchor-validation",
+        "candidate-decomposition:quality-deterministic-qa-to-quality-qa-record"
+      ]
+    },
+    {
+      "id": "quality-candidate-disposition",
+      "display_name": "候选结果处置",
+      "perspective": "candidate-disposition",
+      "scope_node_id": "quality-deterministic-qa",
+      "coverage_note": "RAW 如何进入 QA，什么信息会交给审核或修复门禁？箭头从输入提供方指向消费方。process_unit 在修复返回后重跑 QA，语义修复通过 QA 后还有再次审核。具体接收者与运行结果仍待核实。",
+      "appearances": [
+        {
+          "node_id": "translation-routing-and-acquisition",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "translation-routing-and-acquisition-internal",
+            "transition_kind": "cross-node",
+            "destination_label": "查看语义路由与候选获取"
+          }
+        },
+        {
+          "node_id": "quality-deterministic-qa",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "quality-deterministic-qa-internal",
+            "transition_kind": "perspective",
+            "destination_label": "返回确定性结构 QA 内部职责"
+          }
+        },
+        {
+          "node_id": "quality-qa-record"
+        },
+        {
+          "node_id": "semantic-review-contract-boundary"
+        },
+        {
+          "node_id": "repair-authorization-gate"
+        },
+        {
+          "node_id": "constrained-repair-call-boundary"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-collaboration:translation-routing-and-acquisition-to-quality-qa-record",
+        "candidate-collaboration:quality-qa-record-to-semantic-review-contract-boundary",
+        "candidate-collaboration:quality-qa-record-to-repair-authorization-gate",
+        "candidate-collaboration:repair-authorization-gate-to-constrained-repair-call-boundary",
+        "candidate-collaboration:semantic-review-contract-boundary-to-repair-authorization-gate"
+      ]
+    },
+    {
+      "id": "quality-format-anchor-validation-internal",
+      "display_name": "格式结构校验",
+      "perspective": "responsibility",
+      "scope_node_id": "quality-format-anchor-validation",
+      "coverage_note": "FormatAnchorQA 如何同时检查结构和文本？箭头从格式结构校验指向它委托的文本诊断。证据限于两项候选内容校验的定义。",
+      "appearances": [
+        {
+          "node_id": "quality-format-anchor-validation"
+        },
+        {
+          "node_id": "quality-deterministic-token-validation",
+          "primary_action": {
+            "kind": "open-view",
+            "target_view_id": "quality-deterministic-token-validation-internal",
+            "transition_kind": "decomposition",
+            "destination_label": "查看确定性文本诊断"
+          }
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:quality-format-anchor-validation-to-quality-deterministic-token-validation"
+      ]
+    },
+    {
+      "id": "quality-deterministic-token-validation-internal",
+      "display_name": "确定性文本诊断",
+      "perspective": "responsibility",
+      "scope_node_id": "quality-deterministic-token-validation",
+      "coverage_note": "哪些数字规则依赖额外证据？箭头从诊断职责指向两项内部检查。证据覆盖精确绑定和唯一锚点的局部条件，适用范围以校验函数为准。",
+      "appearances": [
+        {
+          "node_id": "quality-deterministic-token-validation"
+        },
+        {
+          "node_id": "quality-evidence-bound-numeric-tokens"
+        },
+        {
+          "node_id": "quality-numeric-anchor-ownership"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-decomposition:quality-deterministic-token-validation-to-quality-evidence-bound-numeric-tokens",
+        "candidate-decomposition:quality-deterministic-token-validation-to-quality-numeric-anchor-ownership"
+      ]
+    },
+    {
+      "id": "quality-checkpoint-recovery-inputs",
+      "display_name": "Checkpoint QA 恢复依据",
+      "perspective": "candidate-disposition",
+      "scope_node_id": "quality-qa-record",
+      "coverage_note": "正式生产 Supervisor 如何将 Checkpoint QA 失败报告转为数值恢复的策略输入？箭头按证据交接方向绘制。此图覆盖生产证据构建和注册表判定。隔离 Canary 的 RAW 续跑有独立入口，实际执行及结果仍待核实。",
+      "appearances": [
+        {
+          "node_id": "quality-qa-record"
+        },
+        {
+          "node_id": "quality-canonical-qa-failure"
+        },
+        {
+          "node_id": "quality-numeric-recovery-eligibility"
+        }
+      ],
+      "relationship_ids": [
+        "candidate-collaboration:quality-qa-record-to-quality-canonical-qa-failure",
+        "candidate-collaboration:quality-canonical-qa-failure-to-quality-numeric-recovery-eligibility"
+      ]
+    }
+  ]
+}
