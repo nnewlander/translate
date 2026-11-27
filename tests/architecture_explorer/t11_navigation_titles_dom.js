@@ -14,9 +14,10 @@
       ["v4-t07-logical-work-order-projection", "形成逻辑工作单元", "逻辑工作单元选择", "物理内容如何划入冻结范围？"],
       ["v4-t07-calibration-request", "组装校准请求", "请求上下文与证据组装", "请求字段与脚注依据来自哪里？"],
     ];
-    const missing = cases.filter(([id, , scope, question]) => {
+    const cue = "进入相关架构视图";
+    const missing = cases.filter(([id]) => {
       const hint = card(id).querySelector(".view-destination");
-      return !visible(hint) || !hint.innerText.includes(scope) || !hint.innerText.includes(question);
+      return !visible(hint) || hint.innerText !== cue;
     });
     require(!missing.length, `Missing visible destinations: ${missing.map(([, name]) => name).join(", ")}`);
     for (const [id, target, scope, question] of cases) {
@@ -87,8 +88,13 @@
         const detailsFirst = node_id === view.scope_node_id || target?.id === source
           || route.some(([, targetId]) => targetId === target?.id);
         const hint = card(node_id).querySelector(".view-destination");
-        if (cross && !detailsFirst) checkHint(hint, target);
-        else require(!visible(hint), `Misleading card hint in ${source} for ${node_id}`);
+        if (cross && !detailsFirst) {
+          require(visible(hint) && hint.innerText === cue, `Wrong card hint in ${source} for ${node_id}`);
+          require(hint.scrollWidth <= hint.clientWidth + 1, `Clipped card hint in ${source}`);
+          const label = card(node_id).getAttribute("aria-label");
+          require(label.includes(action.destination_label) && label.includes(headingFor(target))
+            && label.includes(target.display_name), `Lost accessible destination in ${source}`);
+        } else require(!visible(hint), `Misleading card hint in ${source} for ${node_id}`);
         if (!target) continue;
         viewActions++;
         if (cross) crossNode++;

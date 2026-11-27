@@ -145,6 +145,11 @@ h1.internal-view-title {
 
 .view-navigation-link + .view-destination { margin-top: 8px; }
 
+.module-card .view-destination {
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+}
+
 .view-status[hidden] { display: none; }
 
 .lede {

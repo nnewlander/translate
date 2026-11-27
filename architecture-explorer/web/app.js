@@ -1510,7 +1510,7 @@
     article.setAttribute("aria-label", `${module.name}，${actionLabel}${destination ? `，目标：${destination}` : ""}，右键打开节点操作`);
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
-    if (destination) article.append(text("span", `前往：${destination}`, "view-destination"));
+    if (destination) article.append(text("span", "进入相关架构视图", "view-destination"));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
     inlineDetail.append(text("p", module.responsibility, "module-responsibility"));
     if (!isChild && modulePlainExplanations[module.id]) inlineDetail.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));
