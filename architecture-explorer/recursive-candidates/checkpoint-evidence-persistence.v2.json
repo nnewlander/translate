@@ -1,0 +1,82 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "checkpoint-evidence-persistence",
+  "nodes": [
+    {
+      "id": "checkpoint-raw-artifacts",
+      "node_type": "responsibility",
+      "name": "RAW 与阶段证据",
+      "professional_description": "正式 Checkpoint 把新 UID 的 RAW 逐条追加到基线 JSONL，每次写入后 flush 和 fsync，已有 UID 跳过。历史 RAW 对应的请求被替换并需要重新采集时，新结果单独写入 provider_reacquisitions 下绑定 UID 与有效请求指纹的记录，原 RAW 保留。逐工单阶段记录有独立的持久化入口。",
+      "plain_explanation": "Canary 在需要创建整份 RAW 时使用 persist_checkpoint_raw 一次性写入，重复创建会被拒绝。正式 Checkpoint 的 RAW 文件可能只有部分记录，恢复时仍需核对当前请求的有效采集是否齐备。这里没有某次 Checkpoint 已完成采集的运行证据。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:ab2fa0b3e512dfe013e92cb0e10a1d2350305825f79cee32ed51c749fb813af9",
+        "evidence:sha256:f801a3ed0400b9f69fe520b0f57f7d56872ec18d7d6b233a243dc6ad1f985ca5",
+        "evidence:sha256:5fbce46dce9f25843d980f8bff60cca56a51999c12b68234d571168f1cfc766d",
+        "evidence:sha256:74fd5326c838c26ce55a3237ed107c923c104c523f8c187fa58929e073d8456b",
+        "evidence:sha256:6ab14e70c9dc8129ee0bd143a922a519dfab06a81034c72bc5696dc5bb84be9e",
+        "evidence:sha256:682c8f161d5199fbee63554fdd6155ed928bbe58d45461b0030697eea022df23",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    },
+    {
+      "id": "checkpoint-final-qa-evidence",
+      "node_type": "responsibility",
+      "name": "Checkpoint 最终 QA 证据",
+      "professional_description": "Worker 最终化写入语义审核、确定性 QA、最终批准 UID 和 Checkpoint 证据。最终 QA 保存通过记录，并从批准集合排除待解决债务。",
+      "plain_explanation": "封存保存生产进度。确定性 QA 通过之后仍可能留有发布债务。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:61b8e74e17f2ffde296b7c6ef48648f92c7f45a7dd694da0dcde6d3048ceaf6a",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:checkpoint-evidence-persistence-to-checkpoint-raw-artifacts",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "checkpoint-evidence-persistence",
+      "target_node_id": "checkpoint-raw-artifacts",
+      "name": "证据持久化包含 RAW 与阶段工件",
+      "professional_description": "生产证据持久化包含基线 RAW 的逐条追加、请求绑定重新采集的独立记录，以及逐工单阶段工件。",
+      "plain_explanation": "分解指向保存原始响应与阶段凭证的职责。已有 RAW 文件只表明存在已保存记录，正式采集是否齐备还要按当前请求核对。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:ab2fa0b3e512dfe013e92cb0e10a1d2350305825f79cee32ed51c749fb813af9",
+        "evidence:sha256:f801a3ed0400b9f69fe520b0f57f7d56872ec18d7d6b233a243dc6ad1f985ca5",
+        "evidence:sha256:5fbce46dce9f25843d980f8bff60cca56a51999c12b68234d571168f1cfc766d",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    },
+    {
+      "id": "candidate-decomposition:checkpoint-evidence-persistence-to-checkpoint-final-qa-evidence",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "checkpoint-evidence-persistence",
+      "target_node_id": "checkpoint-final-qa-evidence",
+      "name": "证据持久化包含最终 QA 工件",
+      "professional_description": "Worker 最终化写入语义审核、最终 QA 与 Checkpoint 证据。",
+      "plain_explanation": "失败或阻塞分支可能在该阶段之前返回。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:61b8e74e17f2ffde296b7c6ef48648f92c7f45a7dd694da0dcde6d3048ceaf6a",
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:checkpoint-final-qa-evidence-to-release-membership-derivation",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "checkpoint-final-qa-evidence",
+      "target_node_id": "release-membership-derivation",
+      "name": "最终 QA 工件提供发布成员依据",
+      "professional_description": "Worker 产出的 translation_final_qa_report.json 是成员派生的一个输入。派生器按文件名递归读取，筛选通过记录、批准 UID（存在时）及延后债务。",
+      "plain_explanation": "箭头从工件生产者指向读取方。批次收口另行校验清单与封存工件绑定。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b4c7cdb759f69e3c814f698330aed0720c094af57d871b55c0a3c56714b760b0",
+        "evidence:sha256:b6eb979a7d7e77c4b397a73b831aee773e5b30e27e45079705e5a9c6d0c46c4b",
+        "evidence:sha256:26d5289af4ebcbbd9b0e1124667ba36799993d8f09e33b04be077ab9e1456d98"
+      ]
+    }
+  ]
+}

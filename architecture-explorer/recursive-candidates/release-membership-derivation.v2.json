@@ -1,0 +1,109 @@
+{
+  "schema": "architecture-explorer.candidate-fragment.v2",
+  "scope_node_id": "release-membership-derivation",
+  "nodes": [
+    {
+      "id": "release-membership-evidence-rules",
+      "node_type": "responsibility",
+      "name": "发布成员证据准入",
+      "professional_description": "以范围 ALREADY_APPROVED 和符合准入的最终 QA 记录建立发布集合，并合并通过校验的人工或门禁终态。",
+      "plain_explanation": "延后语义债务不能仅凭确定性 QA 通过而计入。历史和通用门禁的补充路径取决于读取到的工件。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b6eb979a7d7e77c4b397a73b831aee773e5b30e27e45079705e5a9c6d0c46c4b",
+        "evidence:sha256:3bd9146d396cd0e12afa702b127aa61261455129ed74ef3f4ab5e9d250245735",
+        "evidence:sha256:d277e022a3faf1e62ea9fca58ba6bc58f0106aa671621425a7aa6ab8795060d0"
+      ]
+    },
+    {
+      "id": "batch-release-debt-reconciliation",
+      "node_type": "responsibility",
+      "name": "批次发布债务与门禁",
+      "professional_description": "核验已封存输入，投影当前候选和债务。APPLY 可进行受限处理，FINALIZE_ONLY 在零债务前置条件下形成无 Provider 的收口投影。",
+      "plain_explanation": "Supervisor 在批次边界就绪时接入。人审阻塞、候选状态与实际执行结果需要运行证据。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b7053fb691a1010a0586fd14f4b8c4112f15344eb74c62e0a73844523dee3b8c",
+        "evidence:sha256:858144e9eb76bc3664fec9510a7582cad32816d5100498221e17d66e1cbfdb43",
+        "evidence:sha256:8f9f3b8a1b4cb636da36e8a23a92b8b14214efdf79eca9c343085bfc4dc93240"
+      ]
+    },
+    {
+      "id": "release-rollover-phase-selection",
+      "node_type": "responsibility",
+      "name": "后继批次与 TOC 阶段选择",
+      "professional_description": "从待做范围扣除发布集合。默认选择排除 toc_late_stage，显式 TOC 阶段选择尚未发布的该阶段工单。",
+      "plain_explanation": "选择后继工单存在阶段条件。封存完成并不自动进入 TOC 或整书交付。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:95e18266598a88a7ca873d731cab6906fbdf709adb45fbaf6a27927b642f8a8b",
+        "evidence:sha256:22efad72d98b9470d726c6d5b2c360815aaded276b132e206c5d597fa979e288",
+        "evidence:sha256:ae9c238d225573e16fc71538d5bfe15f7f309a2df649232d2443692b91201337"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "candidate-decomposition:release-membership-derivation-to-release-membership-evidence-rules",
+      "semantic_family": "candidate-decomposition",
+      "source_node_id": "release-membership-derivation",
+      "target_node_id": "release-membership-evidence-rules",
+      "name": "成员派生包含证据准入规则",
+      "professional_description": "发布集合计算应用范围和持久化工件的准入规则。",
+      "plain_explanation": "分解从发布成员派生指向纳入与排除规则。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b6eb979a7d7e77c4b397a73b831aee773e5b30e27e45079705e5a9c6d0c46c4b",
+        "evidence:sha256:3bd9146d396cd0e12afa702b127aa61261455129ed74ef3f4ab5e9d250245735",
+        "evidence:sha256:d277e022a3faf1e62ea9fca58ba6bc58f0106aa671621425a7aa6ab8795060d0"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:release-membership-derivation-to-release-rollover-phase-selection",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "release-membership-derivation",
+      "target_node_id": "release-rollover-phase-selection",
+      "name": "发布集合约束后继阶段选择",
+      "professional_description": "批次推进将发布集合传给后继工单选择。默认排除延后的目录工单，显式阶段入口才使用 TOC 选择。",
+      "plain_explanation": "箭头从集合提供方指向选择方。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:95e18266598a88a7ca873d731cab6906fbdf709adb45fbaf6a27927b642f8a8b",
+        "evidence:sha256:22efad72d98b9470d726c6d5b2c360815aaded276b132e206c5d597fa979e288",
+        "evidence:sha256:ae9c238d225573e16fc71538d5bfe15f7f309a2df649232d2443692b91201337"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:batch-release-debt-reconciliation-to-release-membership-derivation",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "batch-release-debt-reconciliation",
+      "target_node_id": "release-membership-derivation",
+      "name": "批次门禁证据补充发布成员派生",
+      "professional_description": "通用门禁读取器校验门禁与清单及解析终态。成员派生经人工批准读取入口合并这些结果。",
+      "plain_explanation": "箭头跟随可消费的门禁证据。适用条件由门禁模式和绑定决定。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:8f9f3b8a1b4cb636da36e8a23a92b8b14214efdf79eca9c343085bfc4dc93240",
+        "evidence:sha256:b6eb979a7d7e77c4b397a73b831aee773e5b30e27e45079705e5a9c6d0c46c4b",
+        "evidence:sha256:3bd9146d396cd0e12afa702b127aa61261455129ed74ef3f4ab5e9d250245735",
+        "evidence:sha256:d277e022a3faf1e62ea9fca58ba6bc58f0106aa671621425a7aa6ab8795060d0"
+      ]
+    },
+    {
+      "id": "candidate-collaboration:checkpoint-manifest-publication-to-batch-release-debt-reconciliation",
+      "semantic_family": "candidate-collaboration",
+      "source_node_id": "checkpoint-manifest-publication",
+      "target_node_id": "batch-release-debt-reconciliation",
+      "name": "完成批次的封存清单进入发布边界",
+      "professional_description": "发布边界先检查批次清单 COMPLETE、数量与 Checkpoint 顺序，再审计封存输入与债务。",
+      "plain_explanation": "脚本读取最高版本文件或根清单。终结收口另行解析继承链与封存工件。",
+      "review_status": "candidate",
+      "evidence_ids": [
+        "evidence:sha256:b7053fb691a1010a0586fd14f4b8c4112f15344eb74c62e0a73844523dee3b8c",
+        "evidence:sha256:858144e9eb76bc3664fec9510a7582cad32816d5100498221e17d66e1cbfdb43",
+        "evidence:sha256:8f9f3b8a1b4cb636da36e8a23a92b8b14214efdf79eca9c343085bfc4dc93240",
+        "evidence:sha256:26d5289af4ebcbbd9b0e1124667ba36799993d8f09e33b04be077ab9e1456d98"
+      ]
+    }
+  ]
+}
