@@ -223,7 +223,12 @@ _EXPLICIT_EXCLUSIONS = (
     ),
 )
 
+_REVIEW_DETAIL_CHROME_NODEID = (
+    "tests/architecture_explorer/test_ticket_63_semantic_review_view.py::"
+    "test_ticket_63_real_chrome_enters_inspects_and_returns_from_internal_view[1440]"
+)
 _CRITICAL_NODEIDS = (
+    _REVIEW_DETAIL_CHROME_NODEID,
     "tests/architecture_explorer/test_t7_top_level_graph.py::"
     "test_real_browser_opens_candidate_evidence_from_every_node_context_menu",
     "tests/architecture_explorer/test_acceptance_contract.py::"
@@ -320,7 +325,14 @@ def _junit_nodeid(case: ElementTree.Element) -> str:
 
 
 def _is_required_chrome_case(case: ElementTree.Element) -> bool:
-    return case.attrib.get("name", "").startswith(
+    nodeid = _junit_nodeid(case)
+    if nodeid == (
+        "tests/architecture_explorer/test_ticket_84_real_review_details.py::"
+        "test_real_chrome_shows_independent_review_limits"
+    ):
+        # The real batch needs a separately authorized host installation.
+        return False
+    return nodeid == _REVIEW_DETAIL_CHROME_NODEID or case.attrib.get("name", "").startswith(
         ("test_real_browser_", "test_real_chrome_")
     )
 

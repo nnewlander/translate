@@ -1,4 +1,4 @@
-"""Chrome acceptance of the real, host-approved Ticket 84 batch."""
+"""Real Ticket 84 host acceptance. Set ARCHITECTURE_EXPLORER_T84_REQUIRED=1 when running it explicitly."""
 
 import json
 import os
@@ -7,16 +7,32 @@ from pathlib import Path
 
 import pytest
 
+from booktrans.architecture_explorer.batch_import import read_published_review_batch
 from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.view_projection import apply_view_projection
 from test_t7_top_level_graph import _desktop_browser, _dump_dom
 
 
-def test_view_projection_distinguishes_unknowns_from_an_older_omission() -> None:
+@pytest.fixture(scope="module")
+def t84_host_inputs() -> tuple[Path, Path]:
     preview = os.environ.get("ARCHITECTURE_EXPLORER_T84_PREVIEW")
-    if not preview:
-        pytest.skip("requires the formal Ticket 84 build")
-    data = json.loads(Path(preview, "explorer-data.json").read_text(encoding="utf-8"))
+    batch = os.environ.get("ARCHITECTURE_EXPLORER_T84_BATCH")
+    if not preview or not batch:
+        message = "T84 host acceptance requires ARCHITECTURE_EXPLORER_T84_PREVIEW and ARCHITECTURE_EXPLORER_T84_BATCH"
+        if preview or batch or os.environ.get("ARCHITECTURE_EXPLORER_T84_REQUIRED") == "1":
+            pytest.fail(message, pytrace=False)
+        pytest.skip(message)
+    batch_path = Path(batch).resolve()
+    records, _ = read_published_review_batch(batch_path)
+    assert len(records) == 3, "T84 host acceptance requires the three trusted reviews"
+    return Path(preview).resolve(), batch_path
+
+
+def test_view_projection_distinguishes_unknowns_from_an_older_omission(
+    t84_host_inputs: tuple[Path, Path],
+) -> None:
+    preview, _ = t84_host_inputs
+    data = json.loads((preview / "explorer-data.json").read_text(encoding="utf-8"))
     reviews = data["review_projection"]["objects"]
     for review in reviews.values():
         object_id = review["object_key"]["object_id"]
@@ -34,17 +50,16 @@ def test_view_projection_distinguishes_unknowns_from_an_older_omission() -> None
         apply_view_projection(data)
 
 
-def test_real_chrome_shows_independent_review_limits(tmp_path: Path) -> None:
-    preview = os.environ.get("ARCHITECTURE_EXPLORER_T84_PREVIEW")
-    batch = os.environ.get("ARCHITECTURE_EXPLORER_T84_BATCH")
-    if not preview or not batch:
-        pytest.skip("requires the formal Ticket 84 build and real published batch")
+def test_real_chrome_shows_independent_review_limits(
+    tmp_path: Path, t84_host_inputs: tuple[Path, Path],
+) -> None:
+    preview, batch = t84_host_inputs
     browser_name, browser = _desktop_browser()
     assert browser_name == "chrome"
     site = tmp_path / "site"
     shutil.copytree(preview, site)
     decisions = {}
-    for path in Path(batch).glob("objects/*/decision.json"):
+    for path in batch.glob("objects/*/decision.json"):
         decision = json.loads(path.read_text(encoding="utf-8"))
         source = json.loads(path.with_name("source.json").read_text(encoding="utf-8"))
         key = decision["object_key"]

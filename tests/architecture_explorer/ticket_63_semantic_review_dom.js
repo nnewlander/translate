@@ -146,8 +146,39 @@
     evidence_ids: relationship.evidence_ids.slice(0, evidenceCount),
     decision_id: decisionId,
   }];
+  const reviewDetailFixture = (commentId, author, retainedUnknowns) => ({
+    source: {
+      status: "trusted-owner-admin",
+      author,
+      author_association: "OWNER",
+      permission: "admin",
+      decision_id: `github-comment:${commentId}`,
+      sha256: String(commentId).repeat(16),
+      comment_url: `https://github.com/example/explorer/issues/1#issuecomment-${commentId}`,
+    },
+    retained_unknowns: retainedUnknowns,
+  });
+  const decompositionReview = reviewDetailFixture(1001, "decomposition-fixture", ["分解边界是否完整", "运行时是否进入子职责"]);
+  const collaborationReview = reviewDetailFixture(1002, "collaboration-fixture", ["调用频率尚未采集", "失败是否到达下游"]);
+  const assertReviewDetails = (detail, review) => {
+    const fact = (label) => [...detail.querySelectorAll("dt")]
+      .find((term) => term.textContent === label)?.nextElementSibling;
+    const heading = [...detail.querySelectorAll("h4")].find((item) => item.textContent === "仍然未知的事项");
+    const source = review?.source;
+    if (!source) {
+      assert(!fact("可信来源") && !fact("Decision ID") && !fact("来源收据") && !fact("GitHub 评论"), "Pending Relationship gained a trusted source");
+      assert(!heading, "Pending Relationship gained retained unknowns");
+      return;
+    }
+    assert(fact("可信来源")?.textContent === [source.author, source.author_association, source.permission].join(" · "), "Relationship verified author or permission is wrong");
+    assert(fact("Decision ID")?.textContent === source.decision_id, "Relationship Decision ID is wrong");
+    assert(fact("来源收据")?.textContent === source.sha256, "Relationship Receipt is wrong");
+    assert(fact("GitHub 评论")?.querySelector("a")?.href === source.comment_url, "Relationship comment link is wrong");
+    const unknowns = [...(heading?.nextElementSibling?.querySelectorAll("li") || [])].map((item) => item.textContent);
+    assert(JSON.stringify(unknowns) === JSON.stringify(review.retained_unknowns), "Relationship retained unknowns are wrong");
+  };
   const relationshipReviews = [
-    { result: "APPROVED", state: "current", scope: ["github-comment:current", 2], expectedScope: "2 条 Evidence · github-comment:current", expectedStatus: "已批准 · 当前有效", current: true },
+    { result: "APPROVED", state: "current", scope: ["github-comment:1001", 2], expectedScope: "2 条 Evidence · github-comment:1001", expectedStatus: "已批准 · 当前有效", current: true },
     { result: "APPROVED", state: "needs-review", scope: ["github-comment:historical", 1], expectedScope: "1 条 Evidence · github-comment:historical", expectedStatus: "APPROVED · 需要复核", current: false },
     { result: "APPROVED", state: "unknown", scope: ["github-comment:unknown", 1], expectedScope: "1 条 Evidence · github-comment:unknown", expectedStatus: "APPROVED · unknown", current: false },
     { result: "REJECTED", state: "current", scope: null, expectedScope: "无", expectedStatus: "已拒绝 · 当前有效", current: false },
@@ -161,6 +192,7 @@
       state: fixture.state,
       approved_scope: fixture.scope ? approvalScope(projected, ...fixture.scope) : [],
       reasons: fixture.state === "current" ? [] : [`test-fixture:${fixture.state}`],
+      ...(fixture.current ? decompositionReview : {}),
     };
   });
 
@@ -200,6 +232,8 @@
     assert(detail.textContent.includes(`批准范围：${fixture.expectedScope}`), `Ticket 63 detail omitted its projected approved_scope: ${relationship.id}`);
     assert(detail.textContent.includes(relationship.family === "candidate-decomposition" ? "关系类型：候选分解" : "关系类型：候选协作"), `Ticket 63 detail changed Relationship semantics: ${relationship.id}`);
     if (!fixture.current) assert(!detail.textContent.includes("当前已审核"), `Ticket 63 promoted non-current approval scope: ${relationship.id}`);
+    if (fixture.current) assertReviewDetails(detail, decompositionReview);
+    if (fixture.result === "Pending") assertReviewDetails(detail);
     document.querySelector("#relationship-detail").close();
   });
 
@@ -210,10 +244,11 @@
     state: "current",
     approved_scope: approvalScope(
       approvedCollaborationRecord,
-      "github-comment:collaboration-current",
+      "github-comment:1002",
       1,
     ),
     reasons: [],
+    ...collaborationReview,
   };
   const approvedCollaborationButton = relationshipButtons.find(
     (candidate) => candidate.querySelector("h4")?.textContent === approvedCollaboration.name,
@@ -222,7 +257,8 @@
   const approvedCollaborationDetail = document.querySelector("#detail-content");
   assert(approvedCollaborationDetail.textContent.includes("关系类型：候选协作"), "approved Collaboration detail changed its semantics");
   assert(approvedCollaborationDetail.textContent.includes("当前已审核 · 已批准 · 当前有效"), "approved Collaboration detail omitted its explicit current state");
-  assert(approvedCollaborationDetail.textContent.includes("批准范围：1 条 Evidence · github-comment:collaboration-current"), "approved Collaboration detail omitted its non-empty approved_scope");
+  assert(approvedCollaborationDetail.textContent.includes("批准范围：1 条 Evidence · github-comment:1002"), "approved Collaboration detail omitted its non-empty approved_scope");
+  assertReviewDetails(approvedCollaborationDetail, collaborationReview);
   document.querySelector("#relationship-detail").close();
 
   const architecturePath = breadcrumb();
