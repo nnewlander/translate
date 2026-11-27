@@ -126,6 +126,25 @@ h1.internal-view-title {
   overflow-wrap: anywhere;
 }
 
+.view-subtitle {
+  margin: 12px 0 0;
+  color: #455842;
+  font-size: clamp(1.04rem, 2.2vw, 1.32rem);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.view-destination {
+  display: block;
+  margin: 0 0 10px;
+  color: #40583c;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.view-navigation-link + .view-destination { margin-top: 8px; }
+
 .view-status[hidden] { display: none; }
 
 .lede {

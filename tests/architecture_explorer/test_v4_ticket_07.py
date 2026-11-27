@@ -148,3 +148,37 @@ def test_real_chrome_ticket_07_navigation(built_site, tmp_path, width):
     assert error is None, error.group(1) if error else ""
     _assert_browser_dom(completed, browser_name=name, pass_marker='data-t07="pass"')
     assert f'data-t07-width="{width}"' in completed.stdout
+
+
+@pytest.mark.parametrize("width", [1440, 500])
+def test_real_chrome_names_the_destination_before_cross_node_navigation(built_site, tmp_path, width):
+    name, browser = _desktop_browser()
+    assert name == "chrome"
+    site = tmp_path / "site"
+    shutil.copytree(built_site, site)
+    script = "t11_navigation_titles_dom.js"
+    shutil.copyfile(Path(__file__).with_name(script), site / script)
+    page = site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8").replace(
+            "</body>", f'<script src="{script}"></script></body>'
+        ),
+        encoding="utf-8",
+    )
+    completed = _dump_dom(
+        browser, page, tmp_path / "profile", virtual_time_budget=7000, viewport_width=width
+    )
+    error = re.search(r'data-t11-navigation-titles-error="([^"]+)"', completed.stdout)
+    assert error is None, error.group(1) if error else ""
+    _assert_browser_dom(completed, browser_name=name, pass_marker='data-t11-navigation-titles="pass"')
+    views = json.loads((built_site / "explorer-data.json").read_text(encoding="utf-8"))[
+        "view_projection"
+    ]["view_index"]
+    appearances = [appearance for view in views.values() for appearance in view["appearances"]]
+    entries = [item for item in appearances if item.get("primary_action", {}).get("kind") == "open-view"]
+    cross_node_count = sum(
+        item["node_id"] != views[item["primary_action"]["target_view_id"]].get("scope_node_id")
+        for item in entries
+    )
+    coverage = f"{len(views)}/{len(appearances)}/{len(entries)}/{cross_node_count}"
+    assert f'data-t11-nav-coverage="{coverage}"' in completed.stdout
