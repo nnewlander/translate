@@ -24,7 +24,9 @@
     JSON.stringify(actualNodeIds) === JSON.stringify(expectedNodeIds),
     `renderer ignored normalized Appearance order: ${actualNodeIds}`,
   );
-  assert(document.querySelector(".hero h1")?.textContent === "规范化投影视图", "hero ignored current View display name");
+  assert(document.querySelector(".hero h1")?.textContent === "生产调度与控制", "hero ignored the View scope Node name");
+  const subtitle = document.querySelector("#view-subtitle");
+  assert(subtitle && !subtitle.hidden && subtitle.textContent === "规范化投影视图", "subtitle ignored current View display name");
   assert(document.querySelector(".crumb.current")?.textContent === "规范化投影视图", "breadcrumb ignored current View display name");
   const relationshipStatuses = Array.from(document.querySelectorAll(".candidate-collaboration .status"))
     .map((item) => item.textContent);
