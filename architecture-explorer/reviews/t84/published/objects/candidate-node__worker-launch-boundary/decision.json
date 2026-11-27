@@ -1,0 +1,132 @@
+{
+  "batch_publication_sha256": "9a9991b4ff17b7645c9dbd3fccf1a90feaa67b46af6c73b3b745342c212f5f58",
+  "claims": [
+    {
+      "kind": "IDENTITY",
+      "source": "candidate-fact.object-key",
+      "value": {
+        "kind": "candidate-node",
+        "node_id": "worker-launch-boundary"
+      }
+    },
+    {
+      "kind": "NAME",
+      "source": "candidate-fact.name",
+      "value": "Worker 启动边界"
+    },
+    {
+      "kind": "CLASSIFICATION",
+      "source": "node-review-definition.classification",
+      "value": {
+        "node_type": "responsibility",
+        "rationale": "worker-launch-boundary 描述的是生产控制把受参数和守卫约束的启动请求跨越进程边界交给翻译执行这一稳定架构职责，而不是某一个文件、函数、脚本包装器或可部署组件。三条 Candidate Evidence 跨越控制侧启动准备与 Worker 入口定位，只支持该职责边界值得作为候选节点表达；它们不足以证明一个物理组件、完整源码边界或排他所有权。"
+      }
+    },
+    {
+      "kind": "RESPONSIBILITY",
+      "source": "candidate-fact.responsibility",
+      "value": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+    },
+    {
+      "kind": "PLAIN_EXPLANATION",
+      "source": "candidate-fact.plain-explanation",
+      "value": "像一道受控发车闸门，Supervisor 准备好明确的 Worker 脚本后才跨进程启动。这里新增的是未审核源码说明；唯一正式 Supervisor→Worker 关系仍以原有 13 条批准证据为准。"
+    },
+    {
+      "kind": "SOURCE_ASSIGNMENT",
+      "source": "candidate-fact.source-assignment",
+      "value": {
+        "evidence_ids": [
+          "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+          "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+          "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+        ],
+        "note": "T3 已审核关系只支持启动边界及其证据链；单条调用关系不足以证明完整源码归属。",
+        "relationship_ids": [
+          "relationship:production-control:launches:translation-execution"
+        ],
+        "status": "partial"
+      }
+    },
+    {
+      "kind": "CANDIDATE_EVIDENCE",
+      "source": "node-review-definition.candidate-evidence-ids",
+      "value": [
+        {
+          "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+          "role": "powershell_function_entry"
+        },
+        {
+          "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+          "role": "powershell_script_binding"
+        },
+        {
+          "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+          "role": "deterministic_worker_wrapper"
+        }
+      ]
+    },
+    {
+      "kind": "DEPENDENCIES_AND_LIMITS",
+      "source": "node-review-definition.dependencies-and-limits",
+      "value": {
+        "dependencies": [
+          {
+            "claims_sha256": "7197e0b96a1aafc1520a01d5e52a039a92532d7339c44a06ed586e6b4aaa2e1a",
+            "decision_id": "github-comment:6516894339",
+            "evidence_ids": [
+              "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13",
+              "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711",
+              "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3",
+              "evidence:sha256:3929e17745639510a1a3c6a39b5be55b5a6afc2070c3f18cb300fa0107983308",
+              "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a",
+              "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc",
+              "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2",
+              "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa",
+              "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2",
+              "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d",
+              "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5",
+              "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914",
+              "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d"
+            ],
+            "kind": "reviewed-relationship",
+            "object_id": "relationship:production-control:launches:translation-execution",
+            "result": "APPROVED",
+            "reviewed_revision": "857a4b85cf4763b74ecff0d02e660b005a0c8bae"
+          }
+        ],
+        "retained_unknowns": [
+          "是否在某次实际运行中到达或成功跨越该边界",
+          "运行时前置条件、凭据和外部依赖是否可用",
+          "该职责的完整源码覆盖",
+          "任何文件、symbol 或代码区域是否排他归属该节点",
+          "观察到的名称、字面值和直接绑定以外的参数业务含义",
+          "相邻组件是否获批",
+          "任何 Candidate Collaboration 是否获批",
+          "顶层模块源码覆盖是否完成"
+        ],
+        "zero_dependency_reason": null
+      }
+    }
+  ],
+  "decision_id": "github-comment:7192141675",
+  "inputs": {
+    "candidate_evidence_sha256": "db36f5a519eb3e77ec67ffa83d4983123d74e760a67d4469826f3b076b0c04db",
+    "candidate_fact_sha256": "0e12aa409d1c94d6f1959c59fcf3c1b6331ef18b055792db0dca460ab1ac0a2f",
+    "claims_sha256": "cb1e1fd9a564203a60da2e5d53489498058f34ebf5532d86bb5e0942160ba5a0",
+    "definition_sha256": "cb315a575fda20803d5fd99f5dc78d79f8c5e127cb3d5a84735f3f8bdcf86457",
+    "dependency_evidence_sha256": "4ee1cc6e3f3f6e2a1325e2292978973a76f4c0547d9d44ac49b89133eea8f646"
+  },
+  "object_key": {
+    "kind": "candidate-node",
+    "node_id": "worker-launch-boundary"
+  },
+  "result": "APPROVED",
+  "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+  "reviewed_source_snapshot": {
+    "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+    "worktree_state": "clean"
+  },
+  "schema": "architecture-explorer.node-review-decision.v2",
+  "source_receipt_sha256": "6e7daa7d4dd2455f6f417f6db7a73f97f222e380df182073aadfe1e35f9e8841"
+}

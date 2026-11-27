@@ -1,0 +1,754 @@
+{
+  "schema": "architecture-explorer.batch-review.v1",
+  "objects": {
+    "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper": {
+      "packet": {
+        "schema": "architecture-explorer.relationship-review-packet.v1",
+        "object_key": {
+          "kind": "candidate-collaboration",
+          "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+          "worktree_state": "clean"
+        },
+        "allowed_results": [
+          "APPROVED",
+          "REJECTED"
+        ],
+        "candidate_fact": {
+          "object_id": "candidate-collaboration:supervisor-to-worker-wrapper",
+          "semantic_family": "collaboration",
+          "source_node_id": "worker-launch-boundary",
+          "target_node_id": "deterministic-worker-wrapper",
+          "name": "启动边界指向 Worker 包装入口",
+          "professional_description": "候选协作：Supervisor 的明确脚本绑定指向确定性 Python Worker 包装入口。",
+          "plain_explanation": "像发车闸门旁的目的地标签明确写着确定性 Worker 入口。这是未审核的脚本绑定候选，不替代或扩张唯一正式 Supervisor→Worker 关系。",
+          "provenance": "candidate",
+          "evidence_ids": [
+            "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+            "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+          ]
+        },
+        "endpoint_bindings": {
+          "source": {
+            "node_id": "worker-launch-boundary",
+            "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+          },
+          "target": {
+            "node_id": "deterministic-worker-wrapper",
+            "responsibility": "候选组件：把 Supervisor 的明确脚本绑定连接到 Python Worker 的受控包装入口。"
+          }
+        },
+        "claims": [
+          {
+            "kind": "IDENTITY",
+            "value": {
+              "kind": "candidate-collaboration",
+              "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+            },
+            "source": "relationship-review-definition.object-key"
+          },
+          {
+            "kind": "ENDPOINT_RESPONSIBILITIES",
+            "value": {
+              "source": {
+                "node_id": "worker-launch-boundary",
+                "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+              },
+              "target": {
+                "node_id": "deterministic-worker-wrapper",
+                "responsibility": "候选组件：把 Supervisor 的明确脚本绑定连接到 Python Worker 的受控包装入口。"
+              }
+            },
+            "source": "relationship-review-definition.endpoint-bindings"
+          },
+          {
+            "kind": "SEMANTICS_AND_DIRECTION",
+            "value": {
+              "family": "collaboration",
+              "direction": {
+                "source_node_id": "worker-launch-boundary",
+                "target_node_id": "deterministic-worker-wrapper"
+              }
+            },
+            "source": "relationship-review-definition.semantics"
+          },
+          {
+            "kind": "RELATIONSHIP_DESCRIPTION",
+            "value": {
+              "name": "启动边界指向 Worker 包装入口",
+              "professional_description": "候选协作：Supervisor 的明确脚本绑定指向确定性 Python Worker 包装入口。",
+              "plain_explanation": "像发车闸门旁的目的地标签明确写着确定性 Worker 入口。这是未审核的脚本绑定候选，不替代或扩张唯一正式 Supervisor→Worker 关系。"
+            },
+            "source": "candidate-relationship"
+          },
+          {
+            "kind": "CANDIDATE_EVIDENCE",
+            "value": [
+              {
+                "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+                "role": "powershell_script_binding"
+              },
+              {
+                "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+                "role": "deterministic_worker_wrapper"
+              }
+            ],
+            "source": "relationship-review-definition.candidate-evidence-ids"
+          },
+          {
+            "kind": "DEPENDENCIES_AND_LIMITS",
+            "value": {
+              "dependencies": [],
+              "zero_dependency_reason": "脚本路径绑定及包装器 main 入口直接支撑这条候选协作，两端职责另由 Packet 精确绑定。",
+              "retained_unknowns": [
+                "实际生产请求是否进入此确定性路径及包装器是否成功运行。",
+                "其他 Worker 启动路径是否采用同一包装器。"
+              ]
+            },
+            "source": "relationship-review-definition.dependencies-and-limits"
+          }
+        ],
+        "candidate_evidence": [
+          {
+            "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+            "source_role": "automatic_source_fact",
+            "evidence_kind": "powershell_script_binding",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "$deterministicWorkerScript",
+            "structural_anchor": "powershell:assignment:$deterministicWorkerScript",
+            "syntax_position": "supervisor/assignment:$deterministicWorkerScript",
+            "current_location": {
+              "line_start": 52,
+              "line_end": 52
+            },
+            "snippet": "$deterministicWorkerScript = Join-Path $Root \"scripts\\production\\run_qwen_deterministic_worker.py\"",
+            "normalized_snippet_sha256": "32249443cf0e783808c579a69bf04b14b75eb6b796d756cc562551f2a591ea0a",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+            "source_role": "automatic_source_fact",
+            "evidence_kind": "deterministic_worker_wrapper",
+            "path": "scripts/production/run_qwen_deterministic_worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:worker-wrapper/import:booktrans.production_worker.worker.main/main-guard",
+            "syntax_position": "module/main-guard:1",
+            "current_location": {
+              "line_start": 14,
+              "line_end": 15
+            },
+            "snippet": "if __name__ == \"__main__\":\r\n    raise SystemExit(main())",
+            "normalized_snippet_sha256": "6033fff73548e19f3c2a68f692078c2c58ea34357472d17e1f6d0f84c459f5f0",
+            "file_sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9"
+          }
+        ],
+        "inputs": {
+          "definition_sha256": "ebef40ea36522fc3a0053220898185010b85390426398b99751a86b722f2887b",
+          "candidate_fact_sha256": "54b560c3d0c0a626ddafff3ab51cc0eb82981526502e402ea7517cd632d41265",
+          "endpoint_bindings_sha256": "c263618c319442ba5f9c7ef221c31d6f77260cf0cd7396706987160f29118384",
+          "claims_sha256": "9cda7faa9dbff8fd11f6ce2ad1cd1d2faf7925eafa2f37abb1385288afc71771",
+          "candidate_evidence_sha256": "17bac80096d4474d91dcf0b9e538db08a27b104b16abddedee5704091d2e990b"
+        },
+        "packet_sha256": "9710545fdfdaacf24ad972498399d2ec45c455634aebffeed32a6515a1060247"
+      },
+      "analysis": {
+        "topic": "生产控制如何启动确定性 Worker",
+        "display_name": "启动边界指向 Worker 包装入口",
+        "source_check": "Supervisor 脚本第 52 行把确定性入口定位到 run_qwen_deterministic_worker.py，第 1280、1305 行显示它怎样随参数交给子进程。Python 包装器第 12 行导入 Worker main，第 14–15 行在直接执行时调用它。Packet 绑定两端职责和控制侧到包装入口的方向。",
+        "assessment": "静态源码无法确认实际命中这个分支、子进程执行成功或所有 Worker 入口采用同一方式。",
+        "concerns": [
+          "此处只审明确的确定性脚本绑定，已有正式 Supervisor→Worker 关系有自己的证据和决定。"
+        ],
+        "risk": "容易把某条明确脚本路径扩大理解为所有 Worker 的启动协议。",
+        "suggestion": "APPROVED",
+        "suggestion_reason": "开始于 Supervisor 的静态脚本绑定，落到 Python 包装入口，交接方向和范围都有直接证据。"
+      }
+    },
+    "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction": {
+      "packet": {
+        "schema": "architecture-explorer.relationship-review-packet.v1",
+        "object_key": {
+          "kind": "candidate-decomposition",
+          "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+          "worktree_state": "clean"
+        },
+        "allowed_results": [
+          "APPROVED",
+          "REJECTED"
+        ],
+        "candidate_fact": {
+          "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction",
+          "semantic_family": "decomposition",
+          "source_node_id": "worker-launch-boundary",
+          "target_node_id": "supervisor-process-launch-construction",
+          "name": "启动边界分解为进程启动构造",
+          "professional_description": "候选分解把受控进程参数、环境和子进程启动处理解释为 Worker 启动边界的一项内部职责。",
+          "plain_explanation": "Worker 启动边界包含一项候选职责：把受约束的启动信息构造成子进程；这不是已审核结论，也不证明运行发生。",
+          "provenance": "candidate",
+          "evidence_ids": [
+            "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a"
+          ]
+        },
+        "endpoint_bindings": {
+          "source": {
+            "node_id": "worker-launch-boundary",
+            "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+          },
+          "target": {
+            "node_id": "supervisor-process-launch-construction",
+            "responsibility": "构造确定性 Worker 子进程的参数、工作目录、输出重定向、规范化环境和启动结果处理。"
+          }
+        },
+        "claims": [
+          {
+            "kind": "IDENTITY",
+            "value": {
+              "kind": "candidate-decomposition",
+              "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+            },
+            "source": "relationship-review-definition.object-key"
+          },
+          {
+            "kind": "ENDPOINT_RESPONSIBILITIES",
+            "value": {
+              "source": {
+                "node_id": "worker-launch-boundary",
+                "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+              },
+              "target": {
+                "node_id": "supervisor-process-launch-construction",
+                "responsibility": "构造确定性 Worker 子进程的参数、工作目录、输出重定向、规范化环境和启动结果处理。"
+              }
+            },
+            "source": "relationship-review-definition.endpoint-bindings"
+          },
+          {
+            "kind": "SEMANTICS_AND_DIRECTION",
+            "value": {
+              "family": "decomposition",
+              "direction": {
+                "source_node_id": "worker-launch-boundary",
+                "target_node_id": "supervisor-process-launch-construction"
+              }
+            },
+            "source": "relationship-review-definition.semantics"
+          },
+          {
+            "kind": "RELATIONSHIP_DESCRIPTION",
+            "value": {
+              "name": "启动边界分解为进程启动构造",
+              "professional_description": "候选分解把受控进程参数、环境和子进程启动处理解释为 Worker 启动边界的一项内部职责。",
+              "plain_explanation": "Worker 启动边界包含一项候选职责：把受约束的启动信息构造成子进程；这不是已审核结论，也不证明运行发生。"
+            },
+            "source": "candidate-relationship"
+          },
+          {
+            "kind": "CANDIDATE_EVIDENCE",
+            "value": [
+              {
+                "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+                "role": "powershell_function_entry"
+              }
+            ],
+            "source": "relationship-review-definition.candidate-evidence-ids"
+          },
+          {
+            "kind": "DEPENDENCIES_AND_LIMITS",
+            "value": {
+              "dependencies": [],
+              "zero_dependency_reason": "子进程构造函数的静态实现直接支撑此项分解解释，两端职责另由 Packet 精确绑定。",
+              "retained_unknowns": [
+                "启动边界的完整子职责和全部启动路径。",
+                "源码排他归属以及某次实际启动和退出结果。"
+              ]
+            },
+            "source": "relationship-review-definition.dependencies-and-limits"
+          }
+        ],
+        "candidate_evidence": [
+          {
+            "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+            "source_role": "automatic_source_fact",
+            "evidence_kind": "powershell_function_entry",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "Start-DeterministicWorkerProcess",
+            "structural_anchor": "powershell:function:Start-DeterministicWorkerProcess",
+            "syntax_position": "supervisor/function:Start-DeterministicWorkerProcess",
+            "current_location": {
+              "line_start": 224,
+              "line_end": 291
+            },
+            "snippet": "function Start-DeterministicWorkerProcess([string]$FilePath, [string[]]$ArgumentVector, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath, [ref]$LaunchDiagnostics) {\r\n    $LaunchDiagnostics.Value.launch_stage = 'PROCESS_ARGUMENT_BUILD'\r\n    $LaunchDiagnostics.Value.executable = $FilePath\r\n    $LaunchDiagnostics.Value.working_directory = $WorkingDirectory\r\n    $quotedArguments = @($ArgumentVector | ForEach-Object { ConvertTo-ChildCommandLineArgument ([string]$_) })\r\n    # Windows PowerShell can expose ProcessStartInfo.EnvironmentVariables as\r\n    # null for a valid instance.  Do not use that collection: the child gets\r\n    # an inherited environment captured at Process.Start instead.\r\n    $startInfo = [System.Diagnostics.ProcessStartInfo]::new($FilePath, [string]::Join(' ', [string[]]$quotedArguments))\r\n    $startInfo.WorkingDirectory = $WorkingDirectory\r\n    $startInfo.UseShellExecute = $false\r\n    $startInfo.RedirectStandardOutput = $true\r\n    $startInfo.RedirectStandardError = $true\r\n    $childEnvironment = Get-CanonicalChildEnvironment\r\n    $environmentKeys = @($childEnvironment.Keys | ForEach-Object { [string]$_ })\r\n    $duplicateGroups = @($environmentKeys | Group-Object { $_.ToUpperInvariant() } | Where-Object { $_.Count -gt 1 })\r\n    $LaunchDiagnostics.Value.env_key_count = $environmentKeys.Count\r\n    $LaunchDiagnostics.Value.case_insensitive_duplicate_count = $duplicateGroups.Count\r\n    $LaunchDiagnostics.Value.launch_stage = 'ENVIRONMENT_BUILD'\r\n    $environmentScope = [System.EnvironmentVariableTarget]::Process\r\n    $normalizedKeys = @('Path', 'BOOKTRANS_PRODUCTION_WORKER_ID', 'BOOKTRANS_PRODUCTION_WORKER_HANDOFF_PATH', 'BOOKTRANS_PRODUCTION_BATCH', 'BOOKTRANS_PRODUCTION_CHECKPOINT')\r\n    $parentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n    $affectedKeys = @($parentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n        $candidate = $_\r\n        $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n    })\r\n    foreach ($name in $normalizedKeys) {\r\n        if ($null -eq ($affectedKeys | Where-Object { $_ -ieq $name } | Select-Object -First 1)) { $affectedKeys += $name }\r\n    }\r\n    $parentSnapshot = @()\r\n    foreach ($key in $affectedKeys) {\r\n        $parentSnapshot += [ordered]@{ key = $key; value = [Environment]::GetEnvironmentVariable($key, $environmentScope) }\r\n    }\r\n    try {\r\n        # Only the normalized launch keys are changed.  Every other variable\r\n        # is inherited untouched, and the process environment is restored\r\n        # before this worker launch returns.\r\n        foreach ($key in $affectedKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($key in $normalizedKeys) {\r\n            if ($childEnvironment.ContainsKey($key)) {\r\n                [Environment]::SetEnvironmentVariable($key, [string]$childEnvironment[$key], $environmentScope)\r\n            }\r\n        }\r\n        $child = [System.Diagnostics.Process]::new()\r\n        $child.StartInfo = $startInfo\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_ENTER'\r\n        if (-not $child.Start()) { throw [System.InvalidOperationException]::new('WORKER_LAUNCH_FAILED:PROCESS_START_RETURNED_FALSE') }\r\n        $LaunchDiagnostics.Value.child_created = $true\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_RETURN'\r\n        $stdoutTask = $child.StandardOutput.ReadToEndAsync()\r\n        $stderrTask = $child.StandardError.ReadToEndAsync()\r\n        $LaunchDiagnostics.Value.launch_stage = 'CHILD_EXIT_WAIT'\r\n        $child.WaitForExit()\r\n        [System.IO.File]::WriteAllText($StdoutPath, $stdoutTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        [System.IO.File]::WriteAllText($StderrPath, $stderrTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        return $child\r\n    } finally {\r\n        $currentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n        $restoreKeys = @($currentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n            $candidate = $_\r\n            $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n        })\r\n        foreach ($key in $restoreKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($entry in $parentSnapshot) {\r\n            if ($null -ne $entry.value) { [Environment]::SetEnvironmentVariable([string]$entry.key, [string]$entry.value, $environmentScope) }\r\n        }\r\n    }\r\n}",
+            "normalized_snippet_sha256": "113a6afaad9335832b31e72e6a446e45ec25f4b21dbd76431d8f70421e351dfa",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          }
+        ],
+        "inputs": {
+          "definition_sha256": "c0ee28566e46a4d068f0bf0214c198c0454d78c871aaaa2d42e606670fbd4c1a",
+          "candidate_fact_sha256": "fb660776d71faa297b7078ba845e08295ab2793b330ce39d2b1281d3b6f59440",
+          "endpoint_bindings_sha256": "e91c30a6660b462080174ab09027da39859872d2e8e8179afdfc1ac6fdf438c1",
+          "claims_sha256": "35048bd84be163a6307877a50c357556709db90b7a307ca455e624b1a0bc9163",
+          "candidate_evidence_sha256": "2c7ff5bfae6a58feecfb2aebf2bb8b37d21fc40b6505ef42561bd038068d9905"
+        },
+        "packet_sha256": "88b516236a653b15be13e579f3ef211e50344dde588aee20fe985fac71386d45"
+      },
+      "analysis": {
+        "topic": "生产控制如何启动确定性 Worker",
+        "display_name": "启动边界分解为进程启动构造",
+        "source_check": "Supervisor 脚本第 224–291 行把参数与工作目录组装为 ProcessStartInfo，设置输出重定向和子进程环境，执行 Start，等待退出并写出日志。第 1305 行把它用在确定性 Worker 启动上。箭头从完整启动边界指向其中这项控制侧职责。",
+        "assessment": "这段源码无法证明整个边界的职责已列全、全部失败路径已覆盖，或实际启动成功。该子职责的源码归属仍为 unverified。",
+        "concerns": [
+          "区分控制侧的进程构造和 Worker 侧的入口检查。此 Packet 只审前者作为父职责的一部分。"
+        ],
+        "risk": "若把分解箭头读成直接调用或源码所有权，会给 Evidence 添加它没有证明的结论。",
+        "suggestion": "APPROVED",
+        "suggestion_reason": "这一步跨越参数、环境、进程与输出处理，形成可解释且有清晰边界的子职责。批准范围只覆盖这条静态分解。"
+      }
+    },
+    "candidate-node::worker-launch-boundary": {
+      "packet": {
+        "schema": "architecture-explorer.node-review-packet.v2",
+        "object_key": {
+          "kind": "candidate-node",
+          "node_id": "worker-launch-boundary"
+        },
+        "reviewed_source_snapshot": {
+          "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+          "worktree_state": "clean"
+        },
+        "allowed_results": [
+          "APPROVED",
+          "REJECTED"
+        ],
+        "candidate_fact": {
+          "id": "worker-launch-boundary",
+          "node_type": "responsibility",
+          "name": "Worker 启动边界",
+          "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。",
+          "plain_explanation": "像一道受控发车闸门，Supervisor 准备好明确的 Worker 脚本后才跨进程启动。这里新增的是未审核源码说明；唯一正式 Supervisor→Worker 关系仍以原有 13 条批准证据为准。",
+          "review_status": "candidate",
+          "source_assignment": {
+            "status": "partial",
+            "note": "T3 已审核关系只支持启动边界及其证据链；单条调用关系不足以证明完整源码归属。",
+            "relationship_ids": [
+              "relationship:production-control:launches:translation-execution"
+            ],
+            "evidence_ids": [
+              "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+              "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+              "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+            ]
+          }
+        },
+        "claims": [
+          {
+            "kind": "IDENTITY",
+            "value": {
+              "kind": "candidate-node",
+              "node_id": "worker-launch-boundary"
+            },
+            "source": "candidate-fact.object-key"
+          },
+          {
+            "kind": "NAME",
+            "value": "Worker 启动边界",
+            "source": "candidate-fact.name"
+          },
+          {
+            "kind": "CLASSIFICATION",
+            "value": {
+              "node_type": "responsibility",
+              "rationale": "worker-launch-boundary 描述的是生产控制把受参数和守卫约束的启动请求跨越进程边界交给翻译执行这一稳定架构职责，而不是某一个文件、函数、脚本包装器或可部署组件。三条 Candidate Evidence 跨越控制侧启动准备与 Worker 入口定位，只支持该职责边界值得作为候选节点表达；它们不足以证明一个物理组件、完整源码边界或排他所有权。"
+            },
+            "source": "node-review-definition.classification"
+          },
+          {
+            "kind": "RESPONSIBILITY",
+            "value": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。",
+            "source": "candidate-fact.responsibility"
+          },
+          {
+            "kind": "PLAIN_EXPLANATION",
+            "value": "像一道受控发车闸门，Supervisor 准备好明确的 Worker 脚本后才跨进程启动。这里新增的是未审核源码说明；唯一正式 Supervisor→Worker 关系仍以原有 13 条批准证据为准。",
+            "source": "candidate-fact.plain-explanation"
+          },
+          {
+            "kind": "SOURCE_ASSIGNMENT",
+            "value": {
+              "status": "partial",
+              "note": "T3 已审核关系只支持启动边界及其证据链；单条调用关系不足以证明完整源码归属。",
+              "relationship_ids": [
+                "relationship:production-control:launches:translation-execution"
+              ],
+              "evidence_ids": [
+                "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+                "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+                "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8"
+              ]
+            },
+            "source": "candidate-fact.source-assignment"
+          },
+          {
+            "kind": "CANDIDATE_EVIDENCE",
+            "value": [
+              {
+                "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+                "role": "powershell_function_entry"
+              },
+              {
+                "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+                "role": "powershell_script_binding"
+              },
+              {
+                "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+                "role": "deterministic_worker_wrapper"
+              }
+            ],
+            "source": "node-review-definition.candidate-evidence-ids"
+          },
+          {
+            "kind": "DEPENDENCIES_AND_LIMITS",
+            "value": {
+              "dependencies": [
+                {
+                  "kind": "reviewed-relationship",
+                  "object_id": "relationship:production-control:launches:translation-execution",
+                  "decision_id": "github-comment:6516894339",
+                  "result": "APPROVED",
+                  "reviewed_revision": "857a4b85cf4763b74ecff0d02e660b005a0c8bae",
+                  "claims_sha256": "7197e0b96a1aafc1520a01d5e52a039a92532d7339c44a06ed586e6b4aaa2e1a",
+                  "evidence_ids": [
+                    "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13",
+                    "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711",
+                    "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3",
+                    "evidence:sha256:3929e17745639510a1a3c6a39b5be55b5a6afc2070c3f18cb300fa0107983308",
+                    "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a",
+                    "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc",
+                    "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2",
+                    "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa",
+                    "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2",
+                    "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d",
+                    "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5",
+                    "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914",
+                    "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d"
+                  ]
+                }
+              ],
+              "zero_dependency_reason": null,
+              "retained_unknowns": [
+                "是否在某次实际运行中到达或成功跨越该边界",
+                "运行时前置条件、凭据和外部依赖是否可用",
+                "该职责的完整源码覆盖",
+                "任何文件、symbol 或代码区域是否排他归属该节点",
+                "观察到的名称、字面值和直接绑定以外的参数业务含义",
+                "相邻组件是否获批",
+                "任何 Candidate Collaboration 是否获批",
+                "顶层模块源码覆盖是否完成"
+              ]
+            },
+            "source": "node-review-definition.dependencies-and-limits"
+          }
+        ],
+        "candidate_evidence": [
+          {
+            "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+            "source_role": "automatic_source_fact",
+            "evidence_kind": "powershell_function_entry",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "Start-DeterministicWorkerProcess",
+            "structural_anchor": "powershell:function:Start-DeterministicWorkerProcess",
+            "syntax_position": "supervisor/function:Start-DeterministicWorkerProcess",
+            "current_location": {
+              "line_start": 224,
+              "line_end": 291
+            },
+            "snippet": "function Start-DeterministicWorkerProcess([string]$FilePath, [string[]]$ArgumentVector, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath, [ref]$LaunchDiagnostics) {\r\n    $LaunchDiagnostics.Value.launch_stage = 'PROCESS_ARGUMENT_BUILD'\r\n    $LaunchDiagnostics.Value.executable = $FilePath\r\n    $LaunchDiagnostics.Value.working_directory = $WorkingDirectory\r\n    $quotedArguments = @($ArgumentVector | ForEach-Object { ConvertTo-ChildCommandLineArgument ([string]$_) })\r\n    # Windows PowerShell can expose ProcessStartInfo.EnvironmentVariables as\r\n    # null for a valid instance.  Do not use that collection: the child gets\r\n    # an inherited environment captured at Process.Start instead.\r\n    $startInfo = [System.Diagnostics.ProcessStartInfo]::new($FilePath, [string]::Join(' ', [string[]]$quotedArguments))\r\n    $startInfo.WorkingDirectory = $WorkingDirectory\r\n    $startInfo.UseShellExecute = $false\r\n    $startInfo.RedirectStandardOutput = $true\r\n    $startInfo.RedirectStandardError = $true\r\n    $childEnvironment = Get-CanonicalChildEnvironment\r\n    $environmentKeys = @($childEnvironment.Keys | ForEach-Object { [string]$_ })\r\n    $duplicateGroups = @($environmentKeys | Group-Object { $_.ToUpperInvariant() } | Where-Object { $_.Count -gt 1 })\r\n    $LaunchDiagnostics.Value.env_key_count = $environmentKeys.Count\r\n    $LaunchDiagnostics.Value.case_insensitive_duplicate_count = $duplicateGroups.Count\r\n    $LaunchDiagnostics.Value.launch_stage = 'ENVIRONMENT_BUILD'\r\n    $environmentScope = [System.EnvironmentVariableTarget]::Process\r\n    $normalizedKeys = @('Path', 'BOOKTRANS_PRODUCTION_WORKER_ID', 'BOOKTRANS_PRODUCTION_WORKER_HANDOFF_PATH', 'BOOKTRANS_PRODUCTION_BATCH', 'BOOKTRANS_PRODUCTION_CHECKPOINT')\r\n    $parentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n    $affectedKeys = @($parentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n        $candidate = $_\r\n        $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n    })\r\n    foreach ($name in $normalizedKeys) {\r\n        if ($null -eq ($affectedKeys | Where-Object { $_ -ieq $name } | Select-Object -First 1)) { $affectedKeys += $name }\r\n    }\r\n    $parentSnapshot = @()\r\n    foreach ($key in $affectedKeys) {\r\n        $parentSnapshot += [ordered]@{ key = $key; value = [Environment]::GetEnvironmentVariable($key, $environmentScope) }\r\n    }\r\n    try {\r\n        # Only the normalized launch keys are changed.  Every other variable\r\n        # is inherited untouched, and the process environment is restored\r\n        # before this worker launch returns.\r\n        foreach ($key in $affectedKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($key in $normalizedKeys) {\r\n            if ($childEnvironment.ContainsKey($key)) {\r\n                [Environment]::SetEnvironmentVariable($key, [string]$childEnvironment[$key], $environmentScope)\r\n            }\r\n        }\r\n        $child = [System.Diagnostics.Process]::new()\r\n        $child.StartInfo = $startInfo\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_ENTER'\r\n        if (-not $child.Start()) { throw [System.InvalidOperationException]::new('WORKER_LAUNCH_FAILED:PROCESS_START_RETURNED_FALSE') }\r\n        $LaunchDiagnostics.Value.child_created = $true\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_RETURN'\r\n        $stdoutTask = $child.StandardOutput.ReadToEndAsync()\r\n        $stderrTask = $child.StandardError.ReadToEndAsync()\r\n        $LaunchDiagnostics.Value.launch_stage = 'CHILD_EXIT_WAIT'\r\n        $child.WaitForExit()\r\n        [System.IO.File]::WriteAllText($StdoutPath, $stdoutTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        [System.IO.File]::WriteAllText($StderrPath, $stderrTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        return $child\r\n    } finally {\r\n        $currentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n        $restoreKeys = @($currentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n            $candidate = $_\r\n            $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n        })\r\n        foreach ($key in $restoreKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($entry in $parentSnapshot) {\r\n            if ($null -ne $entry.value) { [Environment]::SetEnvironmentVariable([string]$entry.key, [string]$entry.value, $environmentScope) }\r\n        }\r\n    }\r\n}",
+            "normalized_snippet_sha256": "113a6afaad9335832b31e72e6a446e45ec25f4b21dbd76431d8f70421e351dfa",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:936eda38f0f420588192ddf9d50174979ae5106c36139459f1576bd31f78b429",
+            "source_role": "automatic_source_fact",
+            "evidence_kind": "powershell_script_binding",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "$deterministicWorkerScript",
+            "structural_anchor": "powershell:assignment:$deterministicWorkerScript",
+            "syntax_position": "supervisor/assignment:$deterministicWorkerScript",
+            "current_location": {
+              "line_start": 52,
+              "line_end": 52
+            },
+            "snippet": "$deterministicWorkerScript = Join-Path $Root \"scripts\\production\\run_qwen_deterministic_worker.py\"",
+            "normalized_snippet_sha256": "32249443cf0e783808c579a69bf04b14b75eb6b796d756cc562551f2a591ea0a",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:dc80ec834e36e03a4b7cca8c95fa77a6ec0f3391480ca03e49fcf990c4b607e8",
+            "source_role": "automatic_source_fact",
+            "evidence_kind": "deterministic_worker_wrapper",
+            "path": "scripts/production/run_qwen_deterministic_worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:worker-wrapper/import:booktrans.production_worker.worker.main/main-guard",
+            "syntax_position": "module/main-guard:1",
+            "current_location": {
+              "line_start": 14,
+              "line_end": 15
+            },
+            "snippet": "if __name__ == \"__main__\":\r\n    raise SystemExit(main())",
+            "normalized_snippet_sha256": "6033fff73548e19f3c2a68f692078c2c58ea34357472d17e1f6d0f84c459f5f0",
+            "file_sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9"
+          }
+        ],
+        "dependency_evidence": [
+          {
+            "evidence_id": "evidence:sha256:05ea188dd9085a65c4642f0c75961b731a4a8477fd86ed4f02f1633e4ca77b13",
+            "source_role": "production",
+            "evidence_kind": "worker_script_binding",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "$deterministicWorkerScript",
+            "structural_anchor": "powershell:assignment:$deterministicWorkerScript",
+            "syntax_position": "module/assignment:$deterministicWorkerScript#1",
+            "current_location": {
+              "line_start": 52,
+              "line_end": 52
+            },
+            "snippet": "$deterministicWorkerScript = Join-Path $Root \"scripts\\production\\run_qwen_deterministic_worker.py\"\r",
+            "normalized_snippet_sha256": "32249443cf0e783808c579a69bf04b14b75eb6b796d756cc562551f2a591ea0a",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:208e42baa3b95b1ef9f4400e521f3ec5ecc558d4091371667614b793e425b711",
+            "source_role": "production",
+            "evidence_kind": "process_boundary_definition",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "Start-DeterministicWorkerProcess",
+            "structural_anchor": "powershell:function:Start-DeterministicWorkerProcess",
+            "syntax_position": "function:Start-DeterministicWorkerProcess#1",
+            "current_location": {
+              "line_start": 224,
+              "line_end": 291
+            },
+            "snippet": "function Start-DeterministicWorkerProcess([string]$FilePath, [string[]]$ArgumentVector, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath, [ref]$LaunchDiagnostics) {\r\n    $LaunchDiagnostics.Value.launch_stage = 'PROCESS_ARGUMENT_BUILD'\r\n    $LaunchDiagnostics.Value.executable = $FilePath\r\n    $LaunchDiagnostics.Value.working_directory = $WorkingDirectory\r\n    $quotedArguments = @($ArgumentVector | ForEach-Object { ConvertTo-ChildCommandLineArgument ([string]$_) })\r\n    # Windows PowerShell can expose ProcessStartInfo.EnvironmentVariables as\r\n    # null for a valid instance.  Do not use that collection: the child gets\r\n    # an inherited environment captured at Process.Start instead.\r\n    $startInfo = [System.Diagnostics.ProcessStartInfo]::new($FilePath, [string]::Join(' ', [string[]]$quotedArguments))\r\n    $startInfo.WorkingDirectory = $WorkingDirectory\r\n    $startInfo.UseShellExecute = $false\r\n    $startInfo.RedirectStandardOutput = $true\r\n    $startInfo.RedirectStandardError = $true\r\n    $childEnvironment = Get-CanonicalChildEnvironment\r\n    $environmentKeys = @($childEnvironment.Keys | ForEach-Object { [string]$_ })\r\n    $duplicateGroups = @($environmentKeys | Group-Object { $_.ToUpperInvariant() } | Where-Object { $_.Count -gt 1 })\r\n    $LaunchDiagnostics.Value.env_key_count = $environmentKeys.Count\r\n    $LaunchDiagnostics.Value.case_insensitive_duplicate_count = $duplicateGroups.Count\r\n    $LaunchDiagnostics.Value.launch_stage = 'ENVIRONMENT_BUILD'\r\n    $environmentScope = [System.EnvironmentVariableTarget]::Process\r\n    $normalizedKeys = @('Path', 'BOOKTRANS_PRODUCTION_WORKER_ID', 'BOOKTRANS_PRODUCTION_WORKER_HANDOFF_PATH', 'BOOKTRANS_PRODUCTION_BATCH', 'BOOKTRANS_PRODUCTION_CHECKPOINT')\r\n    $parentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n    $affectedKeys = @($parentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n        $candidate = $_\r\n        $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n    })\r\n    foreach ($name in $normalizedKeys) {\r\n        if ($null -eq ($affectedKeys | Where-Object { $_ -ieq $name } | Select-Object -First 1)) { $affectedKeys += $name }\r\n    }\r\n    $parentSnapshot = @()\r\n    foreach ($key in $affectedKeys) {\r\n        $parentSnapshot += [ordered]@{ key = $key; value = [Environment]::GetEnvironmentVariable($key, $environmentScope) }\r\n    }\r\n    try {\r\n        # Only the normalized launch keys are changed.  Every other variable\r\n        # is inherited untouched, and the process environment is restored\r\n        # before this worker launch returns.\r\n        foreach ($key in $affectedKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($key in $normalizedKeys) {\r\n            if ($childEnvironment.ContainsKey($key)) {\r\n                [Environment]::SetEnvironmentVariable($key, [string]$childEnvironment[$key], $environmentScope)\r\n            }\r\n        }\r\n        $child = [System.Diagnostics.Process]::new()\r\n        $child.StartInfo = $startInfo\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_ENTER'\r\n        if (-not $child.Start()) { throw [System.InvalidOperationException]::new('WORKER_LAUNCH_FAILED:PROCESS_START_RETURNED_FALSE') }\r\n        $LaunchDiagnostics.Value.child_created = $true\r\n        $LaunchDiagnostics.Value.launch_stage = 'START_PROCESS_RETURN'\r\n        $stdoutTask = $child.StandardOutput.ReadToEndAsync()\r\n        $stderrTask = $child.StandardError.ReadToEndAsync()\r\n        $LaunchDiagnostics.Value.launch_stage = 'CHILD_EXIT_WAIT'\r\n        $child.WaitForExit()\r\n        [System.IO.File]::WriteAllText($StdoutPath, $stdoutTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        [System.IO.File]::WriteAllText($StderrPath, $stderrTask.GetAwaiter().GetResult(), $utf8NoBom)\r\n        return $child\r\n    } finally {\r\n        $currentEnvironment = [Environment]::GetEnvironmentVariables($environmentScope)\r\n        $restoreKeys = @($currentEnvironment.Keys | ForEach-Object { [string]$_ } | Where-Object {\r\n            $candidate = $_\r\n            $null -ne ($normalizedKeys | Where-Object { $_ -ieq $candidate } | Select-Object -First 1)\r\n        })\r\n        foreach ($key in $restoreKeys) { [Environment]::SetEnvironmentVariable($key, $null, $environmentScope) }\r\n        foreach ($entry in $parentSnapshot) {\r\n            if ($null -ne $entry.value) { [Environment]::SetEnvironmentVariable([string]$entry.key, [string]$entry.value, $environmentScope) }\r\n        }\r\n    }\r\n}",
+            "normalized_snippet_sha256": "113a6afaad9335832b31e72e6a446e45ec25f4b21dbd76431d8f70421e351dfa",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:5f59c334ec000f69e01750b17e111d71662c2e183a54ce25bdd62a6cc0f362a3",
+            "source_role": "production",
+            "evidence_kind": "production_argument_vector",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "$workerArgumentVector",
+            "structural_anchor": "powershell:assignment:$workerArgumentVector",
+            "syntax_position": "production-loop/assignment:$workerArgumentVector#1",
+            "current_location": {
+              "line_start": 1279,
+              "line_end": 1284
+            },
+            "snippet": "$workerArgumentVector = @(\r\n                    $deterministicWorkerScript, '--root', $Root, '--run-path', $run,\r\n                    '--worker-id', $workerId, '--handoff-path', $workerHandoffPath,\r\n                    '--batch-label', $before.active_batch, '--checkpoint', $before.next_checkpoint,\r\n                    '--mode', 'production', '--authorize-production-checkpoint-write'\r\n                ) + $workerArgs",
+            "normalized_snippet_sha256": "585b46b61f3bea89e2092abc66ee8a41de89f78840c18e33fc1314c05d0c1099",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:3929e17745639510a1a3c6a39b5be55b5a6afc2070c3f18cb300fa0107983308",
+            "source_role": "production",
+            "evidence_kind": "process_boundary_invocation",
+            "path": "scripts/production/production_campaign_supervisor.ps1",
+            "symbol": "Start-DeterministicWorkerProcess",
+            "structural_anchor": "powershell:call:Start-DeterministicWorkerProcess",
+            "syntax_position": "production-loop/call:Start-DeterministicWorkerProcess#1",
+            "current_location": {
+              "line_start": 1305,
+              "line_end": 1305
+            },
+            "snippet": "Start-DeterministicWorkerProcess $python $workerArgumentVector $Root $workerStdoutPath $workerStderrPath ([ref]$launchDiagnostics)",
+            "normalized_snippet_sha256": "f5d70ce3e61b3c8bfdfb417716f2ef5d09462e2051fe6f45d5b32a7caa8dc7da",
+            "file_sha256": "63c6c8556f684d2b12d695869be456ac0d9614d7c778a998d1731df54811ed47"
+          },
+          {
+            "evidence_id": "evidence:sha256:c09b17cb3de85d77888286adef6daee1cfd6ca9ab4b4e1efcf6639addcfa1d6a",
+            "source_role": "production",
+            "evidence_kind": "worker_wrapper_import",
+            "path": "scripts/production/run_qwen_deterministic_worker.py",
+            "symbol": "module",
+            "structural_anchor": "python:import:booktrans.production_worker.worker.main",
+            "syntax_position": "module/import:worker.main#1",
+            "current_location": {
+              "line_start": 11,
+              "line_end": 11
+            },
+            "snippet": "from booktrans.production_worker.worker import main",
+            "normalized_snippet_sha256": "91dae863a97e6b138ad691f2673994d16eddf25bc3c4a946c93d035080da5529",
+            "file_sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9"
+          },
+          {
+            "evidence_id": "evidence:sha256:179b1775ba7d00c1b9b4d371c4ec714f98259b47738f63b6073625f0b75bd1dc",
+            "source_role": "production",
+            "evidence_kind": "worker_wrapper_main_call",
+            "path": "scripts/production/run_qwen_deterministic_worker.py",
+            "symbol": "module",
+            "structural_anchor": "python:main-guard:call-main",
+            "syntax_position": "module/if:__name__==__main__/call:main#1",
+            "current_location": {
+              "line_start": 14,
+              "line_end": 15
+            },
+            "snippet": "if __name__ == \"__main__\":\r\n    raise SystemExit(main())",
+            "normalized_snippet_sha256": "6033fff73548e19f3c2a68f692078c2c58ea34357472d17e1f6d0f84c459f5f0",
+            "file_sha256": "8c2b76fcb1e1ac8499a431626c28b7751e6e2f8c1d3180634828629e3e63c0c9"
+          },
+          {
+            "evidence_id": "evidence:sha256:2d7d1ecfb242d54ccf66abf727985ae2ee84ea3db028d95a261479e8ef3a3de2",
+            "source_role": "production",
+            "evidence_kind": "worker_mode_contract",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "build_parser",
+            "structural_anchor": "python:function:build_parser/add_argument:--mode",
+            "syntax_position": "function:build_parser/call:add_argument:--mode#1",
+            "current_location": {
+              "line_start": 741,
+              "line_end": 741
+            },
+            "snippet": "parser.add_argument(\"--mode\", choices=(\"canary\", \"production\"), default=\"canary\")",
+            "normalized_snippet_sha256": "316ef8a56ba98b43f158b023505a993cf3cbc17ef8830d2c2612351c435b27a3",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          },
+          {
+            "evidence_id": "evidence:sha256:b1641bdedc290731af75efff179ba3aeb50f4d00e2f261021c5f69137c6157aa",
+            "source_role": "production",
+            "evidence_kind": "worker_authorization_contract",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "build_parser",
+            "structural_anchor": "python:function:build_parser/add_argument:--authorize-production-checkpoint-write",
+            "syntax_position": "function:build_parser/call:add_argument:--authorize-production-checkpoint-write#1",
+            "current_location": {
+              "line_start": 744,
+              "line_end": 744
+            },
+            "snippet": "parser.add_argument(\"--authorize-production-checkpoint-write\", action=\"store_true\")",
+            "normalized_snippet_sha256": "d56c5bfd8e94d4a2f3d91336785b45ba4bdf57717d90590661e117e4ea797c79",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          },
+          {
+            "evidence_id": "evidence:sha256:abb2483c873946cca5de88a0e9f8405f69d5be723c190eb7ced3f0b5d4771fc2",
+            "source_role": "production",
+            "evidence_kind": "worker_argument_parse",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:function:main/assignment:args=parse_args",
+            "syntax_position": "function:main/assignment:args=parse_args#1",
+            "current_location": {
+              "line_start": 799,
+              "line_end": 799
+            },
+            "snippet": "args = build_parser().parse_args(argv)",
+            "normalized_snippet_sha256": "f55240734847b7cf280028f27f7d849aeba44e666b48f5fdec92e459718d96ff",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          },
+          {
+            "evidence_id": "evidence:sha256:0f0af96ec0e1e8cefac855e55e6618e30355053e0d0f85e66c1f09cf342b010d",
+            "source_role": "production",
+            "evidence_kind": "worker_canary_exit_guard",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:function:main/if:args.mode==canary/exit",
+            "syntax_position": "function:main/if:args.mode==canary/exit#1",
+            "current_location": {
+              "line_start": 801,
+              "line_end": 820
+            },
+            "snippet": "if args.mode == \"canary\":\r\n        stamp = datetime.now(timezone.utc).strftime(\"%Y%m%dT%H%M%SZ\")\r\n        output = args.isolated_output or (args.root / \"runs\" / f\"qwen-production-canary-{stamp}\")\r\n        report = run_canary_command(\r\n            root=args.root,\r\n            run=args.run_path,\r\n            isolated_output=output,\r\n            continue_from_raw=args.continue_from_raw,\r\n            resume=args.resume,\r\n            recalculate_from_evidence=args.recalculate_from_evidence,\r\n            semantic_review=args.semantic_review,\r\n            semantic_review_ids=[item.strip() for item in str(args.semantic_review_ids or \"\").split(\",\") if item.strip()],\r\n            corrected_second_review=args.corrected_second_review,\r\n            group_repair=args.group_repair,\r\n            human_adjudicate=args.human_adjudicate,\r\n            human_adjudication_path=args.human_adjudication_path,\r\n            watchdog_seconds=args.watchdog_seconds,\r\n        )\r\n        print(json.dumps({\"output\": str(output), \"gate\": report.get(\"gate\")}, ensure_ascii=False), flush=True)\r\n        return 0 if report.get(\"gate\", {}).get(\"passed\") else 2",
+            "normalized_snippet_sha256": "ea06b467ef053a3c945e92a83ad19f2e7c11f5248b56f89db528747009be5c68",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          },
+          {
+            "evidence_id": "evidence:sha256:ebb4142d4597073e24236794886dd8365f271e21672af5f25af8152f283ad8a5",
+            "source_role": "production",
+            "evidence_kind": "worker_id_guard",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:function:main/guard:worker-id-required",
+            "syntax_position": "function:main/guard:worker-id-required#1",
+            "current_location": {
+              "line_start": 821,
+              "line_end": 822
+            },
+            "snippet": "if not args.worker_id:\r\n        raise SystemExit(\"WORKER_ID_REQUIRED\")",
+            "normalized_snippet_sha256": "473b6da3b36a31fbc5ac10355fd56d9f668add3bc5d7978eb77ec33a91e7d9dd",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          },
+          {
+            "evidence_id": "evidence:sha256:d3006bdb27376812bd512a822f55db071eef6cf77bdbe700ecb69417bff21914",
+            "source_role": "production",
+            "evidence_kind": "worker_batch_checkpoint_guard",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:function:main/guard:batch-checkpoint-pair",
+            "syntax_position": "function:main/guard:batch-checkpoint-pair#1",
+            "current_location": {
+              "line_start": 823,
+              "line_end": 824
+            },
+            "snippet": "if bool(args.batch_label) != bool(args.checkpoint):\r\n        raise SystemExit(\"WORKER_LAUNCH_BINDING_INCOMPLETE\")",
+            "normalized_snippet_sha256": "08ca045007f09d74331a890f263c9f5953b84ef509391c7361c8450a5a5bedd7",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          },
+          {
+            "evidence_id": "evidence:sha256:8174f96a8fd30d19c2a08a3d1da987f018eba6d3ea294b391c7d8986f23e715d",
+            "source_role": "production",
+            "evidence_kind": "worker_production_branch",
+            "path": "src/booktrans/production_worker/worker.py",
+            "symbol": "main",
+            "structural_anchor": "python:function:main/call:run_production_checkpoint",
+            "syntax_position": "function:main/non-canary/call:run_production_checkpoint#1",
+            "current_location": {
+              "line_start": 825,
+              "line_end": 839
+            },
+            "snippet": "run_production_checkpoint(\r\n        root=args.root,\r\n        run=args.run_path,\r\n        worker_id=args.worker_id,\r\n        handoff_path=handoff,\r\n        authorize=args.authorize_production_checkpoint_write,\r\n        semantic_rescue=args.semantic_rescue,\r\n        human_adjudication_path=args.human_adjudication_path,\r\n        d051_approval_path=args.d051_approval_path,\r\n        d051_reuse_approval_path=args.d051_reuse_approval_path,\r\n        d051_reuse_display_id=args.d051_reuse_display_id,\r\n        review_policy=args.review_policy,\r\n        batch_label=args.batch_label,\r\n        checkpoint=args.checkpoint,\r\n    )",
+            "normalized_snippet_sha256": "32cc6599a3b8a8984432c887289ad0efa7ab7a9516d9671979b610e4bc4d9e87",
+            "file_sha256": "7901a807e1cee6fdee2139f37074505b10bceb227de00816eac1d33f8429ab2a"
+          }
+        ],
+        "inputs": {
+          "definition_sha256": "cb315a575fda20803d5fd99f5dc78d79f8c5e127cb3d5a84735f3f8bdcf86457",
+          "candidate_fact_sha256": "0e12aa409d1c94d6f1959c59fcf3c1b6331ef18b055792db0dca460ab1ac0a2f",
+          "claims_sha256": "cb1e1fd9a564203a60da2e5d53489498058f34ebf5532d86bb5e0942160ba5a0",
+          "candidate_evidence_sha256": "db36f5a519eb3e77ec67ffa83d4983123d74e760a67d4469826f3b076b0c04db",
+          "dependency_evidence_sha256": "4ee1cc6e3f3f6e2a1325e2292978973a76f4c0547d9d44ac49b89133eea8f646"
+        },
+        "legacy_v1_compatibility": {
+          "schema": "architecture-explorer.node-review-packet.v1",
+          "object_key": {
+            "kind": "candidate-node",
+            "parent_module_id": "production-control",
+            "node_id": "worker-launch-boundary"
+          },
+          "candidate_fact_sha256": "0e12aa409d1c94d6f1959c59fcf3c1b6331ef18b055792db0dca460ab1ac0a2f",
+          "claims_sha256": "f3252dd5a349b0c2b5902503c22e4cb8be5f568e5045cc63f96b9be6c5208783",
+          "candidate_evidence_fingerprint_sha256": "1fb5703461195ea8a3f314a01ddfce1c2b1d0ffa493f63f566d7f3fcce6954c7",
+          "formal_evidence_sha256": "be75396ea97e1cc19f6ef65a6f55576cc983d66bf84a2d6f46ac7dc3c0566566",
+          "packet_sha256": "2d542b551fd8568b362a286755c288141bf6a9f51cc001141928efafe7f778cd"
+        },
+        "packet_sha256": "5a5ff7e276e66a201d8678dc4bb702bcd44a5a1020d84f471e246601c85002bc"
+      },
+      "analysis": {
+        "topic": "生产控制如何启动确定性 Worker",
+        "display_name": "Worker 启动边界",
+        "source_check": "Supervisor 脚本第 52 行绑定确定性 Worker 包装脚本，第 224–291 行构造并启动子进程。另核对第 1280 行把脚本放入参数向量，第 1305 行用项目解释器调用该启动函数。包装器第 14–15 行在直接执行时进入 Worker main。既有 Supervisor→Worker 正式依赖在本快照仍为 current-reviewed / exact-match。",
+        "assessment": "这些静态证据无法确认某次生产运行真的跨过边界、启动成功、凭据可用或完整源码覆盖。",
+        "concerns": [
+          "源码指派为 partial，三处定位只支持已列明的职责范围。"
+        ],
+        "risk": "若把跨进程交接读成每次运行均已成功启动或通过生产入口检查，会超出 Packet。",
+        "suggestion": "APPROVED",
+        "suggestion_reason": "参数交接、进程启动与 Worker 入口都能直接定位，支持批准这个职责和明示的部分源码指派。"
+      }
+    }
+  },
+  "batch_sha256": "c75368ea309bfba5c3d5c97729795318518e5747abf4ecdc9533ec29b8f6afc1"
+}

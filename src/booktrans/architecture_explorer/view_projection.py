@@ -105,9 +105,9 @@ def _explicit_reviews(explorer: dict[str, Any]) -> dict[str, dict[str, Any]]:
         ):
             raise ExplorerInputError("View Projection review reasons must be strings")
         if result == "Pending":
-            if state != "not-reviewed" or approved_scope:
+            if state != "not-reviewed" or approved_scope or "source" in review:
                 raise ExplorerInputError(
-                    "View Projection Pending review must be not-reviewed without approval scope"
+                    "View Projection Pending review must be not-reviewed without scope or source"
                 )
         elif state == "not-reviewed":
             raise ExplorerInputError(
@@ -173,6 +173,18 @@ def _explicit_reviews(explorer: dict[str, Any]) -> dict[str, dict[str, Any]]:
                     "View Projection Relationship Review source is invalid"
                 )
             validated[key]["source"] = deepcopy(review["source"])
+        if "retained_unknowns" in review:
+            unknowns = review["retained_unknowns"]
+            if (
+                result == "Pending"
+                or validated[key].get("source", {}).get("status") != "trusted-owner-admin"
+                or not isinstance(unknowns, list)
+                or not all(isinstance(item, str) and item for item in unknowns)
+            ):
+                raise ExplorerInputError(
+                    "View Projection Relationship Review unknowns are invalid"
+                )
+            validated[key]["retained_unknowns"] = deepcopy(unknowns)
     return validated
 
 

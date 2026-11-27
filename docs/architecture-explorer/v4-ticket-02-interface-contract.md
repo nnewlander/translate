@@ -40,6 +40,30 @@ not a Review authority or a change to the current v3 contract.
 - `APPROVED` requires a non-empty approved scope. `REJECTED` and `Pending`
   require an empty scope. `Pending` is valid only with `not-reviewed`, while a
   decided result may not use `not-reviewed`.
+- `retained_unknowns` is a JSON array of non-empty strings on a decided
+  Relationship review. The Relationship Review producer emits it after
+  verifying the Decision and its source under Trust Policy. The only
+  authority is the Decision's `DEPENDENCIES_AND_LIMITS.value.retained_unknowns`
+  Claim. The producer preserves the strings and their order.
+- The View Projection consumer validates the array and its association with
+  a decided review and trusted source, then carries it unchanged to the
+  renderer. An explicit empty array means the trusted Decision lists no
+  retained unknowns. An omitted field is accepted for older projections and
+  means the projection did not supply that information. The renderer preserves
+  this distinction. A Pending review carries neither this field nor a trusted
+  source, even when an endpoint has an approved Decision.
+- The producer and consumer ship together. The formal build acceptance
+  exercises each decided Relationship from the trusted batch through
+  `review_projection` and View Projection to the browser. Compatibility inputs
+  with an omitted field remain readable under the same v1 schema.
+- For a decided Relationship, the producer sets `source.status` to
+  `trusted-owner-admin`, copies `repository`, `author`, `author_association`,
+  `permission` and `comment_url` from the verified source, and emits the
+  Receipt's canonical `sha256`. It sets `source.decision_id` from the verified Decision.
+  View Projection carries the source metadata to the detail renderer even
+  when the approved scope is empty. Older projections may lack source detail.
+  The renderer displays available verified metadata and a comment link
+  without fetching GitHub or deriving trust from the link.
 - Missing Relationship review data projects as `Pending` / `not-reviewed`, an
   empty approved scope, and reason `trusted-review-decision:missing`. Invalid,
   duplicate, conflicting, semantically mismatched, or unknown-object entries

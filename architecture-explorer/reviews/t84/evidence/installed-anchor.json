@@ -1,0 +1,61 @@
+{
+  "batch_id": "3903260e9883125046a9ac1be0d5c53c14fd26d9410a6add710cadb06df31992",
+  "batch_sha256": "c75368ea309bfba5c3d5c97729795318518e5747abf4ecdc9533ec29b8f6afc1",
+  "confirmation_sha256": "fea0a1c3d17707de2edc964b8b52dc0d4be29061f016a00b3cf4630789f409ef",
+  "installation_sha256": "1041dab86073f3ea4aea04a9b492d27e4310566b203ac360f858275780a10a08",
+  "objects": {
+    "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper": {
+      "anchor": {
+        "comment_created_at": "2026-11-26T12:32:26Z",
+        "comment_id": 7192133892,
+        "comment_updated_at": "2026-11-26T12:32:31Z",
+        "issue_id": 6599428271,
+        "issue_number": 84,
+        "source_receipt_sha256": "66a9e0bcd40516b6b5400adb7012789614227629e83b5b75033b212aba12df73"
+      },
+      "decision_id": "github-comment:7192133892",
+      "decision_sha256": "ea1bf6540d19e26eed5a43594f32156c3e04c64285676cab3faab91de3d991d2",
+      "object_key": {
+        "kind": "candidate-collaboration",
+        "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+      },
+      "source_receipt_sha256": "66a9e0bcd40516b6b5400adb7012789614227629e83b5b75033b212aba12df73"
+    },
+    "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction": {
+      "anchor": {
+        "comment_created_at": "2026-11-26T12:32:37Z",
+        "comment_id": 7192137877,
+        "comment_updated_at": "2026-11-26T12:32:43Z",
+        "issue_id": 6599428271,
+        "issue_number": 84,
+        "source_receipt_sha256": "b6f4634b1efc9ff4d0187c17839ab0a75f7ad7baa59311fcb34b2e02d7124dae"
+      },
+      "decision_id": "github-comment:7192137877",
+      "decision_sha256": "2b3c81875b62d2265ebe57afd356ccb3c7fd5a9b19dbba949d6f76a090988de2",
+      "object_key": {
+        "kind": "candidate-decomposition",
+        "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+      },
+      "source_receipt_sha256": "b6f4634b1efc9ff4d0187c17839ab0a75f7ad7baa59311fcb34b2e02d7124dae"
+    },
+    "candidate-node::worker-launch-boundary": {
+      "anchor": {
+        "comment_created_at": "2026-11-26T12:32:48Z",
+        "comment_id": 7192141675,
+        "comment_updated_at": "2026-11-26T12:32:51Z",
+        "issue_id": 6599428271,
+        "issue_number": 84,
+        "source_receipt_sha256": "6e7daa7d4dd2455f6f417f6db7a73f97f222e380df182073aadfe1e35f9e8841"
+      },
+      "decision_id": "github-comment:7192141675",
+      "decision_sha256": "77f5881f678db2fedccbb719862aec5b887b6df813df2359891787257bea1471",
+      "object_key": {
+        "kind": "candidate-node",
+        "node_id": "worker-launch-boundary"
+      },
+      "source_receipt_sha256": "6e7daa7d4dd2455f6f417f6db7a73f97f222e380df182073aadfe1e35f9e8841"
+    }
+  },
+  "schema": "architecture-explorer.batch-anchor-installation.v1",
+  "status": "installed"
+}

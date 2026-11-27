@@ -725,7 +725,34 @@
     "candidate-and-release": "可以把它看作装订与出厂检查环节：把获批译文放入候选文档，再确认包装内容和发布边界没有被意外改变。",
   };
 
-  const relationshipReviewMeaning = (review) => {
+  const appendRetainedUnknowns = (container, unknowns, heading = "h3") => {
+    if (!Array.isArray(unknowns) || !unknowns.length) return;
+    const list = document.createElement("ul");
+    for (const item of unknowns) list.append(text("li", item));
+    container.append(text(heading, "仍然未知的事项"), list);
+  };
+
+  const appendReviewSourceFacts = (facts, source, decisionId) => {
+    if (source?.status !== "trusted-owner-admin") return;
+    const author = [source.author, source.author_association, source.permission].filter(Boolean);
+    const rows = [
+      ["Decision ID", decisionId],
+      ["可信来源", author.join(" · ")],
+      ["来源收据", source.sha256],
+    ];
+    for (const [term, value] of rows) {
+      if (value) facts.append(text("dt", term), text("dd", value));
+    }
+    if (source.comment_url?.startsWith("https://github.com/")) {
+      const comment = text("a", "查看 GitHub 评论");
+      comment.href = source.comment_url;
+      const value = document.createElement("dd");
+      value.append(comment);
+      facts.append(text("dt", "GitHub 评论"), value);
+    }
+  };
+
+  const relationshipReviewMeaning = (review, isCandidate = false) => {
     const label = review.result === "APPROVED" && review.state === "current"
       ? `当前已审核 · ${projectedReviewLabel(review)}`
       : projectedReviewLabel(review);
@@ -734,6 +761,19 @@
       text("h3", label),
       text("p", `审核结果与当前状态由对象自己的显式投影提供；批准范围：${approvedScopeLabel(review)}。`),
     );
+    if (isCandidate && review.result !== "Pending") {
+      const facts = document.createElement("dl");
+      facts.className = "raw-evidence-facts";
+      appendReviewSourceFacts(facts, review.source, review.source?.decision_id);
+      if (facts.childElementCount) item.append(facts);
+      if (review.retained_unknowns === undefined) {
+        item.append(text("p", "此审核投影未提供保留未知项。"));
+      } else if (review.retained_unknowns.length === 0) {
+        item.append(text("p", "可信决定未列出保留未知项。"));
+      } else {
+        appendRetainedUnknowns(item, review.retained_unknowns, "h4");
+      }
+    }
     return item;
   };
 
@@ -774,8 +814,8 @@
     }
     detailContent.append(text("h3", "静态条件"));
     const conditions = document.createElement("ul"); for (const item of guide.static_conditions) conditions.append(text("li", item));
-    detailContent.append(conditions, text("h3", "仍然未知的事项"));
-    const unknowns = document.createElement("ul"); for (const item of guide.retained_unknowns) unknowns.append(text("li", item)); detailContent.append(unknowns);
+    detailContent.append(conditions);
+    appendRetainedUnknowns(detailContent, guide.retained_unknowns);
     const original = expandable("原始审核与英文技术字段", "original-review");
     const facts = document.createElement("dl"); facts.className = "detail-facts";
     for (const [term, value] of [
@@ -812,7 +852,7 @@
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
     statuses.append(text("span", projectedReviewStatus(isDecomposition ? "分解" : "协作", collaboration.review), `status ${projectedReviewClass(collaboration.review)}`), text("span", "源码归属：未核验", "status coverage-unverified"));
     const reviewMeaning = document.createElement("section"); reviewMeaning.className = "meaning-grid";
-    reviewMeaning.append(relationshipReviewMeaning(collaboration.review));
+    reviewMeaning.append(relationshipReviewMeaning(collaboration.review, true));
     detailContent.append(statuses, reviewMeaning, text("p", `这些静态源码依据只支持${semanticLabel}解释，不证明运行时行为或审核批准。`, "candidate-warning"));
     detailContent.append(text("h3", `源码依据（${collaboration.evidence_ids.length}）`));
     const returnContext = { kind: collaboration.object_key.kind, collaboration };
@@ -871,11 +911,6 @@
       ["Node Review State", `${review.state.status} · ${review.state.continuity}`],
     ];
     if (review.decision) {
-      identityRows.push(
-        ["Decision ID", review.decision.decision_id],
-        ["可信来源", `${review.source.author} · ${review.source.author_association} · ${review.source.permission}`],
-        ["来源收据", review.source.sha256],
-      );
       if (review.state.reasons?.length) identityRows.push(["连续性原因", review.state.reasons.join("；")]);
       if (review.state.evaluated_source_snapshot) {
         identityRows.push(["评估源码快照", `${review.state.evaluated_source_snapshot.revision} · ${review.state.evaluated_source_snapshot.worktree_state}`]);
@@ -885,6 +920,7 @@
       }
     }
     for (const [term, value] of identityRows) identity.append(text("dt", term), text("dd", value));
+    if (review.decision) appendReviewSourceFacts(identity, review.source, review.decision.decision_id);
     container.append(identity);
     if (!review.decision) {
       container.append(text("p", "当前无可信审核决定；没有可用的可信 Owner/admin 节点审核决定。", "candidate-warning"));
@@ -914,6 +950,9 @@
       }
       if (claim.kind === "FORMAL_DEPENDENCY_AND_LIMITS") {
         item.append(text("p", `正式依赖：${claim.value.relationship_id} · ${claim.value.t3_decision_id} · ${claim.value.formal_evidence_ids.length} 条正式 Evidence`, "candidate-warning"));
+      }
+      if (claim.kind === "DEPENDENCIES_AND_LIMITS") {
+        appendRetainedUnknowns(item, claim.value.retained_unknowns, "h4");
       }
       item.append(text("pre", JSON.stringify(claim.value, null, 2)));
       container.append(item);

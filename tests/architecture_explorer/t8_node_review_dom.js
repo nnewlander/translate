@@ -95,7 +95,10 @@
     nodeReviewTechnical.querySelector("summary").click();
     assert(nodeReviewTechnical.open, "professional node-review information cannot be expanded");
     const claims = nodeReviewTechnical.querySelectorAll(".node-review-claim");
+    const fact = (label) => [...nodeReviewTechnical.querySelectorAll("dt")]
+      .find((term) => term.textContent === label)?.nextElementSibling;
     if (expectedProjection === "Pending Review") {
+      assert(!fact("可信来源") && !fact("Decision ID") && !fact("来源收据") && !fact("GitHub 评论"), "pending Node gained a trusted source");
       assert(claims.length === 0, "pending projection fabricated Review Claims");
       assert(detail.textContent.includes("无可信审核决定"), "pending trust explanation is missing");
       const rawReview = nodeReviewTechnical.querySelector(".node-review-json");
@@ -104,6 +107,14 @@
       assert(rawReview.textContent.includes('"status": "not-reviewed"'), "pending full State JSON content is missing");
       assert(!rawReview.textContent.includes("Node Review Decision"), "pending projection fabricated a Decision JSON record");
     } else {
+      if (expectedState === "current · exact-match") {
+        const source = reviewData.source;
+        assert(source?.status === "trusted-owner-admin", "Node fixture lacks a verified source");
+        assert(fact("可信来源")?.textContent === [source.author, source.author_association, source.permission].join(" · "), "Node verified author or permission is wrong");
+        assert(fact("Decision ID")?.textContent === reviewData.decision.decision_id, "Node Decision ID is wrong");
+        assert(fact("来源收据")?.textContent === source.sha256, "Node Receipt is wrong");
+        assert(fact("GitHub 评论")?.querySelector("a")?.href === source.comment_url, "Node comment link is wrong");
+      }
       assert(claims.length === 8, "eight Review Claims are not shown");
       assert(detail.textContent.includes("Classification Rationale"), "classification rationale is missing");
       assert(detail.textContent.includes("顶层模块源码覆盖是否完成"), "retained unknowns are missing");

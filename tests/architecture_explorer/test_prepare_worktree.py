@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+from tempfile import TemporaryDirectory
 import uuid
 
 import pytest
@@ -20,14 +21,21 @@ def _run(
     cwd: Path,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    completed = subprocess.run(
         arguments,
         cwd=cwd,
-        check=check,
+        check=False,
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
+    if check and completed.returncode:
+        pytest.fail(
+            f"{arguments!r} in {cwd} exited {completed.returncode}\n"
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+            pytrace=False,
+        )
+    return completed
 
 
 def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -78,7 +86,7 @@ def temporary_architecture_explorer_worktree() -> Path:
     worktree = (
         shared_repository
         / "worktrees"
-        / f"architecture-explorer-prepare-test-{uuid.uuid4().hex}"
+        / f"architecture-explorer-{uuid.uuid4().hex[:10]}"
     )
     created = False
     try:
@@ -249,7 +257,7 @@ def test_worktree_outside_authorized_parent_is_rejected() -> None:
     shared_repository = _shared_repository()
     worktree = (
         shared_repository
-        / f"architecture-explorer-prepare-outside-{uuid.uuid4().hex}"
+        / f"architecture-explorer-{uuid.uuid4().hex[:10]}"
     )
     created = False
     try:
@@ -269,48 +277,37 @@ def test_worktree_outside_authorized_parent_is_rejected() -> None:
             _git(REPOSITORY, "worktree", "remove", "--force", str(worktree))
 
 
-def test_other_repository_cannot_use_architecture_explorer_authorization(
-    tmp_path: Path,
-) -> None:
-    other_repository = tmp_path / "other-repository"
-    _run(
-        ["git", "clone", "--no-hardlinks", str(REPOSITORY), str(other_repository)],
-        cwd=tmp_path,
-    )
-    _create_junction(other_repository / ".venv", _shared_repository() / ".venv")
-    worktree = other_repository / "worktrees/architecture-explorer-other-repository"
-    created = False
-    try:
-        _git(
-            other_repository,
-            "worktree",
-            "add",
-            "--detach",
-            str(worktree),
-            "HEAD",
+def test_other_repository_cannot_use_architecture_explorer_authorization() -> None:
+    shared_repository = _shared_repository()
+    # The clone and its linked checkout both materialize the complete tree.
+    with TemporaryDirectory(prefix="r-", dir=shared_repository) as directory:
+        other_repository = Path(directory)
+        _run(
+            ["git", "clone", "--no-hardlinks", str(REPOSITORY), str(other_repository)],
+            cwd=shared_repository,
         )
-        created = True
-        shutil.copy2(
-            PREPARE_SCRIPT,
-            worktree / PREPARE_SCRIPT.relative_to(REPOSITORY),
-        )
-
-        result = _prepare(worktree)
-
-        assert result.returncode == 2
-        assert "is not the authorized repository" in result.stderr
-        assert not (worktree / ".venv").exists()
-    finally:
-        if created:
-            _remove_junction(worktree / ".venv")
-            _git(
-                other_repository,
-                "worktree",
-                "remove",
-                "--force",
-                str(worktree),
+        _create_junction(other_repository / ".venv", shared_repository / ".venv")
+        worktree = other_repository / "worktrees/architecture-explorer-r"
+        created = False
+        try:
+            _git(other_repository, "worktree", "add", "--detach", str(worktree), "HEAD")
+            created = True
+            shutil.copy2(
+                PREPARE_SCRIPT,
+                worktree / PREPARE_SCRIPT.relative_to(REPOSITORY),
             )
-        _remove_junction(other_repository / ".venv")
+
+            result = _prepare(worktree)
+            assert result.returncode == 2
+            assert "is not the authorized repository" in result.stderr
+            assert not (worktree / ".venv").exists()
+        finally:
+            try:
+                if created:
+                    _remove_junction(worktree / ".venv")
+                    _git(other_repository, "worktree", "remove", "--force", str(worktree))
+            finally:
+                _remove_junction(other_repository / ".venv")
 
 
 def test_new_junction_is_rolled_back_when_pip_check_fails(

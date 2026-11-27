@@ -49,7 +49,7 @@ DEFAULT_COLLECTED_NODEIDS = (
     "tests/architecture_explorer/test_t7_top_level_graph.py::"
     "test_real_chrome_reconnects_edges_during_same_page_resize_round_trip",
 )
-TICKET_02_REQUIRED_NODEIDS = (
+ADDITIONAL_REQUIRED_NODEIDS = (
     "tests/architecture_explorer/test_t8_security_repairs.py::"
     "test_github_import_flows_through_offline_build_to_generated_site[approved]",
     "tests/architecture_explorer/test_t8_security_repairs.py::"
@@ -80,8 +80,10 @@ TICKET_02_REQUIRED_NODEIDS = (
     "test_real_browser_renders_historical_and_unknown_node_review_states[960-unknown]",
     "tests/architecture_explorer/test_t8_node_review_continuity.py::"
     "test_real_chrome_preserves_historical_node_review_during_resize_round_trip",
+    "tests/architecture_explorer/test_ticket_63_semantic_review_view.py::"
+    "test_ticket_63_real_chrome_enters_inspects_and_returns_from_internal_view[1440]",
 )
-DEFAULT_COLLECTED_NODEIDS += TICKET_02_REQUIRED_NODEIDS
+DEFAULT_COLLECTED_NODEIDS += ADDITIONAL_REQUIRED_NODEIDS
 VIEWPORT_SEQUENCE = ((1440, 900), (1280, 900), (960, 900), (1440, 900))
 GRAPH_IDS = (
     "top-level",
@@ -197,7 +199,7 @@ def _include_ticket02_junit_cases(junit_xml: str) -> str:
         for case in root.iter("testcase")
     }
     suite = next(root.iter("testsuite"))
-    for nodeid in TICKET_02_REQUIRED_NODEIDS:
+    for nodeid in ADDITIONAL_REQUIRED_NODEIDS:
         if nodeid in existing:
             continue
         path, name = nodeid.split("::", 1)
@@ -484,7 +486,7 @@ class CollectedJunitRunner(JunitRunner):
         if include_ticket02_required:
             self.collected_nodeids += tuple(
                 nodeid
-                for nodeid in TICKET_02_REQUIRED_NODEIDS
+                for nodeid in ADDITIONAL_REQUIRED_NODEIDS
                 if nodeid not in self.collected_nodeids
             )
 
@@ -1030,6 +1032,44 @@ def test_required_chrome_skip_blocks_an_otherwise_green_pytest_run(
     assert report.status("architecture-explorer") is ValidationStatus.BLOCKED
     assert report.exit_code == 2
     assert "required Chrome" in report.first_reason
+
+
+@pytest.mark.parametrize(
+    ("module", "name", "expected"),
+    (
+        ("test_ticket_84_real_review_details", "test_real_chrome_shows_independent_review_limits", ValidationStatus.PASS),
+        ("test_other", "test_real_chrome_shows_independent_review_limits", ValidationStatus.BLOCKED),
+        (
+            "test_ticket_63_semantic_review_view",
+            "test_ticket_63_real_chrome_enters_inspects_and_returns_from_internal_view[1440]",
+            ValidationStatus.BLOCKED,
+        ),
+    ),
+)
+def test_only_the_exact_t84_host_chrome_case_can_skip_generic_validation(
+    tmp_path: Path, module: str, name: str, expected: ValidationStatus,
+) -> None:
+    suite = ElementTree.Element("testsuite")
+    class_name = f"tests.architecture_explorer.{module}"
+    for nodeid in DEFAULT_COLLECTED_NODEIDS:
+        path, case_name = nodeid.split("::")
+        case_class = path.removesuffix(".py").replace("/", ".")
+        if (case_class, case_name) == (class_name, name):
+            continue
+        ElementTree.SubElement(
+            suite, "testcase", classname=case_class, name=case_name,
+        )
+    case = ElementTree.SubElement(suite, "testcase", classname=class_name, name=name)
+    ElementTree.SubElement(case, "skipped", message="host inputs unavailable")
+    report = validate(
+        _context(), runner=JunitRunner(ElementTree.tostring(suite, encoding="unicode")),
+        scratch_root=tmp_path / "validation-scratch",
+    )
+    assert report.status("architecture-explorer") is expected, report.first_reason
+    if expected is ValidationStatus.PASS:
+        assert report.evidence is not None
+        assert report.evidence.complete_suite.skipped == 1
+        assert report.evidence.required_chrome.skipped == 0
 
 
 def test_success_reports_executed_chrome_scope_and_explicit_exclusions(

@@ -1,0 +1,50 @@
+{
+  "comment": {
+    "author_association": "OWNER",
+    "body": "ARCHITECTURE_EXPLORER_RELATIONSHIP_REVIEW_V1\nDecision-ID: github-comment:7192137877\nResult: APPROVED\nObject-Key: candidate-decomposition + candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction\nClaims-SHA256: 35048bd84be163a6307877a50c357556709db90b7a307ca455e624b1a0bc9163\nCandidate-Fact-SHA256: fb660776d71faa297b7078ba845e08295ab2793b330ce39d2b1281d3b6f59440\nReviewed-Revision: ee6b8241b3075e48fe9dc5e6254b7086f23f13ae\nPublication-Key: f339dcf6948090abe5b5ab1654d0fa0ab843b7ab31a2dc85f33cd774cc47b541",
+    "created_at": "2026-11-26T12:32:37Z",
+    "html_url": "https://github.com/nnewlander/translate/issues/84#issuecomment-7192137877",
+    "id": 7192137877,
+    "issue_url": "https://api.github.com/repos/nnewlander/translate/issues/84",
+    "node_id": "IC_kwDOVPRmzs8AAAABrK9QlQ",
+    "updated_at": "2026-11-26T12:32:43Z",
+    "user": {
+      "id": 256049772,
+      "login": "nnewlander",
+      "node_id": "U_kgDOD0MCbA",
+      "type": "User"
+    }
+  },
+  "issue": {
+    "html_url": "https://github.com/nnewlander/translate/issues/84",
+    "id": 6599428271,
+    "node_id": "I_kwDOVPRmzs8AAAABiVtIrw",
+    "number": 84,
+    "repository_url": "https://api.github.com/repos/nnewlander/translate",
+    "state": "open"
+  },
+  "permission": {
+    "permission": "admin",
+    "role_name": "admin",
+    "user": {
+      "id": 256049772,
+      "login": "nnewlander",
+      "node_id": "U_kgDOD0MCbA",
+      "type": "User"
+    }
+  },
+  "repository": {
+    "full_name": "nnewlander/translate",
+    "html_url": "https://github.com/nnewlander/translate",
+    "id": 1425303246,
+    "node_id": "R_kgDOVPRmzg",
+    "owner": {
+      "id": 256049772,
+      "login": "nnewlander",
+      "node_id": "U_kgDOD0MCbA",
+      "type": "User"
+    },
+    "private": false
+  },
+  "schema": "architecture-explorer.github-review-source.v1"
+}

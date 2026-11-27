@@ -41,7 +41,10 @@ PRODUCTION_RELATIONSHIP_REVIEW_APPROVAL_ANCHORS: tuple[
 
 # Host configuration records the exact installation digest authorized by the
 # Owner's second confirmation. A repository passed to a CLI cannot set this.
-PRODUCTION_BATCH_INSTALLATION_DIGESTS: frozenset[str] = frozenset()
+PRODUCTION_BATCH_INSTALLATION_DIGESTS: frozenset[str] = frozenset({
+    # Issue #84 second confirmation. The exact installed batch is still required.
+    "1041dab86073f3ea4aea04a9b492d27e4310566b203ac360f858275780a10a08",
+})
 
 # Per-owner host state shared by every local Worktree. Neither the selected
 # repository nor its temporary directory controls this location.

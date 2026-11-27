@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from html.parser import HTMLParser
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -176,15 +178,55 @@ def test_generated_site_has_only_local_assets_and_no_runtime_fetch(
     site = tmp_path / "site"
     write_site(data, site, WEB_ASSETS)
 
-    combined = "\n".join(
-        (site / name).read_text(encoding="utf-8")
-        for name in ("index.html", "app.js", "styles.css", "explorer-data.js")
+    assets = []
+
+    class PageResources(HTMLParser):
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            attributes = dict(attrs)
+            assert tag != "base"
+            assert (attributes.get("http-equiv") or "").lower() != "refresh"
+            assert not any(name.startswith("on") for name in attributes)
+            assert not {"srcset", "ping", "srcdoc", "style"} & attributes.keys()
+            if tag == "script":
+                assert "src" in attributes
+            for name in ("src", "href", "xlink:href", "poster", "data", "action", "formaction"):
+                if name not in attributes:
+                    continue
+                target = attributes[name]
+                assert target
+                if (tag, name) == ("a", "href"):
+                    assert re.fullmatch(
+                        r"https://github\.com/[\w.-]+/[\w.-]+/issues/\d+#issuecomment-\d+",
+                        target,
+                    )
+                    continue
+                assert (tag, name) in {("script", "src"), ("link", "href")}
+                if tag == "link":
+                    assert attributes.get("rel") == "stylesheet"
+                assets.append(target)
+
+    PageResources().feed((site / "index.html").read_text(encoding="utf-8"))
+    assert assets == ["styles.css", "explorer-data.js", "t4-state.js", "app.js"]
+    assert all((site / asset).is_file() for asset in assets)
+
+    for name in ("app.js", "t4-state.js", "styles.css"):
+        runtime = (site / name).read_text(encoding="utf-8")
+        urls = re.findall(r"https?://[^\s\"'`<>]+", runtime, re.IGNORECASE)
+        assert all(name == "app.js" and url == "https://github.com/" for url in urls)
+        assert not re.search(r"javascript\s*:|@import\b", runtime, re.IGNORECASE)
+        assert not re.search(
+            r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b",
+            runtime,
+        )
+        if name == "styles.css":
+            assert not re.search(r"\burl\s*\(", runtime, re.IGNORECASE)
+
+    data_script = (site / "explorer-data.js").read_text(encoding="utf-8")
+    prefix = "window.ARCHITECTURE_EXPLORER_DATA = "
+    assert data_script.startswith(prefix) and data_script.endswith(";\n")
+    assert json.loads(data_script[len(prefix):-2]) == json.loads(
+        (site / "explorer-data.json").read_text(encoding="utf-8")
     )
-    assert "http://" not in combined
-    assert "https://" not in combined
-    assert "fetch(" not in combined
-    assert "XMLHttpRequest" not in combined
-    assert 'src="explorer-data.js"' in combined
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,17 @@
+{
+  "candidate-node::worker-launch-boundary": {
+    "result": "APPROVED",
+    "scope": "FULL_PACKET",
+    "reason": "源码支持受控进程启动边界及明确限定的部分源码指派。"
+  },
+  "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper": {
+    "result": "APPROVED",
+    "scope": "FULL_PACKET",
+    "reason": "脚本绑定、包装入口及协作方向具有直接源码依据。"
+  },
+  "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction": {
+    "result": "APPROVED",
+    "scope": "FULL_PACKET",
+    "reason": "进程参数、环境、启动及输出处理构成有证据支持的内部子职责。"
+  }
+}

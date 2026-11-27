@@ -1,0 +1,89 @@
+{
+  "batch_publication_sha256": "f339dcf6948090abe5b5ab1654d0fa0ab843b7ab31a2dc85f33cd774cc47b541",
+  "claims": [
+    {
+      "kind": "IDENTITY",
+      "source": "relationship-review-definition.object-key",
+      "value": {
+        "kind": "candidate-decomposition",
+        "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+      }
+    },
+    {
+      "kind": "ENDPOINT_RESPONSIBILITIES",
+      "source": "relationship-review-definition.endpoint-bindings",
+      "value": {
+        "source": {
+          "node_id": "worker-launch-boundary",
+          "responsibility": "候选职责：在生产控制与翻译执行之间建立受参数和守卫约束的进程启动边界。"
+        },
+        "target": {
+          "node_id": "supervisor-process-launch-construction",
+          "responsibility": "构造确定性 Worker 子进程的参数、工作目录、输出重定向、规范化环境和启动结果处理。"
+        }
+      }
+    },
+    {
+      "kind": "SEMANTICS_AND_DIRECTION",
+      "source": "relationship-review-definition.semantics",
+      "value": {
+        "direction": {
+          "source_node_id": "worker-launch-boundary",
+          "target_node_id": "supervisor-process-launch-construction"
+        },
+        "family": "decomposition"
+      }
+    },
+    {
+      "kind": "RELATIONSHIP_DESCRIPTION",
+      "source": "candidate-relationship",
+      "value": {
+        "name": "启动边界分解为进程启动构造",
+        "plain_explanation": "Worker 启动边界包含一项候选职责：把受约束的启动信息构造成子进程；这不是已审核结论，也不证明运行发生。",
+        "professional_description": "候选分解把受控进程参数、环境和子进程启动处理解释为 Worker 启动边界的一项内部职责。"
+      }
+    },
+    {
+      "kind": "CANDIDATE_EVIDENCE",
+      "source": "relationship-review-definition.candidate-evidence-ids",
+      "value": [
+        {
+          "evidence_id": "evidence:sha256:1eddc71f14cd226542bc4e6da258d6522db36cb9d5d2106052f10605022c851a",
+          "role": "powershell_function_entry"
+        }
+      ]
+    },
+    {
+      "kind": "DEPENDENCIES_AND_LIMITS",
+      "source": "relationship-review-definition.dependencies-and-limits",
+      "value": {
+        "dependencies": [],
+        "retained_unknowns": [
+          "启动边界的完整子职责和全部启动路径。",
+          "源码排他归属以及某次实际启动和退出结果。"
+        ],
+        "zero_dependency_reason": "子进程构造函数的静态实现直接支撑此项分解解释，两端职责另由 Packet 精确绑定。"
+      }
+    }
+  ],
+  "decision_id": "github-comment:7192137877",
+  "inputs": {
+    "candidate_evidence_sha256": "2c7ff5bfae6a58feecfb2aebf2bb8b37d21fc40b6505ef42561bd038068d9905",
+    "candidate_fact_sha256": "fb660776d71faa297b7078ba845e08295ab2793b330ce39d2b1281d3b6f59440",
+    "claims_sha256": "35048bd84be163a6307877a50c357556709db90b7a307ca455e624b1a0bc9163",
+    "definition_sha256": "c0ee28566e46a4d068f0bf0214c198c0454d78c871aaaa2d42e606670fbd4c1a",
+    "endpoint_bindings_sha256": "e91c30a6660b462080174ab09027da39859872d2e8e8179afdfc1ac6fdf438c1"
+  },
+  "object_key": {
+    "kind": "candidate-decomposition",
+    "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+  },
+  "result": "APPROVED",
+  "review_notes": "Imported from a pinned GitHub Owner/admin review source.",
+  "reviewed_source_snapshot": {
+    "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+    "worktree_state": "clean"
+  },
+  "schema": "architecture-explorer.relationship-review-decision.v1",
+  "source_receipt_sha256": "b6f4634b1efc9ff4d0187c17839ab0a75f7ad7baa59311fcb34b2e02d7124dae"
+}

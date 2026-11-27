@@ -1,0 +1,68 @@
+{
+  "schema": "architecture-explorer.batch-first-confirmation.v1",
+  "batch_sha256": "c75368ea309bfba5c3d5c97729795318518e5747abf4ecdc9533ec29b8f6afc1",
+  "checklist_sha256": "462f96116d606896acb5f34dbbc651bec73699727972f4662dccd0596083117a",
+  "final_decision_list_sha256": "4f6fb4e5de28bbe8263b776d79b653561e002ff7f63d6e5a53232e11f440a932",
+  "decisions": {
+    "candidate-node::worker-launch-boundary": {
+      "result": "APPROVED",
+      "scope": "FULL_PACKET",
+      "reason": "源码支持受控进程启动边界及明确限定的部分源码指派。"
+    },
+    "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper": {
+      "result": "APPROVED",
+      "scope": "FULL_PACKET",
+      "reason": "脚本绑定、包装入口及协作方向具有直接源码依据。"
+    },
+    "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction": {
+      "result": "APPROVED",
+      "scope": "FULL_PACKET",
+      "reason": "进程参数、环境、启动及输出处理构成有证据支持的内部子职责。"
+    }
+  },
+  "bindings": {
+    "candidate-collaboration::candidate-collaboration:supervisor-to-worker-wrapper": {
+      "object_key": {
+        "kind": "candidate-collaboration",
+        "object_id": "candidate-collaboration:supervisor-to-worker-wrapper"
+      },
+      "packet_sha256": "9710545fdfdaacf24ad972498399d2ec45c455634aebffeed32a6515a1060247",
+      "claims_sha256": "9cda7faa9dbff8fd11f6ce2ad1cd1d2faf7925eafa2f37abb1385288afc71771",
+      "candidate_evidence_sha256": "17bac80096d4474d91dcf0b9e538db08a27b104b16abddedee5704091d2e990b",
+      "reviewed_source_snapshot": {
+        "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+        "worktree_state": "clean"
+      },
+      "decision_sha256": "e696ef5926da98e713daadcaf1a10d2b0bf22d080c9c737f84e8d64810d92b0b"
+    },
+    "candidate-decomposition::candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction": {
+      "object_key": {
+        "kind": "candidate-decomposition",
+        "object_id": "candidate-decomposition:worker-launch-boundary-to-supervisor-process-launch-construction"
+      },
+      "packet_sha256": "88b516236a653b15be13e579f3ef211e50344dde588aee20fe985fac71386d45",
+      "claims_sha256": "35048bd84be163a6307877a50c357556709db90b7a307ca455e624b1a0bc9163",
+      "candidate_evidence_sha256": "2c7ff5bfae6a58feecfb2aebf2bb8b37d21fc40b6505ef42561bd038068d9905",
+      "reviewed_source_snapshot": {
+        "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+        "worktree_state": "clean"
+      },
+      "decision_sha256": "30de3aaf2775d321e90bc175627ef45254fe32fdc9c05d21cb0b8fcd6bf80e72"
+    },
+    "candidate-node::worker-launch-boundary": {
+      "object_key": {
+        "kind": "candidate-node",
+        "node_id": "worker-launch-boundary"
+      },
+      "packet_sha256": "5a5ff7e276e66a201d8678dc4bb702bcd44a5a1020d84f471e246601c85002bc",
+      "claims_sha256": "cb1e1fd9a564203a60da2e5d53489498058f34ebf5532d86bb5e0942160ba5a0",
+      "candidate_evidence_sha256": "db36f5a519eb3e77ec67ffa83d4983123d74e760a67d4469826f3b076b0c04db",
+      "reviewed_source_snapshot": {
+        "revision": "ee6b8241b3075e48fe9dc5e6254b7086f23f13ae",
+        "worktree_state": "clean"
+      },
+      "decision_sha256": "5bbfa41e415ec962b8d4787a9d19f20d2567bc3880cbeba5b7cffc6667ad34c4"
+    }
+  },
+  "confirmation_sha256": "fea0a1c3d17707de2edc964b8b52dc0d4be29061f016a00b3cf4630789f409ef"
+}
