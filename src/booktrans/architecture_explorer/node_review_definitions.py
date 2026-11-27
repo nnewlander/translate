@@ -182,6 +182,12 @@ def _target_node(explorer: dict[str, Any], object_key: dict[str, Any]) -> dict[s
         for node in drilldown.get("children", [])
         if node.get("id") == node_id
     ]
+    matches.extend(
+        node
+        for fragment in explorer.get("recursive_candidate_fragments", [])
+        for node in fragment.get("nodes", [])
+        if node.get("id") == node_id
+    )
     if len(matches) != 1:
         raise ExplorerInputError(f"Node Review target must resolve exactly once: {node_id}")
     return matches[0]

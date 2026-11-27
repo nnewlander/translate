@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
 from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.node_review_definitions import (
     build_node_review_packets,
@@ -38,6 +39,34 @@ DEFINITIONS = REPOSITORY / "architecture-explorer/review-definitions/node-review
 
 def _definitions() -> dict:
     return json.loads(DEFINITIONS.read_text(encoding="utf-8"))
+
+
+def test_public_packet_resolves_recursive_candidate_node_with_a_unique_identity() -> None:
+    path = REPOSITORY / "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"
+    fragment = json.loads(path.read_text(encoding="utf-8"))
+    explorer = apply_candidate_fragments(_published_explorer(), [fragment])
+    target = fragment["nodes"][0]
+    node_id = "supervisor-process-launch-construction"
+    definitions = _definitions()
+    definition = definitions["definitions"][0]
+    definition["object_key"]["node_id"] = node_id
+    definition["candidate_evidence_ids"] = target["evidence_ids"]
+    definition["legacy_compatibility"] = None
+    definition["dependencies_and_limits"].update(
+        dependencies=[], zero_dependency_reason="This review is limited to process construction."
+    )
+    definitions["definitions"] = [definition]
+    validated = validate_node_review_definitions(definitions)
+
+    packet = build_node_review_packets(explorer, validated)[f"candidate-node::{node_id}"]
+
+    assert packet["candidate_fact"]["name"] == "Supervisor 进程启动构造"
+    assert packet["candidate_evidence"][0]["path"].endswith(".ps1")
+    explorer["navigation"]["drilldowns"][0]["children"].append(
+        deepcopy(explorer["recursive_candidate_fragments"][0]["nodes"][0])
+    )
+    with pytest.raises(ExplorerInputError, match=f"resolve exactly once: {node_id}"):
+        build_node_review_packets(explorer, validated)
 
 
 def _projected_reviews(explorer: dict) -> dict:
