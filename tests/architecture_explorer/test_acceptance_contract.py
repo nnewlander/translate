@@ -26,6 +26,7 @@ DOCS = REPOSITORY / "docs"
 V1_EFFECTIVE_BASELINE = "47ca4276075735508c23e7caa3c03965d93cde5b"
 CANDIDATE_HEAD = "ef2782873d23db77731aabbb3aaef7362f8f75b0"
 V3_CONTRACT_REF = "architecture-explorer/v3"
+V4_CONTRACT_REF = "architecture-explorer/v4"
 V1_NORMATIVE_BODY_SHA256 = (
     "f71e35e0865e403d76a5ee8aa4e2e07f0749ffd0ffea10aa0eb3d81626740e2e"
 )
@@ -35,7 +36,7 @@ CANDIDATE_FRAGMENTS = tuple(
 
 
 def test_v4_proposed_acceptance_keeps_v3_current_and_binds_manifest_to_b0() -> None:
-    target = "architecture-explorer/v4"
+    target = V4_CONTRACT_REF
     selection = select_acceptance_contract(REPOSITORY, target_contract=target)
     assert select_acceptance_contract(REPOSITORY).target_contract == "architecture-explorer/v3"
     assert selection.current_contract == "architecture-explorer/v3"
@@ -208,6 +209,10 @@ def _assert_contract_status_matrix(
     activation_baseline: str,
 ) -> str:
     contracts = _contracts(docs)
+    if V4_CONTRACT_REF in contracts:
+        _, v4 = contracts.pop(V4_CONTRACT_REF)
+        assert v4["status"] == "proposed"
+        assert v4["inherits"] == V3_CONTRACT_REF
     assert set(contracts) == {
         "architecture-explorer/v1",
         "architecture-explorer/v2",
@@ -279,7 +284,8 @@ def _copy_contracts(tmp_path: Path) -> Path:
     docs = tmp_path / "docs"
     docs.mkdir()
     revision = _candidate_contract_revision()
-    for path in DOCS.glob("architecture-explorer-acceptance-v*.md"):
+    for version in (1, 2, 3):
+        path = DOCS / f"architecture-explorer-acceptance-v{version}.md"
         destination = docs / path.name
         destination.write_text(
             _git("show", f"{revision}:docs/{path.name}") + "\n",
@@ -430,6 +436,7 @@ def test_contract_history_and_trusted_metadata_survive_activation() -> None:
         "architecture-explorer/v1",
         "architecture-explorer/v2",
         "architecture-explorer/v3",
+        V4_CONTRACT_REF,
     }
     v1 = contracts["architecture-explorer/v1"][1]
     assert v1["status"] == "superseded-by-v2"

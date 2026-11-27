@@ -162,7 +162,7 @@ def _validate_commit(repository: Path, revision: str, label: str) -> None:
 
 
 def _json_at(repository: Path, revision: str, path: str) -> Any:
-    raw = read_git(repository, "show", f"{revision}:{path}", text=False)
+    raw = read_git(repository, "cat-file", "blob", f"{revision}:{path}", text=False)
     try:
         return json.loads(bytes(raw).decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
