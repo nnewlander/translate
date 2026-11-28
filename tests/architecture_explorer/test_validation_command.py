@@ -110,13 +110,19 @@ def _git(repository: Path, *arguments: str) -> str:
 
 def _candidate_head_from_committed_contract(repository: Path) -> str:
     head = _git(repository, "rev-parse", "HEAD")
+    current = select_acceptance_contract(repository, revision=head)
+    v3_revision = head
+    if current.current_contract == "architecture-explorer/v4":
+        v3_revision = current.target_metadata["effective_baseline"]
+        _git(repository, "merge-base", "--is-ancestor", v3_revision, head)
     selection = select_acceptance_contract(
         repository,
         target_contract="architecture-explorer/v3",
-        revision=head,
+        revision=v3_revision,
     )
     if (
-        selection.current_contract == "architecture-explorer/v2"
+        v3_revision == head
+        and selection.current_contract == "architecture-explorer/v2"
         and selection.target_status == "proposed"
     ):
         return head

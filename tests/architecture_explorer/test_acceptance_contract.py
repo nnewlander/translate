@@ -27,6 +27,7 @@ V1_EFFECTIVE_BASELINE = "47ca4276075735508c23e7caa3c03965d93cde5b"
 CANDIDATE_HEAD = "ef2782873d23db77731aabbb3aaef7362f8f75b0"
 V3_CONTRACT_REF = "architecture-explorer/v3"
 V4_CONTRACT_REF = "architecture-explorer/v4"
+V4_CANDIDATE_HEAD = "a46aad8827f8ef04ca6df280c0f15db3dfb4b55a"
 V1_NORMATIVE_BODY_SHA256 = (
     "f71e35e0865e403d76a5ee8aa4e2e07f0749ffd0ffea10aa0eb3d81626740e2e"
 )
@@ -37,14 +38,20 @@ CANDIDATE_FRAGMENTS = tuple(
 
 def test_v4_proposed_acceptance_keeps_v3_current_and_binds_manifest_to_b0() -> None:
     target = V4_CONTRACT_REF
-    selection = select_acceptance_contract(REPOSITORY, target_contract=target)
-    assert select_acceptance_contract(REPOSITORY).target_contract == "architecture-explorer/v3"
-    assert selection.current_contract == "architecture-explorer/v3"
+    selection = select_acceptance_contract(
+        REPOSITORY,
+        target_contract=target,
+        revision=V4_CANDIDATE_HEAD,
+    )
+    assert select_acceptance_contract(
+        REPOSITORY, revision=V4_CANDIDATE_HEAD,
+    ).target_contract == V3_CONTRACT_REF
+    assert selection.current_contract == V3_CONTRACT_REF
     assert selection.target_status == "proposed"
     assert selection.target_metadata["runtime_authority"] == "false"
 
-    path = REPOSITORY / "architecture-explorer/manifests/v4-ticket-11.v1.json"
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest_path = "architecture-explorer/manifests/v4-ticket-11.v1.json"
+    manifest = json.loads(_git("show", f"{V4_CANDIDATE_HEAD}:{manifest_path}"))
     assert manifest["base_revision"] == "09aaf4a033123c7eca8d280fa8982e5b0e711b86"
     with pytest.raises(ExplorerInputError, match="wrong fixed Base revision"):
         validate_content_delta_manifest(
@@ -158,10 +165,13 @@ def _expected_repository_activation_baseline() -> str:
     )
     if working_status == "current" and committed_status == "proposed":
         return _git("rev-parse", "HEAD")
+    # Find the activation that removed proposed status, even after supersession.
     activation_commit = _git(
         "log",
         "-1",
         "--format=%H",
+        "-G",
+        "^status: proposed$",
         "--",
         "docs/architecture-explorer-acceptance-v3.md",
     )
@@ -186,7 +196,7 @@ def _candidate_contract_revision() -> str:
     )
 
 
-def _v3_contract_status(path: Path) -> dict[str, str]:
+def _structured_contract_status(path: Path) -> dict[str, str]:
     lines = path.read_text(encoding="utf-8").splitlines()
     frontmatter_end = lines.index("---", 1)
     normative_start = lines.index("## Inheritance and Delta", frontmatter_end + 1)
@@ -209,11 +219,7 @@ def _assert_contract_status_matrix(
     activation_baseline: str,
 ) -> str:
     contracts = _contracts(docs)
-    if V4_CONTRACT_REF in contracts:
-        _, v4 = contracts.pop(V4_CONTRACT_REF)
-        assert v4["status"] == "proposed"
-        assert v4["inherits"] == V3_CONTRACT_REF
-    assert set(contracts) == {
+    assert set(contracts) - {V4_CONTRACT_REF} == {
         "architecture-explorer/v1",
         "architecture-explorer/v2",
         V3_CONTRACT_REF,
@@ -224,6 +230,14 @@ def _assert_contract_status_matrix(
         if metadata.get("status") == "current"
     ]
     assert len(current) == 1, current
+    if V4_CONTRACT_REF in contracts:
+        _, v4 = contracts[V4_CONTRACT_REF]
+        assert v4["inherits"] == V3_CONTRACT_REF
+        assert v4["runtime_authority"] == "false"
+        assert "superseded_by" not in v4
+        if current[0] != V4_CONTRACT_REF:
+            assert v4["status"] == "proposed"
+            assert "effective_baseline" not in v4
 
     v1 = contracts["architecture-explorer/v1"][1]
     assert v1["status"] == "superseded-by-v2"
@@ -236,7 +250,7 @@ def _assert_contract_status_matrix(
     assert v2["runtime_authority"] == "false"
     assert v3["runtime_authority"] == "false"
     v2_body = _contract_body(v2_path)
-    v3_status = _v3_contract_status(v3_path)
+    v3_status = _structured_contract_status(v3_path)
 
     if current[0] == "architecture-explorer/v2":
         assert v2["status"] == "current"
@@ -258,16 +272,41 @@ def _assert_contract_status_matrix(
         )
         return "candidate"
 
-    assert current[0] == V3_CONTRACT_REF
     assert v2["status"] == "superseded-by-v3"
     assert v2["superseded_by"] == V3_CONTRACT_REF
-    assert v3["status"] == "current"
     assert v3["effective_baseline"] == activation_baseline
-    assert "superseded_by" not in v3
     assert "# Architecture Explorer v2 superseded acceptance contract" in v2_body
     assert "v2 is `superseded-by-v3`" in v2_body
     assert f"`effective_baseline` remains `{CANDIDATE_HEAD}`" in v2_body
     assert V3_CONTRACT_REF in v2_body
+    if current[0] == V4_CONTRACT_REF:
+        v4_path, v4 = contracts[V4_CONTRACT_REF]
+        assert v3["status"] == "superseded-by-v4"
+        assert v3["superseded_by"] == V4_CONTRACT_REF
+        assert v3_status == {
+            "current_contract": V4_CONTRACT_REF,
+            "target_contract": V3_CONTRACT_REF,
+            "target_status": "superseded-by-v4",
+            "effective_baseline": activation_baseline,
+        }
+        assert "# Architecture Explorer v3 superseded acceptance contract" in _contract_body(
+            v3_path
+        )
+        assert v4["effective_baseline"] == V4_CANDIDATE_HEAD
+        assert _structured_contract_status(v4_path) == {
+            "current_contract": V4_CONTRACT_REF,
+            "target_contract": V4_CONTRACT_REF,
+            "target_status": "current",
+            "effective_baseline": V4_CANDIDATE_HEAD,
+        }
+        assert "# Architecture Explorer v4 current acceptance contract" in _contract_body(
+            v4_path
+        )
+        return "v4-activated"
+
+    assert current[0] == V3_CONTRACT_REF
+    assert v3["status"] == "current"
+    assert "superseded_by" not in v3
     assert v3_status == {
         "current_contract": V3_CONTRACT_REF,
         "target_contract": V3_CONTRACT_REF,
@@ -420,13 +459,17 @@ def published_explorer() -> dict:
 
 
 def test_repository_contract_status_matrix_is_valid() -> None:
-    _assert_contract_status_matrix(
+    stage = _assert_contract_status_matrix(
         DOCS,
         activation_baseline=_expected_repository_activation_baseline(),
     )
     _, metadata = _current_contract()
 
+    selection = select_acceptance_contract(REPOSITORY)
+    assert selection.current_contract == metadata["contract_ref"]
     assert _effective_value(metadata, "reviewer_conflict_policy") == "report-and-block"
+    if stage == "v4-activated":
+        _git("merge-base", "--is-ancestor", V4_CANDIDATE_HEAD, "HEAD")
 
 
 def test_contract_history_and_trusted_metadata_survive_activation() -> None:
@@ -461,7 +504,7 @@ def test_contract_history_and_trusted_metadata_survive_activation() -> None:
     non_status_v3 = {
         key: value
         for key, value in v3.items()
-        if key not in {"status", "effective_baseline"}
+        if key not in {"status", "effective_baseline", "superseded_by"}
     }
     assert non_status_v3 == {
         "contract_family": "architecture-explorer-acceptance",

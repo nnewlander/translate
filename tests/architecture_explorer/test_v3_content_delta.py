@@ -110,7 +110,9 @@ def _candidate_acceptance_repository(tmp_path: Path) -> tuple[Path, str, Path]:
 
 def test_explicit_v3_target_matches_the_strict_repository_contract_stage() -> None:
     from booktrans.architecture_explorer.acceptance import select_acceptance_contract
+    from booktrans.architecture_explorer.generator import ExplorerInputError
     from tests.architecture_explorer.test_acceptance_contract import (
+        V4_CANDIDATE_HEAD,
         _assert_contract_status_matrix,
         _expected_repository_activation_baseline,
     )
@@ -121,9 +123,16 @@ def test_explicit_v3_target_matches_the_strict_repository_contract_stage() -> No
         activation_baseline=activation_baseline,
     )
 
+    revision = None
+    if stage == "v4-activated":
+        with pytest.raises(ExplorerInputError, match="target contract is not eligible"):
+            select_acceptance_contract(REPOSITORY, target_contract="architecture-explorer/v3")
+        revision = V4_CANDIDATE_HEAD
+
     selection = select_acceptance_contract(
         REPOSITORY,
         target_contract="architecture-explorer/v3",
+        revision=revision,
     )
 
     assert selection.target_contract == "architecture-explorer/v3"
@@ -132,7 +141,7 @@ def test_explicit_v3_target_matches_the_strict_repository_contract_stage() -> No
         assert selection.target_status == "proposed"
         assert "effective_baseline" not in selection.target_metadata
     else:
-        assert stage == "activated"
+        assert stage in {"activated", "v4-activated"}
         assert selection.current_contract == "architecture-explorer/v3"
         assert selection.target_status == "current"
         assert selection.target_metadata["effective_baseline"] == activation_baseline
