@@ -1,0 +1,6 @@
+.                                                                        [100%]
+============================== slowest durations ==============================
+84.08s call     tests/architecture_explorer/test_t8_security_repairs.py::test_github_import_flows_through_offline_build_to_generated_site[approved]
+0.00s setup    tests/architecture_explorer/test_t8_security_repairs.py::test_github_import_flows_through_offline_build_to_generated_site[approved]
+0.00s teardown tests/architecture_explorer/test_t8_security_repairs.py::test_github_import_flows_through_offline_build_to_generated_site[approved]
+1 passed in 84.40s (0:01:24)
