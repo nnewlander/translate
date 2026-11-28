@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from xml.etree import ElementTree
 
 import pytest
@@ -528,7 +530,8 @@ def _context(**changes: Path) -> ValidationContext:
 
 
 class FailingTemporaryDirectory:
-    def __init__(self, errors: list[OSError]) -> None:
+    def __init__(self, errors: list[OSError], *, name: str = "") -> None:
+        self.name = name
         self.errors = list(errors)
         self.cleanup_calls = 0
 
@@ -542,6 +545,127 @@ def _windows_error(code: int, message: str) -> OSError:
     error = OSError(code, message)
     error.winerror = code
     return error
+
+
+def _passing_cli_runner() -> JunitRunner:
+    suite = ElementTree.Element("testsuite")
+    for nodeid in DEFAULT_COLLECTED_NODEIDS:
+        path, name = nodeid.split("::", 1)
+        ElementTree.SubElement(
+            suite,
+            "testcase",
+            classname=path.removesuffix(".py").replace("/", "."),
+            name=name,
+        )
+    return JunitRunner(ElementTree.tostring(suite, encoding="unicode"))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="requires Windows file sharing semantics")
+def test_validation_cli_removes_temporary_directory_after_windows_lock_releases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("ARCHITECTURE_EXPLORER_EXPECTED_HEAD", raising=False)
+    runner = _passing_cli_runner()
+    monkeypatch.setattr(validation, "SubprocessCommandRunner", lambda: runner)
+    create_temporary_directory = tempfile.TemporaryDirectory
+    directories: list[Path] = []
+
+    with ExitStack() as resources, monkeypatch.context() as filesystem:
+
+        def create_locked_directory(*, prefix: str) -> tempfile.TemporaryDirectory:
+            directory = create_temporary_directory(prefix=prefix, dir=tmp_path)
+            resources.callback(directory.cleanup)
+            directory_path = Path(directory.name)
+            directories.append(directory_path)
+            locked_file = directory_path / "held-open.txt"
+            handle = resources.enter_context(locked_file.open("wb"))
+            with pytest.raises(OSError) as caught:
+                locked_file.unlink()
+            assert caught.value.winerror == 32
+            # Release only after cleanup hits the real sharing violation.
+            filesystem.setattr(validation.time, "sleep", lambda _: handle.close())
+            return directory
+
+        filesystem.setattr(tempfile, "TemporaryDirectory", create_locked_directory)
+
+        assert validation.main(["--repository", str(REPOSITORY)]) == 0
+        assert len(directories) == 1
+        assert not directories[0].exists()
+
+    assert "RESULT: PASS (exit 0)" in capfd.readouterr().out
+
+
+@pytest.mark.skipif(os.name != "nt", reason="requires Windows cleanup error codes")
+@pytest.mark.parametrize("validation_failure", [False, True])
+def test_validation_cli_rejects_candidate_when_cleanup_retries_are_exhausted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+    validation_failure: bool,
+) -> None:
+    head = _candidate_head_from_committed_contract(REPOSITORY)
+    repository, module_file = _clean_candidate_checkout(tmp_path, head)
+    context = _context(
+        repository=repository,
+        python_prefix=repository / ".venv",
+        module_file=module_file,
+    )
+    monkeypatch.setattr(validation, "_runtime_context", lambda _: context)
+    monkeypatch.delenv("ARCHITECTURE_EXPLORER_EXPECTED_HEAD", raising=False)
+    runner = _passing_cli_runner()
+    if validation_failure:
+        runner.results = [
+            subprocess.CompletedProcess((), 0, "", ""),
+            subprocess.CompletedProcess((), 1, "", "original compile failure"),
+        ]
+    monkeypatch.setattr(validation, "SubprocessCommandRunner", lambda: runner)
+    delays: list[float] = []
+    monkeypatch.setattr(validation.time, "sleep", delays.append)
+    record = tmp_path / "candidate.json"
+
+    with tempfile.TemporaryDirectory(dir=tmp_path) as directory, monkeypatch.context() as filesystem:
+        locked_file = str(Path(directory) / "locked.txt")
+        temporary_directory = FailingTemporaryDirectory(
+            [OSError(0, "file is still shared", locked_file, 32) for _ in range(5)],
+            name=directory,
+        )
+        filesystem.setattr(
+            tempfile, "TemporaryDirectory", lambda **_: temporary_directory
+        )
+
+        exit_code = validation.main(
+            [
+                "--repository",
+                str(repository),
+                "--candidate-head",
+                head,
+                "--target-contract",
+                "architecture-explorer/v3",
+                "--manifest-path",
+                "architecture-explorer/manifests/v3-ticket-06.v1.json",
+                "--candidate-record",
+                str(record),
+            ]
+        )
+
+        output = capfd.readouterr().out
+        assert exit_code == 1
+        if validation_failure:
+            assert "static: FAIL - Python compile failed: original compile failure" in output
+            assert "FIRST_REASON: Python compile failed: original compile failure" in output
+        else:
+            assert "architecture-explorer: PASS" in output
+        assert "cleanup: FAIL" in output
+        assert "WinError 32" in output
+        assert directory in output
+        assert "file is still shared" in output
+        assert "candidate-acceptance: NOT_RUN" in output
+        assert "RESULT: FAIL (exit 1)" in output
+        assert not record.exists()
+        assert temporary_directory.cleanup_calls == 5
+        assert delays == [0.1] * 4
 
 
 def test_windows_directory_not_empty_cleanup_is_retried(
@@ -562,20 +686,54 @@ def test_windows_directory_not_empty_cleanup_is_retried(
     assert delays == [0.1, 0.1]
 
 
-def test_cleanup_does_not_retry_an_unrelated_error(
+@pytest.mark.skipif(os.name != "nt", reason="requires Windows cleanup error codes")
+@pytest.mark.parametrize("winerror", [5, 3, None])
+def test_validation_cli_fails_immediately_on_a_non_retryable_cleanup_error(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+    winerror: int | None,
 ) -> None:
-    error = _windows_error(5, "access denied")
-    temporary_directory = FailingTemporaryDirectory([error])
+    error = OSError(13, "cannot remove directory", str(tmp_path), winerror)
+    temporary_directory = FailingTemporaryDirectory([error], name=str(tmp_path))
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", lambda **_: temporary_directory)
+    monkeypatch.delenv("ARCHITECTURE_EXPLORER_EXPECTED_HEAD", raising=False)
+    runner = _passing_cli_runner()
+    monkeypatch.setattr(validation, "SubprocessCommandRunner", lambda: runner)
     delays: list[float] = []
     monkeypatch.setattr(validation.time, "sleep", delays.append)
 
-    with pytest.raises(OSError) as caught:
-        validation._cleanup_temporary_directory(temporary_directory)
+    assert validation.main(["--repository", str(REPOSITORY)]) == 1
 
-    assert caught.value is error
+    output = capfd.readouterr().out
+    assert "architecture-explorer: PASS" in output
+    assert "cleanup: FAIL" in output
+    assert str(error) in output
+    assert "RESULT: FAIL (exit 1)" in output
     assert temporary_directory.cleanup_calls == 1
     assert delays == []
+
+
+def test_validation_cli_preserves_an_original_exception_when_cleanup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    temporary_directory = FailingTemporaryDirectory(
+        [OSError("cleanup access denied")], name=str(tmp_path)
+    )
+    monkeypatch.setattr(tempfile, "TemporaryDirectory", lambda **_: temporary_directory)
+
+    def fail_to_launch(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise RuntimeError("original validation exception")
+
+    monkeypatch.setattr(validation.SubprocessCommandRunner, "run", fail_to_launch)
+
+    with pytest.raises(RuntimeError, match="original validation exception") as caught:
+        validation.main(["--repository", str(REPOSITORY)])
+
+    assert caught.value.__notes__ == [
+        f"could not remove validation temporary directory {tmp_path}: cleanup access denied"
+    ]
 
 
 def test_directory_not_empty_cleanup_fails_after_the_retry_limit(

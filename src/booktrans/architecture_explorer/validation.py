@@ -678,7 +678,7 @@ def _write_utf8_report(
     buffer.flush()
 
 
-def _with_candidate_stage(
+def _with_stage(
     report: ValidationReport,
     stage: StageResult,
 ) -> ValidationReport:
@@ -1422,10 +1422,10 @@ def _cleanup_temporary_directory(
             temporary_directory.cleanup()
             return
         except OSError as error:
-            directory_not_empty = (
-                os.name == "nt" and getattr(error, "winerror", None) == 145
+            retryable = (
+                os.name == "nt" and getattr(error, "winerror", None) in {32, 145}
             )
-            if not directory_not_empty or attempt == attempts - 1:
+            if not retryable or attempt == attempts - 1:
                 raise
             time.sleep(0.1)
 
@@ -1473,6 +1473,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             temporary_directory = tempfile.TemporaryDirectory(prefix="ae-v-")
+            validation_error: BaseException | None = None
             try:
                 report = validate(
                     runtime_context,
@@ -1483,12 +1484,28 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     observer=observer,
                 )
+            except BaseException as error:
+                validation_error = error
+                raise
             finally:
                 with observer.measure("cleanup"):
-                    _cleanup_temporary_directory(temporary_directory)
+                    try:
+                        _cleanup_temporary_directory(temporary_directory)
+                    except OSError as error:
+                        detail = (
+                            f"could not remove validation temporary directory "
+                            f"{temporary_directory.name}: {error}"
+                        )
+                        if validation_error is not None:
+                            validation_error.add_note(detail)
+                        else:
+                            report = _with_stage(
+                                report,
+                                StageResult("cleanup", ValidationStatus.FAIL, detail),
+                            )
     if any(value is not None for value in candidate_values):
         if not all(value is not None for value in candidate_values):
-            report = _with_candidate_stage(
+            report = _with_stage(
                 report,
                 StageResult(
                     "candidate-acceptance",
@@ -1503,7 +1520,7 @@ def main(argv: list[str] | None = None) -> int:
                     head_revision=arguments.candidate_head,
                     module_file=runtime_context.module_file,
                 )
-                passing_report = _with_candidate_stage(
+                passing_report = _with_stage(
                     report,
                     StageResult(
                         "candidate-acceptance",
@@ -1520,7 +1537,7 @@ def main(argv: list[str] | None = None) -> int:
                     manifest_path=arguments.manifest_path,
                     output_path=arguments.candidate_record,
                 )
-                report = _with_candidate_stage(
+                report = _with_stage(
                     report,
                     StageResult(
                         "candidate-acceptance",
@@ -1532,7 +1549,7 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 )
             except (OSError, ValueError) as error:
-                report = _with_candidate_stage(
+                report = _with_stage(
                     report,
                     StageResult(
                         "candidate-acceptance",
@@ -1541,7 +1558,7 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 )
         else:
-            report = _with_candidate_stage(
+            report = _with_stage(
                 report,
                 StageResult(
                     "candidate-acceptance",
