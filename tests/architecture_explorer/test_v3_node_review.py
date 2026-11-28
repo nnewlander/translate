@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
 from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.node_review_definitions import (
     build_node_review_packets,
@@ -24,11 +25,13 @@ from booktrans.architecture_explorer.node_review_continuity import (
 )
 from booktrans.architecture_explorer.review_cli import main as review_main
 from booktrans.architecture_explorer.review_source import review_source_sha256
+from booktrans.architecture_explorer.source_scanner import scan_python_source_facts
 from booktrans.architecture_explorer.node_review_v2_continuity import (
     evaluate_node_review_v2_state,
     update_node_review_v2_state,
 )
 from test_t8_node_review import _fixture_materials, _fixture_policy
+from test_python_call_facts import _repository as _python_call_repository
 from test_t9_review_packet import _published_explorer
 
 
@@ -40,10 +43,105 @@ def _definitions() -> dict:
     return json.loads(DEFINITIONS.read_text(encoding="utf-8"))
 
 
+def test_public_packet_resolves_recursive_candidate_node_with_a_unique_identity() -> None:
+    path = REPOSITORY / "architecture-explorer/recursive-candidates/worker-launch-boundary.v2.json"
+    fragment = json.loads(path.read_text(encoding="utf-8"))
+    explorer = apply_candidate_fragments(_published_explorer(), [fragment])
+    target = fragment["nodes"][0]
+    node_id = "supervisor-process-launch-construction"
+    definitions = _definitions()
+    definition = definitions["definitions"][0]
+    definition["object_key"]["node_id"] = node_id
+    definition["candidate_evidence_ids"] = target["evidence_ids"]
+    definition["legacy_compatibility"] = None
+    definition["dependencies_and_limits"].update(
+        dependencies=[], zero_dependency_reason="This review is limited to process construction."
+    )
+    definitions["definitions"] = [definition]
+    validated = validate_node_review_definitions(definitions)
+
+    packet = build_node_review_packets(explorer, validated)[f"candidate-node::{node_id}"]
+
+    assert packet["candidate_fact"]["name"] == "Supervisor 进程启动构造"
+    assert packet["candidate_evidence"][0]["path"].endswith(".ps1")
+    explorer["navigation"]["drilldowns"][0]["children"].append(
+        deepcopy(explorer["recursive_candidate_fragments"][0]["nodes"][0])
+    )
+    with pytest.raises(ExplorerInputError, match=f"resolve exactly once: {node_id}"):
+        build_node_review_packets(explorer, validated)
+
+
 def _projected_reviews(explorer: dict) -> dict:
     projection = explorer["node_review_projection"]
     assert projection["schema"] == "architecture-explorer.node-review-projection.v1"
     return projection["objects"]
+
+
+@pytest.mark.parametrize("legacy_newlines", [False, True], ids=["project-source", "cr-only-source"])
+def test_public_packet_preserves_python_definition_and_call_evidence_coordinates(
+    tmp_path: Path, legacy_newlines: bool
+) -> None:
+    explorer = _published_explorer()
+    if legacy_newlines:
+        fixture = _python_call_repository(
+            tmp_path,
+            "from booktrans.providers.router import route\r\r"
+            "def process_unit(request):\r"
+            "    return route('汉')\r",
+        )
+        explorer["source_facts"] = scan_python_source_facts(fixture)
+    facts = explorer["source_facts"]
+    path = "src/booktrans/production_worker/pipeline.py"
+    definition_file = next(
+        file for file in facts["python_definition_index"]["files"] if file["path"] == path
+    )
+    call_file = next(file for file in facts["python_call_facts"]["files"] if file["path"] == path)
+    node_id = "translation-routing-and-acquisition"
+    evidence = [
+        next(item["evidence"] for item in definition_file["definitions"]
+             if item["qualified_symbol"].endswith(".process_unit")),
+        next(item["evidence"] for item in call_file["calls"]
+             if item["evidence"]["current_location"]["line_start"]
+             == item["evidence"]["current_location"]["line_end"]),
+    ]
+    definitions = _definitions()
+    definition = next(item for item in definitions["definitions"] if item["object_key"]["node_id"] == node_id)
+    definitions["definitions"] = [definition]
+    evidence_ids = [item["evidence_id"] for item in evidence]
+    definition["candidate_evidence_ids"] = evidence_ids
+    target = next(
+        node for drilldown in explorer["navigation"]["drilldowns"]
+        for node in drilldown["children"] if node["id"] == node_id
+    )
+    target["source_assignment"]["evidence_ids"] = evidence_ids
+    validated = validate_node_review_definitions(definitions)
+
+    packet = build_node_review_packets(explorer, validated)[f"candidate-node::{node_id}"]
+
+    assert [item["evidence_kind"] for item in packet["candidate_evidence"]] == [
+        "python_definition", "python_call",
+    ]
+    assert packet["candidate_evidence"] == evidence
+    call = evidence[1]
+    location = call["current_location"]
+    for invalid in (
+        {key: value for key, value in location.items() if key != "column_end"},
+        {**location, "column_start": True},
+        {**location, "column_start": -1},
+        {**location, "line_start": 0},
+        {**location, "line_end": location["line_start"] - 1},
+        {**location, "column_end": location["column_start"]},
+    ):
+        call["current_location"] = invalid
+        with pytest.raises(ExplorerInputError, match="location"):
+            build_node_review_packets(explorer, validated)
+    call["current_location"] = location
+    for field in ("normalized_snippet_sha256", "file_sha256"):
+        original = call[field]
+        call[field] = "0" * 64
+        with pytest.raises(ExplorerInputError, match="hash mismatch"):
+            build_node_review_packets(explorer, validated)
+        call[field] = original
 
 
 def test_two_real_review_definitions_build_order_independent_neutral_packets() -> None:

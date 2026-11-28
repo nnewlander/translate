@@ -33,6 +33,7 @@ from .view_projection import apply_view_projection
 MANIFEST_SCHEMA = "architecture-explorer.content-delta-manifest.v1"
 TARGET_CONTRACT = "architecture-explorer/v3"
 FIXED_BASE_REVISION = "6a239f6919cbb791e69e56383b91dbb634aeaf0f"
+V4_FIXED_BASE_REVISION = "09aaf4a033123c7eca8d280fa8982e5b0e711b86"
 OBJECT_TYPES = frozenset(
     {
         "top-level-module",
@@ -161,7 +162,7 @@ def _validate_commit(repository: Path, revision: str, label: str) -> None:
 
 
 def _json_at(repository: Path, revision: str, path: str) -> Any:
-    raw = read_git(repository, "show", f"{revision}:{path}", text=False)
+    raw = read_git(repository, "cat-file", "blob", f"{revision}:{path}", text=False)
     try:
         return json.loads(bytes(raw).decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -896,7 +897,8 @@ def validate_content_delta_manifest(
     *,
     head_revision: str,
     manifest: Mapping[str, Any] | None,
-    required_base_revision: str = FIXED_BASE_REVISION,
+    required_base_revision: str | None = None,
+    target_contract: str = TARGET_CONTRACT,
 ) -> ManifestValidationResult:
     """Fail closed unless one Manifest exactly equals the Git object delta."""
 
@@ -917,8 +919,16 @@ def validate_content_delta_manifest(
         raise ExplorerInputError("Unsupported Content Delta Manifest schema")
     if not isinstance(manifest["delta_id"], str) or not manifest["delta_id"].strip():
         raise ExplorerInputError("Content Delta Manifest requires a stable delta_id")
-    if manifest["target_contract"] != TARGET_CONTRACT:
-        raise ExplorerInputError("Content Delta Manifest must target architecture-explorer/v3")
+    if target_contract not in {TARGET_CONTRACT, "architecture-explorer/v4"}:
+        raise ExplorerInputError("Unknown Content Delta Manifest target contract")
+    if manifest["target_contract"] != target_contract:
+        raise ExplorerInputError(f"Content Delta Manifest must target {target_contract}")
+    if target_contract == "architecture-explorer/v4":
+        if required_base_revision not in {None, V4_FIXED_BASE_REVISION}:
+            raise ExplorerInputError("Content Delta Manifest has the wrong fixed Base revision")
+        required_base_revision = V4_FIXED_BASE_REVISION
+    elif required_base_revision is None:
+        required_base_revision = FIXED_BASE_REVISION
     if manifest["base_revision"] != required_base_revision:
         raise ExplorerInputError("Content Delta Manifest has the wrong fixed Base revision")
     for field in ("base_content_sha256", "head_content_sha256"):

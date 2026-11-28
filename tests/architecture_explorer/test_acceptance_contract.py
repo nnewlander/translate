@@ -7,7 +7,10 @@ import subprocess
 
 import pytest
 
+from booktrans.architecture_explorer.acceptance import select_acceptance_contract
 from booktrans.architecture_explorer.candidate_fragments import apply_candidate_fragments
+from booktrans.architecture_explorer.content_delta import validate_content_delta_manifest
+from booktrans.architecture_explorer.generator import ExplorerInputError
 from booktrans.architecture_explorer.navigation import apply_navigation
 from booktrans.architecture_explorer.review_mapping import publish_reviewed_explorer
 from booktrans.architecture_explorer.source_scanner import (
@@ -23,12 +26,42 @@ DOCS = REPOSITORY / "docs"
 V1_EFFECTIVE_BASELINE = "47ca4276075735508c23e7caa3c03965d93cde5b"
 CANDIDATE_HEAD = "ef2782873d23db77731aabbb3aaef7362f8f75b0"
 V3_CONTRACT_REF = "architecture-explorer/v3"
+V4_CONTRACT_REF = "architecture-explorer/v4"
 V1_NORMATIVE_BODY_SHA256 = (
     "f71e35e0865e403d76a5ee8aa4e2e07f0749ffd0ffea10aa0eb3d81626740e2e"
 )
 CANDIDATE_FRAGMENTS = tuple(
     sorted((REPOSITORY / "architecture-explorer/candidates").glob("*.json"))
 )
+
+
+def test_v4_proposed_acceptance_keeps_v3_current_and_binds_manifest_to_b0() -> None:
+    target = V4_CONTRACT_REF
+    selection = select_acceptance_contract(REPOSITORY, target_contract=target)
+    assert select_acceptance_contract(REPOSITORY).target_contract == "architecture-explorer/v3"
+    assert selection.current_contract == "architecture-explorer/v3"
+    assert selection.target_status == "proposed"
+    assert selection.target_metadata["runtime_authority"] == "false"
+
+    path = REPOSITORY / "architecture-explorer/manifests/v4-ticket-11.v1.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    assert manifest["base_revision"] == "09aaf4a033123c7eca8d280fa8982e5b0e711b86"
+    with pytest.raises(ExplorerInputError, match="wrong fixed Base revision"):
+        validate_content_delta_manifest(
+            REPOSITORY,
+            head_revision="unused",
+            manifest={**manifest, "base_revision": "0" * 40},
+            target_contract=target,
+        )
+    with pytest.raises(ExplorerInputError, match="must target architecture-explorer/v4"):
+        validate_content_delta_manifest(
+            REPOSITORY,
+            head_revision="unused",
+            manifest={**manifest, "target_contract": "architecture-explorer/v3"},
+            target_contract=target,
+        )
+
+
 NORMATIVE_CLAUSES = {
     "AE-NODE-DETAIL": "responsibility+plain-explanation+required-trust-state",
     "AE-EVIDENCE-ENTRY": "context-menu-detail-only",
@@ -176,6 +209,10 @@ def _assert_contract_status_matrix(
     activation_baseline: str,
 ) -> str:
     contracts = _contracts(docs)
+    if V4_CONTRACT_REF in contracts:
+        _, v4 = contracts.pop(V4_CONTRACT_REF)
+        assert v4["status"] == "proposed"
+        assert v4["inherits"] == V3_CONTRACT_REF
     assert set(contracts) == {
         "architecture-explorer/v1",
         "architecture-explorer/v2",
@@ -247,7 +284,8 @@ def _copy_contracts(tmp_path: Path) -> Path:
     docs = tmp_path / "docs"
     docs.mkdir()
     revision = _candidate_contract_revision()
-    for path in DOCS.glob("architecture-explorer-acceptance-v*.md"):
+    for version in (1, 2, 3):
+        path = DOCS / f"architecture-explorer-acceptance-v{version}.md"
         destination = docs / path.name
         destination.write_text(
             _git("show", f"{revision}:docs/{path.name}") + "\n",
@@ -398,6 +436,7 @@ def test_contract_history_and_trusted_metadata_survive_activation() -> None:
         "architecture-explorer/v1",
         "architecture-explorer/v2",
         "architecture-explorer/v3",
+        V4_CONTRACT_REF,
     }
     v1 = contracts["architecture-explorer/v1"][1]
     assert v1["status"] == "superseded-by-v2"

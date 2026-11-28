@@ -61,14 +61,20 @@ def _validated_static_evidence_record(
     if (
         not all(isinstance(raw.get(field), str) for field in string_fields)
         or not isinstance(location, dict)
-        or set(location) != {"line_start", "line_end"}
-        or not all(
-            isinstance(location.get(field), int)
-            and not isinstance(location.get(field), bool)
-            for field in ("line_start", "line_end")
-        )
     ):
         raise ExplorerInputError(f"{label} is incomplete")
+    line_fields = {"line_start", "line_end"}
+    column_fields = {"column_start", "column_end"}
+    allowed_fields = [line_fields]
+    if raw["evidence_kind"] in {"python_definition", "python_call"}:
+        allowed_fields.append(line_fields | column_fields)
+    if set(location) not in allowed_fields or any(
+        type(value) is not int for value in location.values()
+    ):
+        raise ExplorerInputError(f"{label} has an invalid location")
+    line_start, line_end = location["line_start"], location["line_end"]
+    if not 1 <= line_start <= line_end:
+        raise ExplorerInputError(f"{label} has an invalid line location")
     rebuilt = build_static_evidence(
         path=raw["path"],
         source_role=raw["source_role"],
@@ -77,10 +83,26 @@ def _validated_static_evidence_record(
         structural_anchor=raw["structural_anchor"],
         syntax_position=raw["syntax_position"],
         snippet=raw["snippet"],
-        line_start=location["line_start"],
-        line_end=location["line_end"],
+        line_start=line_start,
+        line_end=line_end,
         file_sha256=raw["file_sha256"],
     )
+    if column_fields <= location.keys():
+        column_start, column_end = location["column_start"], location["column_end"]
+        snippet_lines = raw["snippet"].replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        expected_end = len(snippet_lines[-1].encode("utf-8"))
+        if line_start == line_end:
+            expected_end += column_start
+        if (
+            min(column_start, column_end) < 0
+            or (line_start, column_start) >= (line_end, column_end)
+            or len(snippet_lines) != line_end - line_start + 1
+            or column_end != expected_end
+        ):
+            raise ExplorerInputError(f"{label} has an invalid column location")
+        rebuilt["current_location"].update(
+            column_start=column_start, column_end=column_end
+        )
     if rebuilt != raw:
         raise ExplorerInputError(f"{label} content hash mismatch")
     return rebuilt

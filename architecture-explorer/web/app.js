@@ -114,6 +114,7 @@
   const candidateCollaborationList = document.querySelector("#candidate-collaboration-list");
   const modulesHeading = document.querySelector("#modules-heading");
   const heroTitle = document.querySelector(".hero h1");
+  const heroSubtitle = document.querySelector("#view-subtitle");
   const heroStatus = document.querySelector("#view-status");
   const heroLede = document.querySelector(".hero .lede");
   const breadcrumb = document.querySelector("#breadcrumb");
@@ -142,6 +143,17 @@
     element.textContent = value;
     if (className) element.className = className;
     return element;
+  };
+
+  const viewTitle = (view) => view.id === projection.root_view_id
+    ? "顶层架构"
+    : moduleById[view.scope_node_id]?.name || view.display_name;
+
+  const crossNodeDestination = (nodeId, action) => {
+    const target = action?.kind === "open-view" && viewById[action.target_view_id];
+    if (!target || target.scope_node_id === nodeId) return "";
+    const title = viewTitle(target);
+    return title === target.display_name ? title : `${title} · ${target.display_name}`;
   };
 
   const metadata = document.querySelector("#snapshot-metadata");
@@ -971,7 +983,8 @@
     const view = currentView();
     const declared = view.appearances.find(({ node_id }) => node_id === module.id)?.primary_action;
     const primary = stateApi.appearancePrimaryAction(state, declared, view.scope_node_id === module.id);
-    const opensOtherView = declared?.kind === "open-view" && declared.target_view_id !== view.id;
+    const opensOtherView = declared?.kind === "open-view" && declared.target_view_id !== view.id
+      && viewById[declared.target_view_id];
     if (!primary && (opensOtherView || declared?.kind === "open-source-trail")) {
       const button = text("button", declared.destination_label, "evidence-link view-navigation-link");
       button.type = "button";
@@ -989,6 +1002,8 @@
         render();
       });
       detailContent.append(button);
+      const destination = crossNodeDestination(module.id, declared);
+      if (destination) detailContent.append(text("p", `目标：${destination}`, "view-destination"));
     }
     if (isCandidate && module.plain_explanation) detailContent.append(text("p", module.plain_explanation, "plain-collaboration-explanation candidate-plain-explanation"));
     const statuses = document.createElement("div"); statuses.className = "statuses detail-statuses";
@@ -1194,6 +1209,9 @@
           x: (side === "left" ? targetRect.left : targetRect.right) - surfaceRect.left,
           y: targetCenter.y,
         };
+        // Leave the centered entry clear for direct edges in the single-column layout.
+        const landingX = end.x + (edge.kind === "candidate" && window.matchMedia("(max-width: 760px)").matches
+          ? (side === "left" ? -24 : 24) : 0);
         candidates.push(edge.semantic === "decomposition"
           ? [
             start,
@@ -1205,8 +1223,8 @@
             start,
             { x: corridorX, y: start.y },
             { x: corridorX, y: landingY },
-            { x: end.x, y: landingY },
-            end,
+            { x: landingX, y: landingY },
+            { x: landingX, y: end.y },
           ]);
       }
     } else {
@@ -1462,8 +1480,10 @@
       breadcrumb.append(text("span", viewById[frame.viewId].display_name, index === state.navigationPath.length - 1 ? "crumb current" : "crumb"));
     });
     bottomNavigation.hidden = atTop;
-    const scopeAppearsInView = view.appearances.some((appearance) => appearance.node_id === view.scope_node_id);
-    heroTitle.textContent = atTop ? "顶层架构" : (scopeAppearsInView ? moduleById[view.scope_node_id]?.name : null) || view.display_name;
+    const title = viewTitle(view);
+    heroTitle.textContent = title;
+    heroSubtitle.hidden = atTop || title === view.display_name;
+    heroSubtitle.textContent = heroSubtitle.hidden ? "" : view.display_name;
     heroTitle.classList.toggle("internal-view-title", !atTop);
     const visibleReviews = [
       ...view.appearances.map((appearance) => moduleById[appearance.node_id]?.review),
@@ -1486,11 +1506,14 @@
     }
     const primaryAction = stateApi.appearancePrimaryAction(state, appearance.primary_action, isScopeNode);
     const opensView = primaryAction?.kind === "open-view";
+    const destination = crossNodeDestination(module.id, primaryAction);
+    const actionLabel = primaryAction?.destination_label || (opensView ? "进入下一视图" : "打开详情");
     const expanded = state.expandedNodeIds.includes(module.id);
     article.classList.toggle("expanded", expanded); article.setAttribute("aria-expanded", String(expanded));
-    article.setAttribute("aria-label", `${module.name}，${primaryAction?.destination_label || (opensView ? "进入下一视图" : "打开详情")}，右键打开节点操作`);
+    article.setAttribute("aria-label", `${module.name}，${actionLabel}${destination ? `，目标：${destination}` : ""}，右键打开节点操作`);
     if (isChild && module.node_type) article.append(text("span", `候选${candidateKindFor(module)}`, "candidate-node-type"));
     article.append(text("h3", module.name));
+    if (destination) article.append(text("span", "进入相关架构视图", "view-destination"));
     const inlineDetail = document.createElement("div"); inlineDetail.className = "module-inline-detail"; inlineDetail.hidden = !expanded;
     inlineDetail.append(text("p", module.responsibility, "module-responsibility"));
     if (!isChild && modulePlainExplanations[module.id]) inlineDetail.append(text("p", modulePlainExplanations[module.id], "module-plain-explanation"));

@@ -1,0 +1,794 @@
+{
+  "schema": "architecture-explorer.content-delta-manifest.v1",
+  "delta_id": "v4-ticket-11",
+  "target_contract": "architecture-explorer/v4",
+  "base_revision": "09aaf4a033123c7eca8d280fa8982e5b0e711b86",
+  "base_content_sha256": "518c26a6115d9ce5243b0b071f33a551deb50114c32c9e5ff5935f41c7c9e2cb",
+  "head_content_sha256": "15aaafa99f35ed8fc6a4f19b29d3a0a7f714df2ee182bf39d29cbf612669db1a",
+  "changes": [
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:batch-release-debt-reconciliation-to-release-membership-derivation",
+      "before_sha256": null,
+      "after_sha256": "c35805a60223ffadcad45b924f0020afde5c2d5895a4f265c9e13a6b77107766"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:candidate-harness-entrypoints-to-tagged-candidate-output",
+      "before_sha256": null,
+      "after_sha256": "38af451d5e197e5fceb417b8d4e7a65fd9b0d0cd07d14937a4cf7a9decb3165a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:checkpoint-final-qa-evidence-to-release-membership-derivation",
+      "before_sha256": null,
+      "after_sha256": "a86bf621a317f4b3d9678459b6ba96668f6ad5cc146364b28321c6e97ebc4e93"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:checkpoint-manifest-publication-to-batch-release-debt-reconciliation",
+      "before_sha256": null,
+      "after_sha256": "cd7b166da9326f54ee028c35e1c1d18d913aaff3dda16b2a54b6907cd55a4e9c"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:prepared-seal-generation-to-sealed-checkpoint-manifest-projection",
+      "before_sha256": null,
+      "after_sha256": "2e58890a48ce20f5d71a0dc1cf387b762312490c3f44ad50a492e94e21ee049f"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:quality-canonical-qa-failure-to-quality-numeric-recovery-eligibility",
+      "before_sha256": null,
+      "after_sha256": "0b827be90f97c011d39a5a8dc6ce9948edff4b78c52571f793c98eedeeed4bd4"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:quality-qa-record-to-quality-canonical-qa-failure",
+      "before_sha256": null,
+      "after_sha256": "769ebf0a4384016dedec1efee9447cb81d460fc7c18d60f7745abaa3a502bd74"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:quality-qa-record-to-repair-authorization-gate",
+      "before_sha256": null,
+      "after_sha256": "aec94785ee8a73f158577c990c852b8d3f2c6579f6c20b49973fa70905a46c1a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:quality-qa-record-to-semantic-review-contract-boundary",
+      "before_sha256": null,
+      "after_sha256": "3e64498df62fed6ac0766f5dd55927beb23bb32507a9474d64ea8363d43be2fa"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:release-membership-derivation-to-release-rollover-phase-selection",
+      "before_sha256": null,
+      "after_sha256": "de8b543a104ff1382ad7c3ef4421ea0d1fad26657762f34c0f24ed27ea34ad2a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:sealed-checkpoint-manifest-projection-to-checkpoint-manifest-publication",
+      "before_sha256": null,
+      "after_sha256": "0e489a4fab9ecc7d73f659437574f127e338f02759e12e9e34159a523b2a8d5a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:tagged-candidate-output-to-projected-anchor-roundtrip-check",
+      "before_sha256": null,
+      "after_sha256": "07ce803d8a00826f3f2029a7f7fbbc997bd731866fd0609af3bfae7e3b444556"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:tagged-candidate-output-to-protected-package-payload-check",
+      "before_sha256": null,
+      "after_sha256": "242abd6d84b3436c63eeb3bd7f888f0d4fc7ab74ba9500ed24339e44b2362d7a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:tagged-candidate-output-to-rendered-document-diagnostic",
+      "before_sha256": null,
+      "after_sha256": "470f66640696e1270be3003b4e247877ec6958a896bbee4764b3ed1c131a598e"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:translation-routing-and-acquisition-to-quality-qa-record",
+      "before_sha256": null,
+      "after_sha256": "7c5493445132c7693e103532ab54012094610d7eb985ef59a64252ef4c377b53"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-d050-exact-binding-to-request",
+      "before_sha256": null,
+      "after_sha256": "fab11deec1d63d47747fbe0413cac2dd63275f0b5296cd50be4ec56b7307bd27"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-d050-preflight-to-exact-binding",
+      "before_sha256": null,
+      "after_sha256": "9ffc2a6a561d5e88cb12777809553c338d5e32c49c6f433654640303b144655e"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-frozen-order-to-request",
+      "before_sha256": null,
+      "after_sha256": "fd44912452037631df852a6a6b414b3e9e7d38e3b3aedb37b8a16196d812db5f"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-located-ir-to-locator-resolution",
+      "before_sha256": null,
+      "after_sha256": "1af47296f4bf1f8281281c0b13573cefb9e92a2c204bab79def4a61580228b99"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-locator-resolution-to-translation-segments",
+      "before_sha256": null,
+      "after_sha256": "c0ea8552e68034075f951fcd707367a758369244e472c3d33fd8483c391caf12"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-story-parts-to-located-ir",
+      "before_sha256": null,
+      "after_sha256": "f58c2b4197b63f78ef416193b334b24fe7e57c66fc2cf9796f0e62c710bde53f"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-translation-view-to-calibration-request",
+      "before_sha256": null,
+      "after_sha256": "91a64f302d1380dcaaf01155fb874289a5af636cdf78b57ab74e58338fc5e39b"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-collaboration",
+      "object_id": "candidate-collaboration:v4-t07-translation-view-to-logical-order",
+      "before_sha256": null,
+      "after_sha256": "0fa65c05a6cd4a97c67a87b452f66eb53e74ba9e7bf225b734efba2b8f2ec9ce"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:candidate-document-projection-to-tagged-candidate-output",
+      "before_sha256": null,
+      "after_sha256": "0e06cd7d8a9e9ec4387cc34a0b5a46e9aa899e4e99fba5a93b8922a410011ab4"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:checkpoint-evidence-persistence-to-checkpoint-final-qa-evidence",
+      "before_sha256": null,
+      "after_sha256": "533c41baa5239e54aabcaeb8d134a0af4edacc1d2cd9a68aead90da9c6586f69"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:checkpoint-evidence-persistence-to-checkpoint-raw-artifacts",
+      "before_sha256": null,
+      "after_sha256": "31fda0d43f14b0a5ac56dd37a321bf8a11a7df5928b6432b3dd911c811df0f9c"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:checkpoint-manifest-seal-to-checkpoint-manifest-publication",
+      "before_sha256": null,
+      "after_sha256": "7ef8fa10ad76444982b3e68e7cc4ad9625c543873819b52d874d12be6a9b05a3"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:checkpoint-manifest-seal-to-prepared-seal-generation",
+      "before_sha256": null,
+      "after_sha256": "95a3f66eb42ab57573f4ed2f8e0d309780b499fd5a8120ed02a29da684f9b28d"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:checkpoint-manifest-seal-to-sealed-checkpoint-manifest-projection",
+      "before_sha256": null,
+      "after_sha256": "b817236cbe45464e9de967c5af48390b974d3b4722b911e4a0c5ff148dcafc00"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:package-preservation-verifier-to-protected-package-payload-check",
+      "before_sha256": null,
+      "after_sha256": "325e12d8a6d0335892b028beb05b11caaa834b1e93ce06f07779c444c582f396"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-deterministic-qa-to-quality-format-anchor-validation",
+      "before_sha256": null,
+      "after_sha256": "89f6692026efb8dfaa90250bfc89a686fb4b1e6cf65881543e3dc26d6fe72cb3"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-deterministic-qa-to-quality-qa-record",
+      "before_sha256": null,
+      "after_sha256": "98410fb425f4c20f2ee1a05b3d64f5b491c7b28dee5a6d6ba7c71dd6412fb124"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-deterministic-token-validation-to-quality-evidence-bound-numeric-tokens",
+      "before_sha256": null,
+      "after_sha256": "b363fe82a9cdc207da454eebeeed3b7211fc379f3930c64fe8f59aaeded2a5e1"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-deterministic-token-validation-to-quality-numeric-anchor-ownership",
+      "before_sha256": null,
+      "after_sha256": "2b77d87f2bf05caa9fb029f136b62a43ced01ae36e17f7597bc4f202a3634c87"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:quality-format-anchor-validation-to-quality-deterministic-token-validation",
+      "before_sha256": null,
+      "after_sha256": "f31d73fe095e2ebd75a44cd96db0404016e0ead68bc784dd246a369ebd4852db"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:release-membership-derivation-to-release-membership-evidence-rules",
+      "before_sha256": null,
+      "after_sha256": "b30b26d9e045f5f24bd244d86c670d06cfa3aaf7e3703c2b8c29b2e163a3a4e8"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-context-to-calibration-request",
+      "before_sha256": null,
+      "after_sha256": "695a8afce1ca500d4114c7abeb2ac250c800b56dbdbcbc121a054c8289a560e3"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-context-to-d050-exact-binding",
+      "before_sha256": null,
+      "after_sha256": "eac8eef5f0dd5d59ad6d8def353c5468950ca12d99e6f45462c78529c1fc3970"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-extraction-to-located-ir",
+      "before_sha256": null,
+      "after_sha256": "fd19337b9cc9b482ae10f71ab131607d332279eebd007b4d5f672875bd4f570a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-extraction-to-story-parts",
+      "before_sha256": null,
+      "after_sha256": "6127683cdfc03199381740967f5ce44bb0b0a227cf824ee5fe1ce67d82c1363a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-selection-to-checkpoint-slice",
+      "before_sha256": null,
+      "after_sha256": "404ca9aeae91808b43629554413e9a850036b8713ae74d28349b1c046c142482"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-selection-to-logical-orders",
+      "before_sha256": null,
+      "after_sha256": "dfbf054d72eb07c67492e87b8e97100b16fe5a1067c7caa194db9bd96f962b6e"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-view-to-locator-resolution",
+      "before_sha256": null,
+      "after_sha256": "ef079312a520aaff07a34f8f4f70132ae7abdc7c1e731d8c2282098d6a7c098f"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-decomposition",
+      "object_id": "candidate-decomposition:v4-t07-view-to-translation-segments",
+      "before_sha256": null,
+      "after_sha256": "06e021e6ea727076e5556d9ee2d73154caaadcb8a1de30f6e6d556c397ad8262"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "candidate-document-projection",
+      "before_sha256": null,
+      "after_sha256": "b3713ec09ba37b5aad48720b0e99d3ad3e04ebb406cb691b647845e37d2fda34"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "checkpoint-evidence-persistence",
+      "before_sha256": null,
+      "after_sha256": "880fc5de01e22490c96f6fc11a7077c2daae5172cc13654b5328c9dc6a9c6e13"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "checkpoint-manifest-seal",
+      "before_sha256": null,
+      "after_sha256": "cff51d432fcd4123a006e9b30fcf18d8696d6e70f0c529202de80687071e0d60"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "document-package-extraction",
+      "before_sha256": null,
+      "after_sha256": "2ed15ceff30c3984201722ff8cfa7d741cde81c557f8f75791c98c0c9d9f5f96"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "document-translation-view",
+      "before_sha256": null,
+      "after_sha256": "2726cb30de6a4f909e43e13a3b491a3fea675d2f6d8c57cde077c1fdc8bcc449"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "package-preservation-verifier",
+      "before_sha256": null,
+      "after_sha256": "754ad3a4818c03545236222eaef08291ad80026dafee62ab6da99d253d0303bf"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "quality-deterministic-qa",
+      "before_sha256": null,
+      "after_sha256": "f615ff0b053f69defd03bd1662e6b388fa3d2386b969c2f05b6743f4b442d838"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "release-membership-derivation",
+      "before_sha256": null,
+      "after_sha256": "c9a113d74814b0ab47f4208ed6f1077affd2d053dddc8e326ff397944a642d75"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "scope-logical-work-order-selection",
+      "before_sha256": null,
+      "after_sha256": "dbfec05b4a164cbeeb1aac74a451e4af97691c418521c630439d99c0a8eda73d"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-fragment",
+      "object_id": "scope-request-context-assembly",
+      "before_sha256": null,
+      "after_sha256": "c8b3df99d6052b5bec999877a4917fa50714070d6e09cfc2d724fee3337bc966"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "batch-release-debt-reconciliation",
+      "before_sha256": null,
+      "after_sha256": "4645363b433814062e1a503d5df23d71f698036cc03eee914684c06714b08e37"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "candidate-harness-entrypoints",
+      "before_sha256": null,
+      "after_sha256": "318cd850085bee920a8c6db515d2f4d8c46acfcfab5b87e6dbd6191b5fe31bd0"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "checkpoint-final-qa-evidence",
+      "before_sha256": null,
+      "after_sha256": "2be204872fa4a253fac6da595ff54ca8317526b2df95b381d8aaa57e63eb6a70"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "checkpoint-manifest-publication",
+      "before_sha256": null,
+      "after_sha256": "213fab900d48e023f68f48fde1443d2a70c9ff99facf0f34a5813c9443bdf641"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "checkpoint-raw-artifacts",
+      "before_sha256": null,
+      "after_sha256": "d944cb221c91a739a7ce5e52d59e43ae86db455ed0a493aca54f30a68ab9906c"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "prepared-seal-generation",
+      "before_sha256": null,
+      "after_sha256": "81ca6eed1e0b8c7e5d9427538073762d214847cedb668711d68bc162d4e27b12"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "projected-anchor-roundtrip-check",
+      "before_sha256": null,
+      "after_sha256": "0bfa279971725d7e592d342113bd5b5e867cefbe6b5b5a1eaa78b4d44ee1890a"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "protected-package-payload-check",
+      "before_sha256": null,
+      "after_sha256": "fbddfe8dbb78005bb083d1924b98e61e188338066a612b5d6ee53365c2ab1dc1"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-canonical-qa-failure",
+      "before_sha256": null,
+      "after_sha256": "8c219a8d7a55336654931ef3ad685c0cf2658b82f1f65f68555c24f5599e8992"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-deterministic-token-validation",
+      "before_sha256": null,
+      "after_sha256": "bffdfabd2dd8a5f5c71c883ecd964ab9b84b319d798a57c7d2f62b4f63e4046c"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-evidence-bound-numeric-tokens",
+      "before_sha256": null,
+      "after_sha256": "28a93eb50670984c08b7498dba7bace342158cb0055227730ac823e1bb984b79"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-format-anchor-validation",
+      "before_sha256": null,
+      "after_sha256": "28d81c8853d768a2b8efccafee814a5ccec4179dc4fc50409a528df50c3deabd"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-numeric-anchor-ownership",
+      "before_sha256": null,
+      "after_sha256": "483093b058555bab5b978d730bb7b4c3fdf712e8a282cd5f6e955f710c83e743"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-numeric-recovery-eligibility",
+      "before_sha256": null,
+      "after_sha256": "5ba8278fcddd0b4c5d5965f70940941092cb0a27fc522e8cd54cceaff8d222cf"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "quality-qa-record",
+      "before_sha256": null,
+      "after_sha256": "0ad8b298ec9c8f9ff398d607bb61e6769e05209bb52f1c3684a1071cd18668a9"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "release-membership-evidence-rules",
+      "before_sha256": null,
+      "after_sha256": "0006bb303ca421c93a7f66fa350d5ec02341af3c6edf16f39ac35b865b2c8bd3"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "release-rollover-phase-selection",
+      "before_sha256": null,
+      "after_sha256": "86ec010ae4f3d61c6be4e9e9df13a443d48b4f128c0f9f91558ea879adbfef76"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "rendered-document-diagnostic",
+      "before_sha256": null,
+      "after_sha256": "c9688281b4b6bc0f050bdb04c6b3fa2b5b3cb71f7a59b749067900ca70687c1e"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "sealed-checkpoint-manifest-projection",
+      "before_sha256": null,
+      "after_sha256": "e51fc6542e2c7219b9ff4ca8fb6e0484d5d65543a55d78dd2ee5ba0acc7a0b1b"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "tagged-candidate-output",
+      "before_sha256": null,
+      "after_sha256": "fbc8dea5578770ed9f78c933dad62a53e52d3ff65189b682f2edca5dc4726b29"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-calibration-request",
+      "before_sha256": null,
+      "after_sha256": "d5880548b1093f3d5c62615a5364824b287616d4da91e4a2f223b5e200607701"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-d050-exact-binding",
+      "before_sha256": null,
+      "after_sha256": "4099b4485c46bc26bcd78d73be85ad4d6e0a19fb2a7059591b637f5d033dbc4f"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-d050-preflight",
+      "before_sha256": null,
+      "after_sha256": "66f07175bd3a7d4f682081906d4d709c67b980f6d5b619f9b143b89265aeac1d"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-docx-story-parts",
+      "before_sha256": null,
+      "after_sha256": "f8433faafd54c565cee0b7b32e2701667a22bdf2586e22b6b5f73977403fe3ad"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-frozen-checkpoint-slice",
+      "before_sha256": null,
+      "after_sha256": "64a96057780bb80acf3148ac9099f5d73d0526235978046da31cf7052e5c62a7"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-located-document-ir",
+      "before_sha256": null,
+      "after_sha256": "f3825ee5f3601b8c40f14cab2c2f880a6b8643ab577aea3c5cde1e172dfa719c"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-logical-work-order-projection",
+      "before_sha256": null,
+      "after_sha256": "982e54f3fa1aeece6ca050ca5ab633beb6426271a3bb53e59f0671670c48820e"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-resolve-docx-locators",
+      "before_sha256": null,
+      "after_sha256": "9745608c6eda78e642e28c0586db94c0a29e17c295b4c1e8ab07d14c1d58a4b2"
+    },
+    {
+      "operation": "add",
+      "object_type": "candidate-node",
+      "object_id": "v4-t07-translation-segments",
+      "before_sha256": null,
+      "after_sha256": "c097627380444fc8d2e9c6bd65f1a831edf6e1e81974b61f23145849a3da4d82"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "candidate-document-projection-internal",
+      "before_sha256": null,
+      "after_sha256": "393cf17ea9c409f67f80808a7cddec86c39469fb04617593142322cc96e5f376"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "checkpoint-evidence-persistence-internal",
+      "before_sha256": null,
+      "after_sha256": "a9d0bf2a615443a47c42c2dfc8ef7da226902117dd7cff11e7d4a4a074df8b1b"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "checkpoint-manifest-publication-internal",
+      "before_sha256": null,
+      "after_sha256": "10c7e3869659c48c2944d3d58819734880afe020facad7b1205a4520088c54f0"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "checkpoint-manifest-seal-internal",
+      "before_sha256": null,
+      "after_sha256": "460c2baa8a2bcf9a1f2c4acfc2f2c5454c8a5eee57689fe5dcbdf462196a69e1"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "checkpoint-to-batch-release",
+      "before_sha256": null,
+      "after_sha256": "adc7d0d7f5695abf9f1d7c46482af5f05782a94e947563d1efae28b7f4e20884"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "package-preservation-verifier-internal",
+      "before_sha256": null,
+      "after_sha256": "e161803dd03f0f11c8480f9252029d7550ba6d1a3aea7a83f4b89d0049392bcf"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "quality-candidate-disposition",
+      "before_sha256": null,
+      "after_sha256": "fe8b1b1083905c8411c386180cb4adaebf96534bc64a2b1708a626f47ffde057"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "quality-checkpoint-recovery-inputs",
+      "before_sha256": null,
+      "after_sha256": "f418bd6643f601de017657b22e01b9845beff56a7bd3185dd319f7637cef9413"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "quality-deterministic-qa-internal",
+      "before_sha256": null,
+      "after_sha256": "8bcb971be58026276603f5aea1f3b21be2b920128d8bfeb93c53fbdc122affcb"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "quality-deterministic-token-validation-internal",
+      "before_sha256": null,
+      "after_sha256": "e3e27c95a869f0266137f6d60e2672c1318edc2743729fe38db4636188f4a58a"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "quality-format-anchor-validation-internal",
+      "before_sha256": null,
+      "after_sha256": "29d22ded32414efcbaaf7de30c822c32848ad0df09fae7821f2e7d68ab6fb849"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "release-membership-derivation-internal",
+      "before_sha256": null,
+      "after_sha256": "8e1b33b92f0c9b13dcee6ed90c90e5f99d6d183ca8e08f8bc2d17d85c3e8520c"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-checkpoint-to-request",
+      "before_sha256": null,
+      "after_sha256": "487d3fe4f001a3ed8fa5e8afec4decae9b539e96a63e534f5b607e03c82f1a83"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-d050-binding",
+      "before_sha256": null,
+      "after_sha256": "cb2bc3eb9220cf26894135011d92d1f62de6954cd800806551be4fea54a39a26"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-document-to-scope",
+      "before_sha256": null,
+      "after_sha256": "9c97e78c989feac88d2c5650a7d74947078fab0f18cadb4738f610718a27c85a"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-docx-extraction",
+      "before_sha256": null,
+      "after_sha256": "82cf1bc5f142d08ee9a9fb94975618cd36f8c78bf041ea764a08f64ea8cfced3"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-logical-selection",
+      "before_sha256": null,
+      "after_sha256": "841a42e019bee63c32809c5977b72d2a7ac9423b4a64f3f70e6e91c6de7c17a6"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-request-context",
+      "before_sha256": null,
+      "after_sha256": "45803e7dd103e4974ca2f4554020bed15cb86e9dae763d12573724d9d8cca116"
+    },
+    {
+      "operation": "add",
+      "object_type": "view",
+      "object_id": "v4-t07-view-construction",
+      "before_sha256": null,
+      "after_sha256": "6927404301a6629adb5d1f5e629a24e1ad6dc5f4590e085ca1b3b596161f4261"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "candidate-and-release::candidate-document-projection",
+      "before_sha256": null,
+      "after_sha256": "5f78b4207572818a37a1fad3aef1aec6f459b1fae3d38902b4bb184aa6a88b8b"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "candidate-and-release::package-preservation-verifier",
+      "before_sha256": null,
+      "after_sha256": "e58345c2de2f2be808b8585dbea23fe5ac93a84ed4524848edd32a21cb8c8664"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "candidate-and-release::release-membership-derivation",
+      "before_sha256": null,
+      "after_sha256": "4d4cf35be82613ca1a2c83a17a0399e0981f5ab0d489ad6ff804b0eaaf9c60f4"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "document-understanding::document-package-extraction",
+      "before_sha256": null,
+      "after_sha256": "1ed8c1d1e7a2f1be7ac5cc2edbdb47d97e2f9d900de60636f2a819bd87d9ed96"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "document-understanding::document-translation-view",
+      "before_sha256": null,
+      "after_sha256": "f57f49c6f78231e0119726987e07fc7192f56931d7fabdd396bd182bbe183caa"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "production-evidence::checkpoint-evidence-persistence",
+      "before_sha256": null,
+      "after_sha256": "6a4f331cf1dd01f5303587c8a5f8f87185e5ace2ea571c89d2421b5abae10365"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "production-evidence::checkpoint-manifest-seal",
+      "before_sha256": null,
+      "after_sha256": "47c746a7d9e300793eacc55ace90b593a1e30af63f339c01daaf45e0036b8a2c"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "quality-and-repair::quality-deterministic-qa",
+      "before_sha256": null,
+      "after_sha256": "fd15b2bd33f4dab87b52711a73db7ea70328103f6fb3796dddefb9b09d06618c"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "scope-and-request::scope-logical-work-order-selection",
+      "before_sha256": null,
+      "after_sha256": "c3f0cf9fac548fc3c5a0f8360db5f23541c933cc175ad5bcd4281171a3377040"
+    },
+    {
+      "operation": "add",
+      "object_type": "view-entry-action",
+      "object_id": "scope-and-request::scope-request-context-assembly",
+      "before_sha256": null,
+      "after_sha256": "0e1a71a15b50064514b8706f6d01cd1be3c575952dcc65a60de4f1219e30645c"
+    }
+  ]
+}
