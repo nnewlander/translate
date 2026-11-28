@@ -1209,6 +1209,9 @@
           x: (side === "left" ? targetRect.left : targetRect.right) - surfaceRect.left,
           y: targetCenter.y,
         };
+        // Leave the centered entry clear for direct edges in the single-column layout.
+        const landingX = end.x + (edge.kind === "candidate" && window.matchMedia("(max-width: 760px)").matches
+          ? (side === "left" ? -24 : 24) : 0);
         candidates.push(edge.semantic === "decomposition"
           ? [
             start,
@@ -1220,8 +1223,8 @@
             start,
             { x: corridorX, y: start.y },
             { x: corridorX, y: landingY },
-            { x: end.x, y: landingY },
-            end,
+            { x: landingX, y: landingY },
+            { x: landingX, y: end.y },
           ]);
       }
     } else {

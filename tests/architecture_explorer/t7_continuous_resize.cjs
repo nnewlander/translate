@@ -115,6 +115,12 @@ async function main() {
       if (await evaluate("document.readyState === 'complete' && document.querySelectorAll('#module-grid .module-card').length === 7")) break;
       await delay(50);
     }
+    if (scenario === "relationship-mouse") {
+      const { verifyRelationshipMouse } = require("./t11_relationship_mouse.cjs");
+      await verifyRelationshipMouse({ cdp, evaluate, waitForPaint, pressKey, evidencePath });
+      cdp.close();
+      return;
+    }
     if (scenario === "node-review-keyboard") {
       const openWorkerDetail = async () => {
         await evaluate("document.querySelector('[data-module-id=\"worker-launch-boundary\"]').focus()");

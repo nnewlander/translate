@@ -182,3 +182,26 @@ def test_real_chrome_names_the_destination_before_cross_node_navigation(built_si
     )
     coverage = f"{len(views)}/{len(appearances)}/{len(entries)}/{cross_node_count}"
     assert f'data-t11-nav-coverage="{coverage}"' in completed.stdout
+
+
+def test_real_chrome_opens_relationship_evidence_from_painted_lines(built_site, tmp_path):
+    name, browser = _desktop_browser()
+    assert name == "chrome"
+    evidence_path = tmp_path / "relationship-mouse.json"
+    completed = subprocess.run(
+        [
+            "node", str(Path(__file__).with_name("t7_continuous_resize.cjs")),
+            str(browser), (built_site / "index.html").as_uri(),
+            str(tmp_path / "profile"), str(evidence_path), "relationship-mouse",
+        ],
+        cwd=REPOSITORY,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    observations = json.loads(evidence_path.read_text(encoding="utf-8"))["observations"]
+    for width in (1440, 500):
+        at_width = [item for item in observations if item["width"] == width]
+        assert len(at_width) == 12
+        assert {item["kind"] for item in at_width} == {"relationship", "collaboration", "decomposition"}

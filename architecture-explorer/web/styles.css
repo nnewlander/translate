@@ -308,6 +308,7 @@ h2 {
 .module-grid {
   position: relative;
   z-index: 1;
+  pointer-events: none;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
@@ -350,6 +351,7 @@ h2 {
 .scope-node-card h3 { margin-top: 5px; }
 
 .module-card {
+  pointer-events: auto;
   position: relative;
   display: flex;
   min-width: 0;
