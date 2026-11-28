@@ -1,0 +1,682 @@
+{
+  "baseline": "50bff1145d1533db28610ada5fe9c89eb4a2c7ff",
+  "unit": "bytes (filenames and sizes observed on the measurement host)",
+  "batches": {
+    "baseline-b01": {
+      "01-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "02-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "03-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "04-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "05-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "06-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "07-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "08-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "09-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "10-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      }
+    },
+    "diagnostic-d01": {
+      "01-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "02-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "03-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "04-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "05-approved-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6085062,
+          "explorer-data.json": 7519795,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "generic-v2-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084517,
+          "explorer-data.json": 7519510,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6083330,
+          "explorer-data.json": 7517171,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084357,
+          "explorer-data.json": 7518708,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site-missing-node-state": {
+          "app.js": 99755,
+          "explorer-data.js": 6082747,
+          "explorer-data.json": 7516442,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      },
+      "06-rejected-stdout.txt": {
+        "generic-v1-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084728,
+          "explorer-data.json": 7519104,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "historical-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6082996,
+          "explorer-data.json": 7516480,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "material-input-site": {
+          "app.js": 99755,
+          "explorer-data.js": 6069999,
+          "explorer-data.json": 7498633,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        },
+        "site": {
+          "app.js": 99755,
+          "explorer-data.js": 6084023,
+          "explorer-data.json": 7518017,
+          "index.html": 5959,
+          "styles.css": 36177,
+          "t4-state.js": 4230
+        }
+      }
+    }
+  }
+}
