@@ -46,15 +46,15 @@ Continue through checkpoints and batches unless an immutable-artifact validation
 
 ## Agent skills
 
-### Architecture Explorer navigation
+### Architecture Explorer
 
-Before changing Appearance actions, the shared renderer or navigation tests,
-read [Interaction invariants](docs/architecture-explorer-t4.md#交互不变量).
-Verify navigation through the shared browser seam.
+- Before changing Appearance actions, the shared renderer or navigation tests, read [Interaction invariants](docs/architecture-explorer-t4.md#交互不变量).
+  Verify navigation through the shared browser seam.
+- For UI changes, cross-ticket public interface changes, contract activation or independent review handoff, follow the [acceptance and review guide](docs/agents/dirty-worktree-review-handoff.md).
 
 ### Issue tracker
 
-Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+Before reading or writing GitHub issues or PRs, follow the [issue tracker guide](docs/agents/issue-tracker.md).
 
 ### Domain docs
 
